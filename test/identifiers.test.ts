@@ -45,11 +45,11 @@ const BINARY_EXTENSIONS = /\.(png|jpe?g|gif|webp|ico)$/i;
 
 const GUID = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
 const EMAIL = /[A-Za-z0-9._%+-]+@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})/g;
-// Hostnames: any URL host, plus bare lowercase names under TLDs that real tenants use.
+// Hostnames: any URL host, plus bare names under TLDs that real tenants use.
 // Common code words (".org", ".io", ".dev") and file names (".md", ".js") are only checked as URL hosts.
-const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/@]*@)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)/g;
+const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/@]*@)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)/gi;
 const BARE_HOST =
-  /(?<![A-Za-z0-9@./_-])((?:[a-z0-9][a-z0-9-]*\.)+(?:com|net|cloud|local|corp|internal|intranet|lan))(?![A-Za-z0-9_-]|\.[A-Za-z0-9])/g;
+  /(?<![A-Za-z0-9@./_-])((?:[a-z0-9][a-z0-9-]*\.)+(?:com|net|cloud|local|corp|internal|intranet|lan))(?![A-Za-z0-9_-]|\.[A-Za-z0-9])/gi;
 
 function scannedFiles(): { path: string; lines: string[] }[] {
   const listed = execFileSync(
@@ -116,6 +116,8 @@ describe("public-repo identifier guard", () => {
         ...PUBLIC_GUIDS.map((guid) => guid.toUpperCase()),
         "analyst@CONTOSO.COM analyst@team.fabrikam.com analyst@example.com",
         "contoso.com service.example.com https://code.claude.com/docs https://MANAGEMENT.AZURE.COM/",
+        EXAMPLE_DOMAINS[0].toUpperCase(),
+        `HTTPS://${PUBLIC_HOSTS[0].toUpperCase()}/`,
       ],
     }])).toEqual([]);
   });
@@ -148,6 +150,24 @@ describe("public-repo identifier guard", () => {
       `hosts.txt:2: ${domain}`,
       `hosts.txt:3: ${lookalike}`,
       `hosts.txt:4: ${prefix}`,
+    ]);
+  });
+
+  it("reports uppercase and mixed-case prohibited hosts", () => {
+    const domain = ["corp-example", "net"].join(".");
+    const upper = domain.toUpperCase();
+    const mixed = domain
+      .split("-")
+      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+      .join("-");
+    expect(scanIdentifiers([{
+      path: "hosts.txt",
+      lines: [upper, mixed, `https://${upper}/`.toUpperCase(), `Https://${mixed}/`],
+    }])).toEqual([
+      `hosts.txt:1: ${upper}`,
+      `hosts.txt:2: ${mixed}`,
+      `hosts.txt:3: ${upper}`,
+      `hosts.txt:4: ${mixed}`,
     ]);
   });
 });

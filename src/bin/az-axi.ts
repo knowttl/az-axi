@@ -79,11 +79,12 @@ await runAxiCli({
   version: readVersion(),
   argv: normalized,
   topLevelHelp: TOP_LEVEL_HELP,
-  getCommandHelp: (command) => COMMAND_HELP[command] ?? null,
+  getCommandHelp: (command) =>
+    Object.hasOwn(COMMAND_HELP, command) ? COMMAND_HELP[command] ?? null : null,
   renderUnknownCommand: unknownCommand,
   formatError,
   home: homeHandler,
-  commands: {
+  commands: Object.assign(Object.create(null), {
     home: homeHandler,
     update: async () => {
       throw new AxiError("unknown command `update`", "VALIDATION_ERROR", [
@@ -91,5 +92,5 @@ await runAxiCli({
         "Run `az-axi` with no arguments for the dashboard",
       ]);
     },
-  },
+  }),
 });
