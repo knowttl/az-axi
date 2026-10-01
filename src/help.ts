@@ -8,4 +8,11 @@ export const TOP_LEVEL_HELP = [
   "Output: TOON on stdout. --full disables truncation, --fields a,b limits list columns.",
 ].join("\n");
 
-export const COMMAND_HELP: Record<string, string> = {};
+export const COMMAND_HELP: Record<string, string> = {
+  home: [
+    "az-axi home                              # placeholder dashboard",
+    "",
+    "No arguments or flags are accepted. --help prints this reference.",
+    "Examples: az-axi; az-axi home; az-axi home --help",
+  ].join("\n"),
+};

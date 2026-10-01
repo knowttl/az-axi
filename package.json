@@ -45,9 +45,6 @@
     "dev": "tsx src/bin/az-axi.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "bench": "node scripts/benchmark/bench.mjs",
-    "bench:capture": "node scripts/benchmark/capture.mjs",
-    "bench:surface": "node scripts/benchmark/capture-surface.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build && npm test"
   },

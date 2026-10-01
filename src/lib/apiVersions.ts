@@ -66,9 +66,9 @@ export const ROLE_ASSIGNMENTS = "2022-04-01";
  * Verified: 2026-10-01
  * Reason: only stable version. `$filter` is required and very restricted: it must contain
  * `eventTimestamp ge/le` and may add one of `resourceGroupName`, `resourceUri`, `resourceProvider`
- * or `correlationId` ("No other syntax is allowed"). The documented grammar does NOT list the
- * `caller eq` clause that plan Section 6.7 uses; Phase 3 must confirm it live or filter by caller
- * client-side. `$select` is supported (property names such as `eventTimestamp`, `operationName`,
+ * or `correlationId` ("No other syntax is allowed"). The documented grammar has no caller clause,
+ * so `--caller` is applied as a client-side filter over retrieved events, and Phase 3 qualifies it
+ * live. `$select` is supported (property names such as `eventTimestamp`, `operationName`,
  * `status`, `resourceId`, `resourceGroupName`, `correlationId`); paging is by `nextLink`.
  */
 export const ACTIVITY_LOG = "2015-04-01";

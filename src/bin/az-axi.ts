@@ -68,7 +68,7 @@ const first = normalized[0];
 if (
   first !== undefined &&
   first.startsWith("-") &&
-  !/^(--help|-v|--version)$/.test(first)
+  !/^(--help|-v|-V|--version)$/.test(first)
 ) {
   process.stdout.write(leadingFlagError(first));
   process.exit(2);
@@ -85,5 +85,11 @@ await runAxiCli({
   home: homeHandler,
   commands: {
     home: homeHandler,
+    update: async () => {
+      throw new AxiError("unknown command `update`", "VALIDATION_ERROR", [
+        "Run `az-axi --help` for the full command surface",
+        "Run `az-axi` with no arguments for the dashboard",
+      ]);
+    },
   },
 });
