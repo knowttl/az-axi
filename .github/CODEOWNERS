@@ -1,0 +1,11 @@
+/src/lib/auth.ts           @knowttl
+/src/lib/policy.ts         @knowttl
+/src/lib/gates.ts          @knowttl
+/src/lib/redact.ts         @knowttl
+/src/lib/registry.ts       @knowttl
+/scripts/claude-guard.mjs  @knowttl
+/src/lib/client.ts         @knowttl
+/test/identifiers.test.ts  @knowttl
+/test/policy.test.ts       @knowttl
+/.github/                  @knowttl
+/package.json              @knowttl
