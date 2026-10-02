@@ -6,7 +6,7 @@ export const TOP_LEVEL_HELP = [
   "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
   "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
   "az-axi sub list                          # subscriptions visible to the identity",
-  "az-axi rg query \"<kql>\" [--file q.kql] # Resource Graph query across subscriptions",
+  "az-axi rg query \"<kql>\"                  # Resource Graph query across subscriptions",
   "az-axi api GET /subscriptions            # escape hatch for any read or query request",
   "",
   "Selector flags on every command: --profile, --tenant, --subscription a,b, --management-group, --config.",

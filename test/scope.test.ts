@@ -56,6 +56,13 @@ describe("shortenResourceId", () => {
     expect(shortenResourceId(`/subscriptions/${SUB}/resourceGroups/${RG}`)).toBe(`${SUB}/${RG}`);
   });
 
+  it("keeps type and name for subscription-level resources", () => {
+    const assignment = `/subscriptions/${SUB}/providers/Microsoft.Authorization/roleAssignments/ra1`;
+    expect(shortenResourceId(assignment)).toBe(`${SUB}/roleAssignments/ra1`);
+    const names = new Map([[SUB.toLowerCase(), "sandbox"]]);
+    expect(shortenResourceId(assignment, names)).toBe("sandbox/roleAssignments/ra1");
+  });
+
   it("abbreviates common types and keeps unknown types as-is", () => {
     const st = `/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Storage/storageAccounts/stdemo`;
     expect(shortenResourceId(st)).toBe(`${SUB}/${RG}/st/stdemo`);

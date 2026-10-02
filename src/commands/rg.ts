@@ -210,6 +210,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
         : "Resource Graph quota exhausted; retry after a few seconds",
     );
   }
+  if (body.resultTruncated === "true" && !body.$skipToken) {
+    help.push("Resource Graph truncated this result; narrow the query or project fewer columns");
+  }
   if (body.$skipToken) {
     help.push(
       nextPageCommand({

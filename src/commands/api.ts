@@ -18,6 +18,30 @@ const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all"] a
 const STRING_TRUNCATE = 4000;
 const MAX_PAGES = 10;
 
+function quoteFlagValue(value: string): string {
+  if (!/[\s"'$`\\]/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function morePagesHint(options: {
+  method: string;
+  path: string;
+  resource: Resource;
+  apiVersion?: string;
+  query?: string;
+  body?: string;
+}): string {
+  const parts = ["az-axi api"];
+  if (options.method !== "GET") parts.push(options.method);
+  parts.push(options.path);
+  if (options.resource !== "arm") parts.push(`--resource ${options.resource}`);
+  if (options.apiVersion) parts.push(`--api-version ${options.apiVersion}`);
+  if (options.query) parts.push(`--query ${quoteFlagValue(options.query)}`);
+  if (options.body) parts.push(`--body ${quoteFlagValue(options.body)}`);
+  parts.push("--all");
+  return `More pages exist: re-run with --all (up to ${MAX_PAGES} pages): \`${parts.join(" ")}\``;
+}
+
 function parseQueryString(raw: string | undefined): Record<string, string> {
   if (!raw) return {};
   const text = raw.startsWith("?") ? raw.slice(1) : raw;
@@ -145,7 +169,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     for (let page = 1; page < MAX_PAGES && nextLink; page++) {
       const link: string = nextLink;
       const pageBody = await sendRequest<{ value?: unknown[]; nextLink?: string }>(profile, {
-        method,
+        method: "GET",
         resource,
         path: link,
       });
@@ -162,8 +186,16 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   const help: string[] = [];
   if (nextLink && !all) {
-    const verb = method === "GET" ? "" : `${method} `;
-    help.push(`More pages exist: re-run with --all (up to ${MAX_PAGES} pages): \`az-axi api ${verb}${path} --api-version ${apiVersion ?? "<version>"} --all\``);
+    help.push(
+      morePagesHint({
+        method,
+        path: path as string,
+        resource,
+        apiVersion,
+        query: flagString(args, "query"),
+        body: bodyRaw,
+      }),
+    );
   } else if (nextLink) {
     help.push("More pages exist but paging stopped at the page cap");
   }

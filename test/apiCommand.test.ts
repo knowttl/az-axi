@@ -114,6 +114,7 @@ describe("api escape hatch", () => {
     const withoutAll = await run(["/things", "--api-version", "1"]);
     expect(withoutAll.count).toBe("1+ items");
     expect((withoutAll.help as string[]).join(" ")).toContain("--all");
+    expect((withoutAll.help as string[]).join(" ")).toContain("--api-version 1");
 
     sendMock.mockReset();
     sendMock
@@ -123,6 +124,27 @@ describe("api escape hatch", () => {
     expect(withAll.count).toBe("2 items");
     expect(withAll.value).toEqual([1, 2]);
     expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows nextLink with GET even when the first request was POST", async () => {
+    sendMock
+      .mockResolvedValueOnce(ok({ value: [1], nextLink: "https://management.azure.com/next1?api-version=1" }))
+      .mockResolvedValueOnce(ok({ value: [2] }));
+    const result = await run(["POST", "/things", "--api-version", "1", "--all"]);
+    expect(result.value).toEqual([1, 2]);
+    expect(sendMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "GET",
+      path: "https://management.azure.com/next1?api-version=1",
+    });
+  });
+
+  it("preserves --resource in the next-page help and omits a fake api-version", async () => {
+    sendMock.mockResolvedValue(ok({ value: [{ id: "1" }], nextLink: "https://graph.microsoft.com/v1.0/next" }));
+    const result = await run(["/v1.0/users", "--resource", "graph"]);
+    const help = (result.help as string[]).join(" ");
+    expect(help).toContain("--resource graph");
+    expect(help).toContain("--all");
+    expect(help).not.toContain("api-version");
   });
 
   it("refuses writes through the Phase 1 gate stub and secrets as read-only", async () => {

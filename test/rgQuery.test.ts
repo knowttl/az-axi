@@ -9,6 +9,7 @@ vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn() }));
 
 import { run } from "../src/commands/rg.js";
 import { requestAll, sendRequest } from "../src/lib/client.js";
+import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { readStdinIfPiped } from "../src/lib/stdin.js";
 
 const sendMock = vi.mocked(sendRequest);
@@ -42,6 +43,7 @@ beforeEach(() => {
   saved = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
   for (const key of ENV_KEYS) delete process.env[key];
   process.env.AZ_AXI_CONFIG = join(dir, "config.json");
+  clearSubscriptionCache();
   sendMock.mockReset();
   allMock.mockReset();
   stdinMock.mockReset();
@@ -176,6 +178,17 @@ describe("rg query", () => {
   it("surfaces Resource Graph throttling as RATE_LIMITED", async () => {
     sendMock.mockRejectedValue(new AxiError("rate limited by management.azure.com", "RATE_LIMITED", ["Retry after 5 seconds"]));
     await expect(run(["query", "Resources | take 1"])).rejects.toMatchObject({ code: "RATE_LIMITED" });
+  });
+
+  it("hints when Resource Graph truncated the result without a skip token", async () => {
+    sendMock.mockResolvedValue({
+      status: 200,
+      headers: headers(),
+      body: graphBody({ resultTruncated: "true" }),
+      clientRequestId: "req-1",
+    });
+    const result = await run(["query", "Resources | take 1"]);
+    expect((result.help as string[]).join("\n")).toMatch(/truncated/i);
   });
 
   it("hints when the quota header is exhausted on success", async () => {

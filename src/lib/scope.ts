@@ -46,19 +46,14 @@ export function parseSubscriptionId(resourceId: string): string | undefined {
 export function shortenResourceId(resourceId: string, names?: Map<string, string>): string {
   const match = FULL_ID.exec(resourceId);
   if (!match) return resourceId;
-  const [, subId, rg, _namespace, type, name, rest] = match as unknown as [
-    string,
-    string,
-    string | undefined,
-    string | undefined,
-    string | undefined,
-    string | undefined,
-    string | undefined,
-  ];
-  const subLabel = names?.get((subId as string).toLowerCase()) ?? subId;
-  if (!rg) return subLabel as string;
-  if (!type || !name) return `${subLabel}/${rg}`;
-  let short = `${subLabel}/${rg}/${abbrev(type as string)}/${name}`;
+  const subId = match[1] ?? "";
+  const rg = match[2];
+  const type = match[4];
+  const name = match[5];
+  const rest = match[6];
+  const subLabel = names?.get(subId.toLowerCase()) ?? subId;
+  if (!type || !name) return rg ? `${subLabel}/${rg}` : subLabel;
+  let short = rg ? `${subLabel}/${rg}/${abbrev(type)}/${name}` : `${subLabel}/${abbrev(type)}/${name}`;
   const tail = (rest ?? "").split("/").filter(Boolean);
   for (let i = 0; i + 1 < tail.length; i += 2) {
     short += `/${tail[i]}/${tail[i + 1]}`;
