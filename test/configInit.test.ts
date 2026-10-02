@@ -137,6 +137,26 @@ describe("config list and path", () => {
     expect(forced.map((row) => row.writes)).toEqual(Array(3).fill("disabled (AZ_AXI_READ_ONLY)"));
   });
 
+  it("does not count a non-array subscriptions value and labels an invalid write configuration", async () => {
+    const id = "00000000-0000-0000-0000-000000000020";
+    writeFileSync(
+      path,
+      JSON.stringify({
+        profiles: {
+          stringId: { auth: "az", subscriptions: id, allowWrites: true },
+          textFlag: { auth: "az", subscriptions: [id], allowWrites: "true" },
+        },
+      }),
+    );
+    const rows = (await run(["list"])).profiles as Array<{ name: string; scope: string; writes: string }>;
+    expect(rows).toEqual([
+      { name: "stringId", auth: "az", tenant: "", scope: "-", writes: "disabled (invalid configuration)", description: "" },
+      { name: "textFlag", auth: "az", tenant: "", scope: "1 subscriptions", writes: "disabled (invalid configuration)", description: "" },
+    ]);
+    expect(rows.map((row) => row.scope).join(" ")).not.toContain("36");
+    expect(rows.map((row) => row.writes).join(" ")).not.toContain("ENABLED");
+  });
+
   it("reports the config path and whether it exists", async () => {
     expect(await run(["path"])).toEqual({ path, exists: false });
     await run(["init"]);

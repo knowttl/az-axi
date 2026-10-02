@@ -1,4 +1,5 @@
 import { AxiError } from "axi-sdk-js";
+import { assertKnownFlags, parseArgs } from "../lib/args.js";
 import { homeHeader } from "../lib/paths.js";
 import { DESCRIPTION } from "../help.js";
 import type { CommandMeta } from "../lib/registry.js";
@@ -6,8 +7,10 @@ import type { CommandMeta } from "../lib/registry.js";
 export const meta: CommandMeta = { name: "home", effect: "read" };
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
-  if (argv.length > 0) {
-    throw new AxiError(`unexpected argument \`${argv[0]}\` for \`home\``, "VALIDATION_ERROR", [
+  const args = parseArgs(argv);
+  assertKnownFlags(args, [], "home");
+  if (args.positionals.length > 0) {
+    throw new AxiError(`unexpected argument \`${args.positionals[0]}\` for \`home\``, "VALIDATION_ERROR", [
       "Run `az-axi home` with no arguments for the dashboard",
       "Run `az-axi home --help` for usage",
     ]);

@@ -16,7 +16,7 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
   home: [
     "az-axi home                              # placeholder dashboard",
     "",
-    "No arguments or flags are accepted. --help prints this reference.",
+    "Selector flags are accepted. No positional arguments. --help prints this reference.",
     "Examples: az-axi; az-axi home; az-axi home --help",
   ].join("\n"),
   doctor: [

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { run as homeRun } from "../src/commands/home.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TSX = join(ROOT, "node_modules/tsx/dist/cli.mjs");
@@ -30,7 +31,7 @@ describe("command dispatch", () => {
     }
   }, 60_000);
 
-  it("keeps registered commands and hides the built-in update surface", () => {
+  it("keeps registered commands and hides the built-in update surface", async () => {
     const help = run(["--help"]);
     expect(help.status).toBe(0);
     expect(help.stdout).not.toContain("update --check");
@@ -42,6 +43,15 @@ describe("command dispatch", () => {
     const home = run([]);
     expect(home.status).toBe(0);
     expect(home.stdout).toContain("doctor, config, and sub list are available; the dashboard arrives in Phase 2");
+
+    const selected = run(["--profile", "work"]);
+    expect(selected.status).toBe(0);
+    expect(selected.stdout).toContain("dashboard arrives in Phase 2");
+    expect(selected.stdout).not.toContain("unexpected argument");
+
+    await expect(homeRun(["extra"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(homeRun(["--org", "x"])).rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
+    expect((await homeRun(["--full", "--limit", "5"])).status).toContain("dashboard arrives in Phase 2");
 
     const update = run(["update"]);
     expect(update.status).toBe(2);

@@ -43,6 +43,10 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   return initProfile(args, explicit);
 }
 
+function stringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
+}
+
 function listProfiles(explicit: string | undefined): Record<string, unknown> {
   const { path, config } = loadConfig(explicit);
   const entries = Object.entries(config?.profiles ?? {});
@@ -53,18 +57,26 @@ function listProfiles(explicit: string | undefined): Record<string, unknown> {
       help: ["Run `az-axi config init --name <name> --auth az --tenant <tenant-id>` to create a profile"],
     };
   }
-  const rows = entries.map(([name, p]) => ({
-    name,
-    auth: p.auth,
-    tenant: p.tenant ?? "",
-    scope: p.managementGroup
-      ? `mg:${p.managementGroup}`
-      : p.subscriptions?.length
-        ? `${p.subscriptions.length} subscriptions`
-        : "all",
-    writes: writeStatus(p.allowWrites, p.subscriptions ?? []).label,
-    description: p.description ?? "",
-  }));
+  const rows = entries.map(([name, p]) => {
+    const subscriptions = stringArray(p.subscriptions);
+    const invalidSubscriptions = p.subscriptions !== undefined && subscriptions === undefined;
+    const invalidWrites =
+      (p.allowWrites !== undefined && typeof p.allowWrites !== "boolean") || invalidSubscriptions;
+    return {
+      name,
+      auth: p.auth,
+      tenant: p.tenant ?? "",
+      scope: p.managementGroup
+        ? `mg:${p.managementGroup}`
+        : subscriptions?.length
+          ? `${subscriptions.length} subscriptions`
+          : invalidSubscriptions
+            ? "-"
+            : "all",
+      writes: invalidWrites ? "disabled (invalid configuration)" : writeStatus(p.allowWrites, subscriptions ?? []).label,
+      description: p.description ?? "",
+    };
+  });
   return {
     config: collapseHomeDirectory(path),
     ...(config?.defaultProfile ? { defaultProfile: config.defaultProfile } : {}),
