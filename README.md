@@ -231,7 +231,7 @@ A string `status` in the response body identifies the operation state; Succeeded
 Without a string body status, output adds `operation` (the URL), `state` and `status` (the HTTP status); HTTP 202 means InProgress and other successful HTTP responses mean Succeeded.
 Failed and Canceled are reported as operation states with any returned error details; a successful status lookup still exits 0.
 Returned error details remain in the response payload as `error.code` and `error.message`; request failures use the normal [error categories](#behavior).
-This command checks operations started elsewhere; automatic polling and `--timeout` are not exposed by the CLI yet.
+Automatic polling and `--timeout` are not exposed by the CLI yet.
 
 ## Writes
 
@@ -248,4 +248,4 @@ See [PLAN.md Section 6.13.3](PLAN.md#6133-dry-run-dryrunts-diffts) for the detai
 Execution is not available in this build: `--execute` returns `API_ERROR` after the gates pass.
 Destructive execution also requires `--confirm <resource-name>`; missing or mismatched confirmation fails first.
 Pending deployment previews return a suggested `az-axi op status` command.
-It reads the current response body once from the supplied absolute `https://management.azure.com` operation URL, including its query string, without polling or executing writes.
+See [Check an operation](#check-an-operation) for URL requirements, output and recheck behavior.
