@@ -1,7 +1,7 @@
 # no-mistakes repository configuration
 commands:
   prepare: 'corepack pnpm install --frozen-lockfile --ignore-scripts'
-  test: 'corepack pnpm test'
+  test: 'corepack pnpm run build && corepack pnpm test'
   lint: 'corepack pnpm exec tsc --noEmit -p tsconfig.json'
 document:
   instructions: |
