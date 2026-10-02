@@ -194,6 +194,42 @@ describe("logs query", () => {
     expect((result.help as string[]).join("\n")).not.toMatch(/sub list/);
   });
 
+  it("caps rows with --full while preserving complete cell values", async () => {
+    const big = "x".repeat(500);
+    sendMock.mockResolvedValue({
+      status: 200,
+      headers: {},
+      body: { tables: [{ name: "PrimaryResult", columns: [{ name: "note" }], rows: Array.from({ length: 60 }, () => [big]) }] },
+      clientRequestId: "req-1",
+    });
+    for (const [flags, count] of [[[], 50], [["--limit", "2"], 2]] as const) {
+      const result = await run(["query", "SigninLogs", "--workspace", WS, "--full", ...flags]);
+      expect(result.rows).toHaveLength(count);
+      expect((result.rows as Array<Record<string, unknown>>)[0]).toEqual({ note: big });
+      expect(result.count).toBe(`${count} of 60 rows`);
+      expect((result.help as string[]).join("\n")).toContain(`Showing ${count} of 60 rows`);
+      expect(lastRequest().body).toEqual({ query: "SigninLogs", timespan: "P1D" });
+    }
+  });
+
+  it("accepts display limits above 1000 with or without --full", async () => {
+    sendMock.mockResolvedValue({ status: 200, headers: {}, body: kustoBody(2001), clientRequestId: "req-1" });
+    for (const flags of [[], ["--full"]]) {
+      const result = await run(["query", "SigninLogs", "--workspace", WS, "--limit", "2000", ...flags]);
+      expect(result.rows).toHaveLength(2000);
+      expect(result.count).toBe("2000 of 2001 rows");
+    }
+  });
+
+  it("rejects invalid limits even with --full before requesting logs", async () => {
+    for (const value of ["0", "-1", "nope", "Infinity", ""]) {
+      await expect(run(["query", "SigninLogs", "--workspace", WS, "--full", "--limit", value])).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+      });
+    }
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it("treats an empty 204 body as no rows", async () => {
     sendMock.mockResolvedValue({ status: 204, headers: {}, body: undefined, clientRequestId: "req-1" });
     const result = await run(["query", "SigninLogs | take 1", "--workspace", WS]);

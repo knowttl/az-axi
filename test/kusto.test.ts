@@ -33,6 +33,20 @@ describe("convertKustoTables", () => {
     expect(convertKustoTables([])).toEqual({ rows: [], total: 0 });
   });
 
+  it("caps conversion before reading cells and preserves all table counts", () => {
+    const hidden = ["hidden"];
+    Object.defineProperty(hidden, 0, {
+      get: () => { throw new Error("hidden cell accessed"); },
+    });
+    const converted = convertKustoTables([
+      { name: "PrimaryResult", columns: [{ name: "a" }], rows: [["shown"], hidden] },
+      { name: "Extra", rows: [["x"], ["y"]] },
+    ], 1);
+    expect(converted.rows).toEqual([{ a: "shown" }]);
+    expect(converted.total).toBe(2);
+    expect(converted.otherTables).toEqual([{ name: "Extra", count: 2 }]);
+  });
+
   it("fills missing cells and ignores missing column names", () => {
     const converted = convertKustoTables([
       { name: "PrimaryResult", columns: [{ name: "a", type: "string" }, { type: "string" }], rows: [["x"]] },

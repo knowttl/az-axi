@@ -16,7 +16,6 @@ export const meta: CommandMeta = { name: "logs", effect: "read" };
 const SUBCOMMANDS = ["query"] as const;
 const KNOWN_FLAGS = ["workspace", "timespan", "file"] as const;
 const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 1000;
 const CELL_TRUNCATE = 200;
 const DEFAULT_TIMESPAN = "P1D";
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -112,14 +111,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   if (args.flags["limit"] === true || args.flags["limit"] === "") {
     throw new AxiError("flag --limit needs a number", "VALIDATION_ERROR", ["Example: --limit 20"]);
   }
-  const limit = full ? Number.POSITIVE_INFINITY : (flagNumber(args, "limit") ?? DEFAULT_LIMIT);
+  const limit = flagNumber(args, "limit") ?? DEFAULT_LIMIT;
   if (!(limit > 0)) {
     throw new AxiError("flag --limit must be greater than 0", "VALIDATION_ERROR", ["Example: --limit 20"]);
-  }
-  if (limit !== Number.POSITIVE_INFINITY && limit > MAX_LIMIT) {
-    throw new AxiError(`flag --limit must be at most ${MAX_LIMIT}`, "VALIDATION_ERROR", [
-      `Example: --limit ${MAX_LIMIT}`,
-    ]);
   }
   const fields = flagList(args, "fields");
   if ("file" in args.flags && (args.flags["file"] === true || args.flags["file"] === "")) {
@@ -183,7 +177,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   const body = response.body ?? {};
   const warning = partialErrorText(body.error);
-  const converted = convertKustoTables(body.tables);
+  const converted = convertKustoTables(body.tables, limit);
   const total = converted.total;
   const scopeHint = `in workspace ${alias ?? workspaceId} for ${timespan}`;
 
@@ -207,17 +201,16 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     };
   }
 
-  const formatted = converted.rows.map((row) => {
+  const shown = converted.rows.map((row) => {
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) out[key] = formatCell(value, full);
     return out;
   });
-  const shown = full ? formatted : formatted.slice(0, limit);
   const picked = pickFields(shown, fields);
 
   const help: string[] = [];
   if (warning) help.push("Partial results: shorten --timespan or narrow the KQL and retry");
-  if (!full && total > shown.length) {
+  if (total > shown.length) {
     help.push(
       `Showing ${shown.length} of ${total} rows; add '| take ${shown.length}' or '| summarize ...' to the query to narrow results`,
     );
@@ -236,4 +229,3 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     ...(help.length > 0 ? { help } : {}),
   };
 }
-

@@ -93,6 +93,12 @@ export function isIsoDuration(value: string): boolean {
 function isoInstant(value: string): string | undefined {
   const text = value.trim();
   if (!ISO_INSTANT.test(text)) return undefined;
+  const year = Number(text.slice(0, 4));
+  const month = Number(text.slice(5, 7));
+  const day = Number(text.slice(8, 10));
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)) return undefined;
   const at = Date.parse(text);
   if (Number.isNaN(at)) return undefined;
   return new Date(at).toISOString();
@@ -101,7 +107,7 @@ function isoInstant(value: string): string | undefined {
 /**
  * `--timespan` to the ISO 8601 value Log Analytics accepts.
  * Relative times become durations (`24h` -> `PT24H`). An ISO date means from that
- * instant until `now`. `start/end` and `start/duration` are normalized, not rewritten
+ * instant until `now`. `start/end` intervals are normalized, not rewritten
  * into a query filter.
  */
 export function normalizeTimespan(value: string, now: Date = new Date()): string {
@@ -125,7 +131,6 @@ export function normalizeTimespan(value: string, now: Date = new Date()): string
     const start = isoInstant(text.slice(0, slash));
     const endRaw = text.slice(slash + 1).trim();
     if (!start) timespanInvalid(text);
-    if (isIsoDuration(endRaw)) return `${start}/${endRaw.toUpperCase()}`;
     const end = isoInstant(endRaw);
     if (!end) timespanInvalid(text);
     if (Date.parse(end) <= Date.parse(start)) {

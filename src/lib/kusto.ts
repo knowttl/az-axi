@@ -43,12 +43,12 @@ function rowCount(table: KustoTable | undefined): number {
 }
 
 /** Converts `tables[0]` to objects. Extra tables become name plus row count only. */
-export function convertKustoTables(tables: KustoTable[] | undefined): ConvertedKusto {
+export function convertKustoTables(tables: KustoTable[] | undefined, limit?: number): ConvertedKusto {
   if (!Array.isArray(tables) || tables.length === 0) return { rows: [], total: 0 };
   const [primary, ...rest] = tables;
   const columns = columnNames(primary);
   const rawRows = Array.isArray(primary?.rows) ? primary.rows : [];
-  const rows = rawRows.map((cells) => {
+  const rows = rawRows.slice(0, limit).map((cells) => {
     const out: Record<string, unknown> = {};
     const values = Array.isArray(cells) ? cells : [];
     for (let i = 0; i < columns.length; i++) {
@@ -60,7 +60,7 @@ export function convertKustoTables(tables: KustoTable[] | undefined): ConvertedK
   });
   const otherTables =
     rest.length > 0 ? rest.map((table) => ({ name: table?.name ?? "", count: rowCount(table) })) : undefined;
-  return { rows, total: rows.length, ...(otherTables ? { otherTables } : {}) };
+  return { rows, total: rawRows.length, ...(otherTables ? { otherTables } : {}) };
 }
 
 function errorText(error: { code?: string; message?: string } | undefined, labeled: boolean): string | undefined {
