@@ -106,8 +106,11 @@ describe("doctor", () => {
     writeFileSync(path, JSON.stringify({ profiles: { bad: { auth: "az", allowWrites: true }, good: { auth: "az" } } }));
     const result = await run([]);
     const [bad, good] = result.profiles as Array<Record<string, unknown>>;
-    expect(bad?.status).toMatch(/^invalid: .*subscriptions/);
+    expect(bad?.status).toContain("invalid write configuration");
     expect(good?.status).toBe("ok");
+    const help = (result.help as string[]).join("\n");
+    expect(help).toContain("[bad] see README.md#writes");
+    expect(help).not.toMatch(/allowWrites|config file|Edit the profile/i);
     expect((result.help as string[]).every((line) => line.startsWith("[bad] "))).toBe(true);
   });
 

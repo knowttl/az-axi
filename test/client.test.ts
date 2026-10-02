@@ -217,6 +217,15 @@ describe("retry", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each([429, 503])("does not retry %i when Retry-After is absent or unparseable", async (status) => {
+    for (const headers of [{}, { "retry-after": "soon" }]) {
+      fetchMock.mockReset();
+      fetchMock.mockImplementation(async () => json({}, status, headers));
+      expect((await failure(request(profile(), { path: "/x", apiVersion: "1" }))).code).toBe("RATE_LIMITED");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it.each([429, 503])("retries %i only once, then returns RATE_LIMITED", async (status) => {
     fetchMock.mockImplementation(async () => json({}, status, { "retry-after": "0" }));
     expect((await failure(request(profile(), { path: "/x", apiVersion: "1" }))).code).toBe("RATE_LIMITED");

@@ -57,6 +57,14 @@ describe("normalizeArgv", () => {
       "doctor", "--tenant=t1", "--management-group", "mg",
     ]);
     expect(normalizeArgv(["--config", "c.json", "config", "path"])).toEqual(["config", "path", "--config", "c.json"]);
+    expect(normalizeArgv(["--limit", "5", "--fields", "name,id", "sub", "list"])).toEqual([
+      "sub", "list", "--limit", "5", "--fields", "name,id",
+    ]);
+    expect(normalizeArgv(["--fields=name,id", "doctor"])).toEqual(["doctor", "--fields=name,id"]);
+    expect(normalizeArgv(["--full", "sub", "list"])).toEqual(["sub", "list", "--full"]);
+    expect(normalizeArgv(["--full", "--limit", "5", "sub", "list"])).toEqual([
+      "sub", "list", "--full", "--limit", "5",
+    ]);
   });
 
   it("hands leading flags to the home view when there is no command", () => {
@@ -65,6 +73,7 @@ describe("normalizeArgv", () => {
 
   it("leaves non-selector flags and plain argv alone", () => {
     expect(normalizeArgv(["--help"])).toEqual(["--help"]);
+    expect(normalizeArgv(["--help", "sub", "list"])).toEqual(["--help", "sub", "list"]);
     expect(normalizeArgv(["--org", "x", "sub", "list"])).toEqual(["--org", "x", "sub", "list"]);
     expect(normalizeArgv(["sub", "list"])).toEqual(["sub", "list"]);
   });

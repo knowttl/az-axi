@@ -143,16 +143,27 @@ describe("resolveProfile", () => {
 });
 
 describe("allowWrites rules", () => {
-  it("rejects allowWrites without a subscriptions list", () => {
-    for (const profile of [{ auth: "az", allowWrites: true }, { auth: "az", allowWrites: true, subscriptions: [] }]) {
-      expect(() => resolveProfile({ config: writeConfig({ profiles: { bad: profile } }) })).toThrowError(
-        expect.objectContaining({ code: "VALIDATION_ERROR", message: expect.stringContaining("subscriptions") }),
-      );
+  it("rejects an invalid write configuration without naming the field or the edit", () => {
+    for (const profile of [
+      { auth: "az" as const, allowWrites: true },
+      { auth: "az" as const, allowWrites: true, subscriptions: [] as string[] },
+      { auth: "az" as const, allowWrites: "true" as unknown as boolean },
+    ]) {
+      let error: { code?: string; message?: string; suggestions?: string[] } | undefined;
+      try {
+        resolveProfile({ config: writeConfig({ profiles: { bad: profile } }) });
+      } catch (err) {
+        error = err as typeof error;
+      }
+      const text = [error?.message, ...(error?.suggestions ?? [])].join("\n");
+      expect(error?.code).toBe("VALIDATION_ERROR");
+      expect(text).toContain("invalid write configuration");
+      expect(text).toContain("README.md#writes");
+      expect(text).not.toMatch(/allowWrites|config file|Edit the profile/i);
     }
   });
 
-  it("rejects non-boolean allowWrites, bad auth and bad subscriptions", () => {
-    expect(() => validateProfile("p", { auth: "az", allowWrites: "true" as unknown as boolean })).toThrowError(/allowWrites/);
+  it("rejects bad auth and bad subscriptions", () => {
     expect(() => validateProfile("p", { auth: "pat" as unknown as "az" })).toThrowError(/auth/);
     expect(() => validateProfile("p", { auth: "az", subscriptions: "x" as unknown as string[] })).toThrowError(/subscriptions/);
   });

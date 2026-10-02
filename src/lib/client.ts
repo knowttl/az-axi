@@ -57,7 +57,6 @@ const TLS_ERROR_CODES = new Set([
 ]);
 
 const MAX_RETRY_AFTER_MS = 10_000;
-const DEFAULT_RETRY_MS = 1_000;
 const DEFAULT_MAX_PAGES = 10;
 
 export function buildUrl(options: RequestOptions): string {
@@ -136,7 +135,12 @@ export async function sendRequest<T = unknown>(
     }
 
     const retryMs = retryDelayMs(response.headers.get("retry-after"));
-    if (attempt === 0 && (response.status === 429 || response.status === 503) && retryMs <= MAX_RETRY_AFTER_MS) {
+    if (
+      attempt === 0 &&
+      (response.status === 429 || response.status === 503) &&
+      retryMs !== undefined &&
+      retryMs <= MAX_RETRY_AFTER_MS
+    ) {
       await response.arrayBuffer();
       await new Promise((resolve) => setTimeout(resolve, retryMs));
       continue;
@@ -215,13 +219,14 @@ function parseBody(text: string): unknown {
   }
 }
 
-/** Seconds or an HTTP date; a missing header means a short default wait. */
-function retryDelayMs(header: string | null): number {
-  if (!header) return DEFAULT_RETRY_MS;
+/** Seconds or an HTTP date. Absent or unparseable means do not retry. */
+function retryDelayMs(header: string | null): number | undefined {
+  if (!header) return undefined;
   const seconds = Number(header);
   if (Number.isFinite(seconds)) return Math.max(0, seconds) * 1000;
   const at = Date.parse(header);
-  return Number.isNaN(at) ? DEFAULT_RETRY_MS : Math.max(0, at - Date.now());
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, at - Date.now());
 }
 
 function networkError(

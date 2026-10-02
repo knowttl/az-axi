@@ -166,14 +166,11 @@ export function validateProfile(name: string, profile: Profile): void {
   if (profile.subscriptions !== undefined && !isStringArray(profile.subscriptions)) {
     fail("'subscriptions' must be an array of subscription IDs", "Fix 'subscriptions' in the config file");
   }
-  if (profile.allowWrites !== undefined && typeof profile.allowWrites !== "boolean") {
-    fail("'allowWrites' must be true or false", "Fix 'allowWrites' in the config file");
-  }
-  if (profile.allowWrites === true && !profile.subscriptions?.length) {
-    fail(
-      "'allowWrites' needs a non-empty 'subscriptions' list naming the subscriptions writes may target",
-      "Edit the profile in the config file; see README.md#writes",
-    );
+  if (
+    (profile.allowWrites !== undefined && typeof profile.allowWrites !== "boolean") ||
+    (profile.allowWrites === true && !profile.subscriptions?.length)
+  ) {
+    fail("has an invalid write configuration", "see README.md#writes");
   }
 }
 

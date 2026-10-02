@@ -122,4 +122,13 @@ describe("end to end with a stubbed network", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("1 profiles");
   }, 30_000);
+
+  it("accepts leading --limit, --fields and --full before the command", () => {
+    const result = runStubbed(["--limit", "5", "--fields", "name", "--full", "sub", "list"], 200, {
+      value: [{ subscriptionId: SUB, displayName: "Sandbox", state: "Enabled" }],
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Sandbox");
+    expect(result.stdout).not.toContain("must come after the command");
+  }, 30_000);
 });

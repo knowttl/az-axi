@@ -10,7 +10,7 @@ Update the row of a file in the same commit that changes it.
 | File | Upstream path | Local changes |
 |---|---|---|
 | `src/lib/args.ts` | `src/lib/args.ts` | Global flags are the Azure selector set (`profile`, `tenant`, `subscription`, `management-group`, `config`, `limit`, ...); rename hints are Azure's (`sub`, `mg`, `ws`, ...) |
-| `src/lib/argv.ts` | `src/lib/argv.ts` | Leading selector flags are `profile`, `tenant`, `subscription`, `management-group`, `config` |
+| `src/lib/argv.ts` | `src/lib/argv.ts` | Leading flags moved behind the command: value flags `profile`, `tenant`, `subscription`, `management-group`, `config`, `fields`, `limit`; boolean `full` does not consume the next token |
 | `src/lib/auth.ts` | `src/lib/auth.ts` | Generalized: per-resource tokens (`arm`, `logs`, `graph`), `token` mode replaces PAT, expiry-aware cache, hardened `az` spawn environment, Azure error mapping, `identityOf`, exported `runAz` |
 | `src/lib/client.ts` | `src/lib/client.ts` | Rewritten for ARM, Log Analytics and Graph hosts: api-version handling, ARM error translation, TLS mapping, single retry on 429 and 503, `nextLink` paging, `{status,headers,body}` responses, correlation headers, policy and gate enforcement before every request |
 | `src/lib/config.ts` | `src/lib/config.ts` | Azure profile fields, implicit `az` profile, `allowWrites` and `AZ_AXI_READ_ONLY` rules, scope overrides from flags and environment |

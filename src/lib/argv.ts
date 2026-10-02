@@ -4,7 +4,11 @@ const VALUE_FLAGS = new Set([
   "subscription",
   "management-group",
   "config",
+  "fields",
+  "limit",
 ]);
+
+const BOOLEAN_FLAGS = new Set(["full"]);
 
 /**
  * The SDK requires `<bin> <command> ...flags`. Agents naturally write
@@ -19,10 +23,11 @@ export function normalizeArgv(argv: readonly string[]): string[] {
     const arg = argv[index];
     if (arg === undefined || !arg.startsWith("--")) break;
     const name = arg.slice(2).split("=")[0] ?? "";
-    if (!VALUE_FLAGS.has(name)) break;
+    const takesValue = VALUE_FLAGS.has(name);
+    if (!takesValue && !BOOLEAN_FLAGS.has(name)) break;
     leading.push(arg);
     index++;
-    if (!arg.includes("=")) {
+    if (takesValue && !arg.includes("=")) {
       const value = argv[index];
       if (value !== undefined && !value.startsWith("--")) {
         leading.push(value);
