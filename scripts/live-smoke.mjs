@@ -69,6 +69,22 @@ const checks = [
     const r = azAxi(["sub", "list", "--limit", "1"]);
     return r.status === 0 && Number(/subscriptions\[(\d+)\]/.exec(r.stdout)?.[1] ?? "0") <= 1;
   }],
+  ["dashboard: profile, identity and write status", () => {
+    const r = azAxi([]);
+    return r.status === 0 && r.stdout.includes("profile:") && r.stdout.includes("writes:");
+  }],
+  ["rg query: Resource Graph reachable", () => {
+    const r = azAxi(["rg", "query", "Resources | summarize count() by type | top 10 by count_"]);
+    return r.status === 0 && (/rows\[|0 resources found/.test(r.stdout));
+  }],
+  ["api: escape hatch reads subscriptions", () => {
+    const r = azAxi(["api", "/subscriptions", "--api-version", "2022-12-01"]);
+    return r.status === 0 && (/value\[|count:/.test(r.stdout));
+  }],
+  ["api: DELETE is blocked with WRITES_DISABLED", () => {
+    const r = azAxi(["api", "DELETE", "/subscriptions/x", "--api-version", "2022-12-01"]);
+    return r.status === 2 && r.stdout.includes("WRITES_DISABLED");
+  }],
   ["unknown flag exits 2 with a rename hint", () => {
     const r = azAxi(["sub", "list", "--top", "5"]);
     return r.status === 2 && r.stdout.includes("use --limit instead");
