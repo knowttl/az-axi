@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { spawn as spawnChild } from "node:child_process";
+import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
@@ -7,7 +8,7 @@ import { AxiError } from "axi-sdk-js";
 vi.mock("cross-spawn", () => ({ default: vi.fn() }));
 
 import spawn from "cross-spawn";
-import { clearCredentialCache, identityOf, resolveCredential } from "../src/lib/auth.js";
+import { clearCredentialCache, identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { request } from "../src/lib/client.js";
 import { pollOperation } from "../src/lib/lro.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
@@ -64,6 +65,7 @@ afterEach(() => {
 
 describe("az mode", () => {
   it.each(["arm", "logs", "graph"] as const)("cancels pending %s credentials and closes the child pipes", async (resource) => {
+    vi.stubGlobal("process", { ...process, platform: "linux" });
     const controller = new AbortController();
     const reason = new Error("poll deadline");
     let child: ReturnType<typeof spawnChild> | undefined;
@@ -92,6 +94,7 @@ describe("az mode", () => {
   });
 
   it.each(["asyncOperationUrl", "locationUrl"])("kills uncached authentication at the %s polling deadline", async (key) => {
+    vi.stubGlobal("process", { ...process, platform: "linux" });
     let closed: Promise<unknown> | undefined;
     spawnMock.mockImplementation((_cmd, _args, options) => {
       const child = spawnChild(process.execPath, ["-e", "setInterval(() => {}, 1000)"], options);
@@ -229,6 +232,120 @@ describe("az mode", () => {
       return child;
     });
     expect((await failure(resolveCredential(profile(), "arm"))).code).toBe("AUTH_REQUIRED");
+  });
+});
+
+describe("runAz cancellation", () => {
+  function childProcess(pid = 1234) {
+    return Object.assign(new EventEmitter(), {
+      pid,
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      kill: vi.fn(),
+      unref: vi.fn(),
+    });
+  }
+
+  it("kills the Windows tree and settles without waiting for inherited pipes or taskkill", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    const child = childProcess();
+    const killer = childProcess(5678);
+    spawnMock.mockReturnValueOnce(child).mockReturnValueOnce(killer);
+    const controller = new AbortController();
+    const reason = new Error("credential deadline");
+    const pending = runAz(["account", "get-access-token"], controller.signal);
+    let rejected: unknown;
+    const settled = pending.catch((error) => { rejected = error; });
+    controller.abort(reason);
+
+    expect(spawnMock.mock.calls.map(([command]) => command)).toEqual(["az", "taskkill"]);
+    expect(spawnMock.mock.calls[1]?.slice(1)).toEqual([["/T", "/F", "/PID", "1234"], {
+      windowsHide: true,
+      stdio: "ignore",
+    }]);
+    expect(spawnMock.mock.calls[0]?.[2].signal).toBeUndefined();
+    await Promise.resolve();
+    expect(rejected).toBe(reason);
+    await settled;
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(child.stdin.destroyed).toBe(true);
+    expect(child.stdout.destroyed).toBe(true);
+    expect(child.stderr.destroyed).toBe(true);
+    expect(child.unref).toHaveBeenCalledOnce();
+    expect(killer.unref).toHaveBeenCalledOnce();
+  });
+
+  it("settles the Windows polling deadline without a child close event or a network call", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    const child = childProcess();
+    const killer = childProcess(5678);
+    spawnMock.mockReturnValueOnce(child).mockReturnValueOnce(killer);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(pollOperation(profile(), {
+      asyncOperationUrl: "https://management.azure.com/operations/1?api-version=1",
+    }, { timeoutMs: 25 })).rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
+    expect(spawnMock.mock.calls.map(([command]) => command)).toEqual(["az", "taskkill"]);
+    expect(child.stdout.destroyed).toBe(true);
+    expect(child.stderr.destroyed).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("handles a taskkill spawn failure without delaying cancellation", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    const child = childProcess();
+    const killer = childProcess(5678);
+    spawnMock.mockReturnValueOnce(child).mockReturnValueOnce(killer);
+    const controller = new AbortController();
+    const pending = runAz([], controller.signal);
+    const reason = new Error("credential deadline");
+    const assertion = expect(pending).rejects.toBe(reason);
+    controller.abort(reason);
+    killer.emit("error", Object.assign(new Error("missing taskkill"), { code: "ENOENT" }));
+    await assertion;
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+  });
+
+  it.each(["linux", "darwin"])("preserves native SIGKILL cancellation on %s", async (platform) => {
+    vi.stubGlobal("process", { ...process, platform });
+    const child = childProcess();
+    spawnMock.mockImplementation((_cmd, _args, options) => {
+      options.signal.addEventListener("abort", () => {
+        child.kill(options.killSignal);
+        child.emit("error", new Error("native abort"));
+      }, { once: true });
+      return child;
+    });
+    const controller = new AbortController();
+    const pending = runAz([], controller.signal);
+    const assertion = expect(pending).rejects.toThrow("native abort");
+    controller.abort();
+    await assertion;
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(child.unref).not.toHaveBeenCalled();
+    expect(child.stdout.destroyed).toBe(false);
+  });
+
+  it.each(["close", "error"])("removes the Windows abort listener after %s", async (event) => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    const child = childProcess();
+    spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const pending = runAz([], controller.signal);
+    if (event === "close") {
+      child.stdout.write("success");
+      child.emit("close", 0);
+      expect(await pending).toBe("success");
+    } else {
+      const assertion = expect(pending).rejects.toThrow("not installed");
+      child.emit("error", Object.assign(new Error("missing"), { code: "ENOENT" }));
+      await assertion;
+    }
+    controller.abort();
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(child.stdout.destroyed).toBe(false);
   });
 });
 
