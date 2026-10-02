@@ -117,7 +117,18 @@ describe("doctor", () => {
     expect((result.profiles as Array<Record<string, unknown>>)[0]?.status).toBe("failed: az");
     expect(identityMock).not.toHaveBeenCalled();
     expect(credentialMock).not.toHaveBeenCalled();
-    expect((result.help as string[]).join("\n")).toContain("[az] Install the Azure CLI");
+    expect((result.help as string[]).join("\n")).toContain("[az] az CLI is not installed or not on PATH");
+  });
+
+  it("records a present az CLI failure instead of diagnosing it as missing", async () => {
+    runAzMock.mockRejectedValue(new Error("az exited with code 1"));
+    const result = await run([]);
+    const help = (result.help as string[]).join("\n");
+    expect((result.profiles as Array<Record<string, unknown>>)[0]?.status).toBe("failed: az");
+    expect(help).toContain("[az] az exited with code 1");
+    expect(help).not.toContain("not installed");
+    expect(identityMock).not.toHaveBeenCalled();
+    expect(credentialMock).not.toHaveBeenCalled();
   });
 
   it("fails when signed out and prefixes the fix with the profile name", async () => {

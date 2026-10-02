@@ -153,6 +153,7 @@ describe("error translation", () => {
     ["409", 409, ERROR_BODY("Conflict", "busy"), {}, "CONFLICT", 0],
     ["412", 412, ERROR_BODY("PreconditionFailed", "etag"), {}, "PRECONDITION_FAILED", 0],
     ["429 over cap", 429, ERROR_BODY("Throttled", "slow down"), { "retry-after": "60", "x-ms-user-quota-resets-after": "00:00:05" }, "RATE_LIMITED", 0],
+    ["503 over cap", 503, ERROR_BODY("ServiceUnavailable", "busy"), { "retry-after": "60" }, "RATE_LIMITED", 0],
     ["500", 500, ERROR_BODY("InternalError", "boom"), {}, "API_ERROR", 0],
   ];
 
@@ -210,14 +211,14 @@ describe("retry", () => {
     expect(first).not.toBe(second);
   });
 
-  it("does not retry when Retry-After exceeds 10 seconds", async () => {
-    fetchMock.mockImplementation(async () => json({}, 429, { "retry-after": "11" }));
+  it.each([429, 503])("does not retry %i when Retry-After exceeds 10 seconds", async (status) => {
+    fetchMock.mockImplementation(async () => json({}, status, { "retry-after": "11" }));
     expect((await failure(request(profile(), { path: "/x", apiVersion: "1" }))).code).toBe("RATE_LIMITED");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("retries only once", async () => {
-    fetchMock.mockImplementation(async () => json({}, 429, { "retry-after": "0" }));
+  it.each([429, 503])("retries %i only once, then returns RATE_LIMITED", async (status) => {
+    fetchMock.mockImplementation(async () => json({}, status, { "retry-after": "0" }));
     expect((await failure(request(profile(), { path: "/x", apiVersion: "1" }))).code).toBe("RATE_LIMITED");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

@@ -322,7 +322,7 @@ function translateError(ctx: ErrorContext): AxiError {
       "The resource changed since you read it (If-Match did not match): re-read it and retry",
     ]);
   }
-  if (status === 429) {
+  if (status === 429 || status === 503) {
     const quota = headers["x-ms-user-quota-resets-after"];
     return fail(`rate limited by ${HOSTS[resource]}`, "RATE_LIMITED", [
       `Retry after ${headers["retry-after"] ?? "a few"} seconds`,

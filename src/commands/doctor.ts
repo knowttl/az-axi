@@ -92,12 +92,7 @@ async function inspect(
   let identity: Identity | undefined;
   let azAvailable = true;
   if (profile.auth === "az") {
-    azAvailable = (await attempt("az", false, () => runAz(["version", "--output", "json"]).catch(() => {
-      throw new AxiError("Azure CLI ('az') is not installed or not on PATH", "AUTH_REQUIRED", [
-        "Install the Azure CLI: https://learn.microsoft.com/cli/azure/install-azure-cli",
-        'Or switch the profile to "auth": "token"',
-      ]);
-    }))) !== undefined;
+    azAvailable = (await attempt("az", false, () => runAz(["version", "--output", "json"]))) !== undefined;
     if (azAvailable) identity = await attempt("sign-in", false, () => identityOf(profile));
   }
 
