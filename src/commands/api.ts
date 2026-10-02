@@ -3,7 +3,7 @@ import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs
 import { sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { dryRun } from "../lib/dryRun.js";
-import { quoteFlagValue } from "../lib/shell.js";
+import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
@@ -34,10 +34,10 @@ function morePagesHint(options: {
   const parts = ["az-axi api"];
   if (options.method !== "GET") parts.push(options.method);
   parts.push(quoteFlagValue(options.path));
-  if (options.resource !== "arm") parts.push(`--resource ${options.resource}`);
-  if (options.apiVersion) parts.push(`--api-version ${quoteFlagValue(options.apiVersion)}`);
-  if (options.query) parts.push(`--query ${quoteFlagValue(options.query)}`);
-  if (options.body) parts.push(`--body ${quoteFlagValue(options.body)}`);
+  if (options.resource !== "arm") parts.push(formatFlagValue("resource", options.resource));
+  if (options.apiVersion) parts.push(formatFlagValue("api-version", options.apiVersion));
+  if (options.query) parts.push(formatFlagValue("query", options.query));
+  if (options.body) parts.push(formatFlagValue("body", options.body));
   parts.push("--all");
   return `More pages exist: re-run with --all (up to ${MAX_PAGES} pages): \`${parts.join(" ")}\``;
 }
@@ -137,7 +137,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const selectors = ["profile", "tenant", "subscription", "management-group", "config"]
     .map((name) => {
       const value = flagString(args, name);
-      return value === undefined ? undefined : `--${name} ${quoteFlagValue(value)}`;
+      return value === undefined ? undefined : formatFlagValue(name, value);
     })
     .filter((part): part is string => part !== undefined)
     .join(" ");

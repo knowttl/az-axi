@@ -357,6 +357,24 @@ describe("write-enabled profile without --execute", () => {
 });
 
 describe("selected preview regressions", () => {
+  it("replays a DELETE preview for a name beginning with --", async () => {
+    fetchMock.mockImplementation(async () => json({ name: "--prod" }));
+    const result = await run(["DELETE", `${SUB_PATH}/resourceGroups/--prod`, "--api-version", API_VERSION, "--profile", "writer"]);
+    const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
+    fetchMock.mockClear();
+    await expect(run(commandArguments(command).slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("replays a preview with a profile name beginning with --", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { "--writer": { auth: "token", allowWrites: true, subscriptions: [SUB] } } }));
+    const result = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--profile=--writer", "--body", "{}"]);
+    const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
+    fetchMock.mockClear();
+    await expect(run(commandArguments(command).slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it.each(["roleAssignments", "roleDefinitions", "locks", "policyAssignments"])(
     "includes executable confirmation in every %s preview", async (type) => {
       const path = `${SUB_PATH}/providers/Microsoft.Authorization/${type}/assignment1`;

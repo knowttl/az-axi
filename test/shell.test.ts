@@ -7,7 +7,8 @@ import { run } from "../src/commands/api.js";
 import { sendRequest } from "../src/lib/client.js";
 import { buildExecuteCommand } from "../src/lib/dryRun.js";
 import { enforceGates } from "../src/lib/gates.js";
-import { quoteFlagValue } from "../src/lib/shell.js";
+import { formatFlagValue, quoteFlagValue } from "../src/lib/shell.js";
+import { parseArgs } from "../src/lib/args.js";
 
 function argumentsOf(shell: string, command: string): string[] {
   return execFileSync(shell, ["-c", `az-axi() { printf '%s\\0' "$@"; }; ${command}`], { encoding: "utf8" }).split("\0").slice(0, -1);
@@ -27,16 +28,33 @@ describe.each(["sh", "zsh"])("command hints in %s", (shell) => {
     expect(argumentsOf(shell, `az-axi ${quoteFlagValue("")}`)).toEqual([""]);
   });
 
-  it.each([undefined, "wrong"])("preserves the confirmation target with confirm=%s", (confirm) => {
-    const target = "a&b'c*";
-    try {
-      enforceGates({ name: "writer", source: "implicit", auth: "token", allowWrites: true, writeSubscriptions: ["id"] }, { method: "DELETE", resource: "arm", path: `/subscriptions/id/resourceGroups/${encodeURIComponent(target)}` }, "destructive", { execute: true, confirm });
-      throw new Error("expected confirmation error");
-    } catch (err) {
-      expect(err).toMatchObject({ code: confirm ? "CONFIRM_MISMATCH" : "CONFIRM_REQUIRED" });
-      const hint = (err as { suggestions: string[] }).suggestions[0]!;
-      expect(argumentsOf(shell, `az-axi ${hint.replace("Re-run with ", "")}`)).toEqual(["--confirm", target]);
-    }
+  it.each([[undefined, "a&b'c*"], ["wrong", "a&b'c*"], [undefined, "--prod"], ["wrong", "--prod"]] as const)(
+    "preserves confirm=%s for target=%s", (confirm, target) => {
+      try {
+        enforceGates({ name: "writer", source: "implicit", auth: "token", allowWrites: true, writeSubscriptions: ["id"] }, { method: "DELETE", resource: "arm", path: `/subscriptions/id/resourceGroups/${encodeURIComponent(target)}` }, "destructive", { execute: true, confirm });
+        throw new Error("expected confirmation error");
+      } catch (err) {
+        expect(err).toMatchObject({ code: confirm ? "CONFIRM_MISMATCH" : "CONFIRM_REQUIRED" });
+        const hint = (err as { suggestions: string[] }).suggestions[0]!;
+        expect(parseArgs(argumentsOf(shell, `az-axi ${hint.replace("Re-run with ", "")}`))).toEqual({ flags: { confirm: target }, positionals: [] });
+      }
+    },
+  );
+
+  it.each(["profile", "tenant", "subscription", "management-group", "config"])(
+    "preserves a leading-dash %s selector", (name) => {
+      const value = "--name & 'quoted'";
+      const command = buildExecuteCommand({ method: "PATCH", path: "/things", resource: "arm", selectors: formatFlagValue(name, value) });
+      expect(parseArgs(argumentsOf(shell, command.slice(1, -1))).flags).toEqual({ [name]: value, execute: true });
+    },
+  );
+
+  it("preserves leading-dash execute values through CLI parsing", () => {
+    const command = buildExecuteCommand({ method: "DELETE", path: "/subscriptions/id/resourceGroups/--prod", resource: "arm", apiVersion: "--version", queryRaw: "--key=value&x=1", etag: "--etag", confirmName: "--prod" });
+    expect(parseArgs(argumentsOf(shell, command.slice(1, -1)))).toEqual({
+      positionals: ["api", "DELETE", "/subscriptions/id/resourceGroups/--prod"],
+      flags: { "api-version": "--version", query: "--key=value&x=1", "if-match": "--etag", execute: true, confirm: "--prod" },
+    });
   });
 
   it("preserves paging path, version, query and body", async () => {
@@ -49,5 +67,15 @@ describe.each(["sh", "zsh"])("command hints in %s", (shell) => {
     const hint = (result.help as string[])[0]!;
     const command = hint.slice(hint.indexOf("`") + 1, -1);
     expect(argumentsOf(shell, command)).toEqual(["api", path, "--api-version", version, "--query", query, "--body", body, "--all"]);
+  });
+
+  it("preserves leading-dash paging values through CLI parsing", async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ status: 200, headers: {}, body: { value: [], nextLink: "https://management.azure.com/next?api-version=1" }, clientRequestId: "test" });
+    const result = await run(["/things", "--api-version=--version", "--query=--key=value&x=1"]);
+    const hint = (result.help as string[])[0]!;
+    const argv = argumentsOf(shell, hint.slice(hint.indexOf("`") + 1, -1));
+    expect(parseArgs(argv)).toEqual({ positionals: ["api", "/things"], flags: { "api-version": "--version", query: "--key=value&x=1", all: true } });
+    await run(argv.slice(1));
+    expect(vi.mocked(sendRequest).mock.lastCall?.[1]).toMatchObject({ apiVersion: "--version", query: { "--key": "value", x: "1" } });
   });
 });

@@ -8,7 +8,7 @@ import { subscriptionOfPath, targetResourceName } from "./gates.js";
 import { classifyRequest, type RequestClass } from "./policy.js";
 import { redact } from "./redact.js";
 import { shortenResourceId } from "./scope.js";
-import { quoteFlagValue } from "./shell.js";
+import { formatFlagValue, quoteFlagValue } from "./shell.js";
 
 const BODY_TRUNCATE = 4000;
 
@@ -105,17 +105,17 @@ export function buildExecuteCommand(options: {
 }): string {
   const parts = ["az-axi", "api", options.method, quoteFlagValue(options.path)];
   if (options.selectors) parts.push(options.selectors);
-  if (options.resource !== "arm") parts.push(`--resource ${options.resource}`);
-  if (options.apiVersion) parts.push(`--api-version ${quoteFlagValue(options.apiVersion)}`);
-  if (options.queryRaw) parts.push(`--query ${quoteFlagValue(options.queryRaw)}`);
+  if (options.resource !== "arm") parts.push(formatFlagValue("resource", options.resource));
+  if (options.apiVersion) parts.push(formatFlagValue("api-version", options.apiVersion));
+  if (options.queryRaw) parts.push(formatFlagValue("query", options.queryRaw));
   if (options.bodyRaw !== undefined) {
     const body = JSON.parse(options.bodyRaw) as unknown;
     const safeBody = JSON.stringify(redact(body)) === JSON.stringify(body) ? options.bodyRaw : "<json-body>";
-    parts.push(`--body ${quoteFlagValue(safeBody)}`);
+    parts.push(formatFlagValue("body", safeBody));
   }
-  if (options.etag) parts.push(`--if-match ${quoteFlagValue(options.etag)}`);
+  if (options.etag) parts.push(formatFlagValue("if-match", options.etag));
   parts.push("--execute");
-  if (options.confirmName !== undefined) parts.push(`--confirm ${quoteFlagValue(options.confirmName)}`);
+  if (options.confirmName !== undefined) parts.push(formatFlagValue("confirm", options.confirmName));
   return `\`${parts.join(" ")}\``;
 }
 
