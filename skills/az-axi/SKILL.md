@@ -64,9 +64,8 @@ az-axi config path
 ## Inventory
 
 ```sh
-az-axi rg query "Resources | take 5"
+az-axi rg query Resources
 az-axi rg query --file query.kql
-cat query.kql | az-axi rg query
 ```
 
 `rg query` trims surrounding query whitespace, then POSTs the KQL to Resource Graph across the scope in `--subscription` / `--management-group` flags, then the profile `managementGroup`, then the profile `subscriptions`.
@@ -130,9 +129,7 @@ KQL without running it.
 ## Logs
 
 ```sh
-az-axi logs query "SigninLogs | take 5" --workspace sentinel
 az-axi logs query --file hunt.kql --workspace sentinel
-cat hunt.kql | az-axi logs query --workspace sentinel
 ```
 
 `--workspace` takes an alias from the profile `workspaces` map or a workspace
@@ -147,12 +144,8 @@ row count only. Partial errors return a `warning` instead of failing.
 
 ## Escape hatch
 
-These examples use POSIX shell quoting (Bash or Zsh).
-For Windows shells, use the JSON quoting shown under Safe shell input.
-
 ```sh
 az-axi api /subscriptions --api-version 2022-12-01
-az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body '{"query":"Resources | take 1"}'
 ```
 
 `api` covers any read or query request. Paths are relative to the host root;
@@ -164,40 +157,21 @@ requests are blocked (see Writes below).
 
 ## Safe shell input
 
-Multi-line KQL never goes on the command line.
+In every shell, pass JSON bodies and KQL containing quotes, pipes, or other shell metacharacters through file or stdin input, never through interpolated command-line arguments.
+Use file or stdin input for all multiline content as well.
 `rg query` and `logs query` take it from `--file` or piped stdin; passing both a query and `--file` is an error.
-The following stdin and heredoc examples use a POSIX shell; `--file` works across shells:
+Keep inline KQL short and free of shell metacharacters, as in `az-axi rg query Resources` above.
+Prefer these file commands across shells:
 
 ```sh
 az-axi rg query --file query.kql
-cat query.kql | az-axi rg query
-az-axi rg query <<'EOF'
-Resources | take 5
-EOF
+az-axi logs query --file hunt.kql --workspace sentinel
 ```
 
-In POSIX shells, never double-quote a flag value containing backticks, `$`, `!`, or quotes.
-The shell can expand these before `az-axi` starts, so the CLI receives valid but mangled input and cannot detect it.
-For short `--body` JSON without embedded single quotes, use single quotes as in the example above.
-Prefer `--file`-backed KQL through `rg query` or `logs query` over hand-built `api --body` payloads for anything multiline.
-
-On Windows, never pass large or multiline content through the `.cmd` shim as an interpolated argument such as PowerShell's `--body "$(cat body.json)"`; `cmd.exe` can truncate it.
-For `rg query` and `logs query`, use piped stdin or `--file` instead.
-For `api --body`, keep JSON short and use the quoting for your shell.
-In Windows Command Prompt (`cmd.exe`), single quotes are literal characters; wrap JSON in double quotes and escape its embedded double quotes with backslashes:
-
-```bat
-az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body "{\"query\":\"Resources | take 1\"}"
-```
-
-In PowerShell on Windows, use the stop-parsing token `--%` with the same escaped JSON when invoking the `.cmd` shim:
-
-```powershell
-az-axi --% api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body "{\"query\":\"Resources | take 1\"}"
-```
-
-These Windows forms are for short literal payloads without `%` expansions; avoid `!` when Command Prompt delayed expansion is enabled.
-See [Microsoft's shell quoting reference](https://learn.microsoft.com/en-us/cli/azure/use-azure-cli-successfully-quoting#json-strings) for shell differences.
+`api` currently accepts JSON only through inline `--body`; it does not support body files or stdin.
+Do not use `api --body` under this rule.
+For Resource Graph and Log Analytics queries, use the file or stdin inputs of `rg query` and `logs query`, which construct the JSON request body internally.
+If another request requires a JSON body, stop and report the missing file or stdin support rather than inventing an `api --file` command or a shell-escaping workaround.
 
 ## Writes
 
