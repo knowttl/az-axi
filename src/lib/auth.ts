@@ -169,13 +169,17 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * through as an argv array (not a shell command string), so there's no
  * shell-injection risk from argument values (e.g. `--tenant`).
  * The only place az-axi spawns `az`.
+ * On Windows, cancellation requests tree termination with `taskkill` and
+ * closes local pipes, rejecting with the signal reason without waiting for
+ * termination. If `taskkill` cannot spawn, it falls back to killing the child.
  */
 export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted();
+    const windows = process.platform === "win32";
     const child = spawn("az", args, {
       windowsHide: true,
-      signal,
+      signal: windows ? undefined : signal,
       killSignal: "SIGKILL",
       env: {
         ...process.env,
@@ -188,6 +192,24 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
     let stderr = "";
     let truncated = false;
 
+    const abort = () => {
+      // Killing cmd.exe first can orphan az's Python process before taskkill finds it.
+      if (child.pid !== undefined) {
+        const killer = spawn("taskkill", ["/T", "/F", "/PID", String(child.pid)], {
+          windowsHide: true,
+          stdio: "ignore",
+        });
+        killer.once("error", () => child.kill("SIGKILL"));
+        killer.unref();
+      }
+      // Inherited pipes must not keep the caller alive while tree termination finishes.
+      child.stdin?.destroy();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      child.unref();
+      reject(signal!.reason);
+    };
+
     child.stdout?.on("data", (chunk: Buffer) => {
       if (stdout.length < MAX_AZ_OUTPUT_BYTES) stdout += chunk.toString();
       else truncated = true;
@@ -196,6 +218,7 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
       if (stderr.length < MAX_AZ_OUTPUT_BYTES) stderr += chunk.toString();
     });
     child.on("error", (err: NodeJS.ErrnoException) => {
+      signal?.removeEventListener("abort", abort);
       if (err.code === "ENOENT") {
         reject(new Error("az CLI is not installed or not on PATH"));
       } else {
@@ -203,6 +226,7 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
       }
     });
     child.on("close", (code) => {
+      signal?.removeEventListener("abort", abort);
       if (code === 0 && !truncated) {
         resolve(stdout);
       } else if (truncated) {
@@ -211,6 +235,10 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
         reject(new Error(stderr.trim() || `az exited with code ${code}`));
       }
     });
+    if (windows && signal) {
+      signal.addEventListener("abort", abort, { once: true });
+      if (signal.aborted) abort();
+    }
   });
 }
 
