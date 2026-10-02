@@ -3,6 +3,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
@@ -10,11 +11,13 @@ vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
 import { run } from "../src/commands/op.js";
 import { sendRequest } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
+import { saveConfig } from "../src/lib/config.js";
 import {
   DEFAULT_TIMEOUT_MS,
   assertOperationUrl,
   describeOperation,
   operationUrls,
+  opStatusCommand,
   parseTimeoutFlag,
   pollOperation,
 } from "../src/lib/lro.js";
@@ -85,13 +88,13 @@ describe("parseTimeoutFlag", () => {
 
   it.each([
     ["600", 600_000],
-    ["60s", 60_000],
-    ["10m", 600_000],
+    ["60", 60_000],
+    ["0.5", 500],
   ])("parses '%s' to %sms", (flag, ms) => {
     expect(parseTimeoutFlag(flag)).toBe(ms);
   });
 
-  it.each(["0", "-5", "ten", "1h", ""])("rejects '%s' with VALIDATION_ERROR", (flag) => {
+  it.each(["0", "-5", "ten", "1h", "60s", "10m", "Infinity", "1e309", ""])("rejects '%s' with VALIDATION_ERROR", (flag) => {
     expect(() => parseTimeoutFlag(flag)).toThrowError(expect.objectContaining({ code: "VALIDATION_ERROR" }));
   });
 });
@@ -135,6 +138,63 @@ describe("operationUrls", () => {
 });
 
 describe("pollOperation", () => {
+  it.each([
+    ["azure-asyncoperation", "17"],
+    ["location", "17"],
+    ["azure-asyncoperation", "Thu, 01 Jan 1970 00:00:17 GMT"],
+    ["location", "Thu, 01 Jan 1970 00:00:17 GMT"],
+  ])("honours the initial %s response's Retry-After %s", async (header, retryAfter) => {
+    let clock = 0;
+    sendMock.mockImplementation(async () => {
+      expect(clock).toBe(17_000);
+      return asyncOp("Succeeded");
+    });
+    const urls = operationUrls(resp({}, { headers: { [header]: OP_URL, "retry-after": retryAfter } }));
+    await pollOperation(profile(), urls, { now: () => clock, delay: async (ms) => { clock += ms; } });
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["asyncOperationUrl", "locationUrl"])("bounds initial and repeat waits for %s", async (key) => {
+    for (const initial of [false, true]) {
+      sendMock.mockReset();
+      let clock = 0;
+      sendMock
+        .mockResolvedValueOnce(resp({ status: "InProgress" }, { headers: { "retry-after": "60" } }))
+        .mockResolvedValueOnce(asyncOp("Succeeded"));
+      await expect(pollOperation(profile(), { [key]: OP_URL, ...(initial ? { retryAfter: "60" } : {}) }, {
+        timeoutMs: 25_000,
+        now: () => clock,
+        delay: async (ms) => { clock += ms; },
+      })).rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
+      expect(clock).toBe(25_000);
+      expect(sendMock).toHaveBeenCalledTimes(initial ? 0 : 1);
+    }
+  });
+
+  it.each(["asyncOperationUrl", "locationUrl"])("rejects late success for %s", async (key) => {
+    let clock = 0;
+    sendMock.mockImplementation(async () => {
+      clock = 25_000;
+      return asyncOp("Succeeded");
+    });
+    await expect(pollOperation(profile(), { [key]: OP_URL }, { timeoutMs: 25_000, now: () => clock }))
+      .rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
+  });
+
+  it("bounds a pending request and aborts it with a contextual resume command", async () => {
+    vi.useFakeTimers();
+    sendMock.mockImplementation(() => new Promise(() => {}));
+    const selected = { ...profile(), configPath: "/work/team.json", name: "work", tenant: "T" };
+    const pending = pollOperation(selected, { asyncOperationUrl: OP_URL }, { timeoutMs: 25_000 });
+    const assertion = expect(pending).rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
+    await vi.advanceTimersByTimeAsync(25_000);
+    await assertion;
+    expect(sendMock.mock.calls[0]?.[1].signal?.aborted).toBe(true);
+    const error = await pending.catch((err) => err);
+    expect(error.suggestions).toContain(`Resume with \`${opStatusCommand(OP_URL, selected)}\``);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("prefers the Azure-AsyncOperation URL and returns the terminal response", async () => {
     sendMock.mockResolvedValueOnce(asyncOp("InProgress")).mockResolvedValueOnce(asyncOp("Succeeded"));
     const delays: number[] = [];
@@ -145,7 +205,7 @@ describe("pollOperation", () => {
     );
     expect(done.body).toEqual({ status: "Succeeded" });
     expect(sendMock).toHaveBeenCalledTimes(2);
-    expect(sendMock.mock.calls[0]?.[1]).toEqual({ path: OP_URL });
+    expect(sendMock.mock.calls[0]?.[1]).toEqual({ path: OP_URL, signal: expect.any(AbortSignal) });
     expect(delays).toEqual([10_000]);
   });
 
@@ -169,7 +229,7 @@ describe("pollOperation", () => {
       { delay: async (ms) => { delays.push(ms); } },
     );
     expect(done.body).toEqual({ name: "rg-demo" });
-    expect(sendMock.mock.calls[0]?.[1]).toEqual({ path: LOCATION_URL });
+    expect(sendMock.mock.calls[0]?.[1]).toEqual({ path: LOCATION_URL, signal: expect.any(AbortSignal) });
     expect(delays).toEqual([10_000]);
   });
 
@@ -196,7 +256,7 @@ describe("pollOperation", () => {
       await vi.advanceTimersByTimeAsync(60_000);
       const error = await pending.catch((err) => err);
       expect(error.message).toContain("25s");
-      expect(error.suggestions).toContain(`Resume with \`az-axi op status ${OP_URL}\``);
+      expect(error.suggestions).toContain(`Resume with \`az-axi op status '${OP_URL}'\``);
       await assertion;
     } finally {
       vi.useRealTimers();
@@ -213,6 +273,30 @@ describe("pollOperation", () => {
 });
 
 describe("op status", () => {
+  it("retains the selected config, profile and tenant when its hint is executed", async () => {
+    const config = saveConfig({ profiles: { work: { auth: "token", tenant: "original" } } }, join(dir, "work.json"));
+    sendMock.mockResolvedValue(asyncOp("InProgress"));
+    const result = await run(["status", OP_URL, "--config", config, "--profile", "work", "--tenant", "T"]);
+    const hint = (result.help as string[])[0] as string;
+    const command = hint.slice(hint.indexOf("`") + 1, hint.lastIndexOf("`"));
+    const argv = JSON.parse(execFileSync("bash", ["-c", `az-axi() { node -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- "$@"; }; ${command}`], { encoding: "utf8" })) as string[];
+    expect(argv).toEqual(["op", "status", OP_URL, "--config", config, "--profile", "work", "--tenant", "T"]);
+    await run(argv.slice(1));
+    expect(sendMock.mock.calls[1]?.[0]).toMatchObject({ configPath: config, name: "work", tenant: "T", auth: "token" });
+  });
+
+  it("preserves authentication selectors and shell arguments in recheck commands", async () => {
+    sendMock.mockResolvedValue(asyncOp("InProgress"));
+    const selected = { ...profile(), configPath: "/work/team's config.json", name: "work's", tenant: "T $(false)" };
+    const url = `${OP_URL}&monitor=true`;
+    const command = opStatusCommand(url, selected);
+    const argumentsJson = execFileSync("bash", ["-c", `az-axi() { node -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- "$@"; }; ${command}`], { encoding: "utf8" });
+    const argv = JSON.parse(argumentsJson) as string[];
+    expect(argv).toEqual(["op", "status", url, "--config", selected.configPath, "--profile", selected.name, "--tenant", selected.tenant]);
+    const result = await run(["status", url, "--tenant", selected.tenant]);
+    expect(result.help).toEqual([`Re-run \`az-axi op status '${url}' --tenant 'T $(false)'\` to check again`]);
+  });
+
   it("GETs the operation URL and reports its state", async () => {
     sendMock.mockResolvedValue(asyncOp("Succeeded"));
     const result = await run(["status", OP_URL]);
@@ -225,7 +309,7 @@ describe("op status", () => {
     sendMock.mockResolvedValue(asyncOp("InProgress"));
     const result = await run(["status", OP_URL]);
     expect(result).toMatchObject({ state: "InProgress" });
-    expect(result.help).toEqual([`Re-run \`az-axi op status ${OP_URL}\` to check again`]);
+    expect(result.help).toEqual([`Re-run \`az-axi op status '${OP_URL}'\` to check again`]);
   });
 
   it("reports a failed operation with its code and message instead of throwing", async () => {

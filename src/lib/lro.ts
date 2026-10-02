@@ -25,6 +25,7 @@ export const DEFAULT_TIMEOUT_MS = 600_000;
 export interface LroUrls {
   asyncOperationUrl?: string;
   locationUrl?: string;
+  retryAfter?: string;
 }
 
 export interface LroPollOptions {
@@ -48,7 +49,14 @@ export interface OperationState {
 }
 
 const TERMINAL_SUCCESS = "SUCCEEDED";
-const TERMINAL_FAILURE = new Set(["FAILED", "CANCELED", "CANCELLED"]);
+const TERMINAL_FAILURE = new Set(["FAILED", "CANCELED"]);
+
+export function opStatusCommand(url: string, profile: ResolvedProfile): string {
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  return `az-axi op status ${quote(url)}` +
+    (profile.configPath ? ` --config ${quote(profile.configPath)} --profile ${quote(profile.name)}` : "") +
+    (profile.tenant ? ` --tenant ${quote(profile.tenant)}` : "");
+}
 
 /** Only absolute https URLs on the ARM host may be polled or inspected. */
 export function assertOperationUrl(value: string): string {
@@ -58,7 +66,7 @@ export function assertOperationUrl(value: string): string {
   } catch {
     throw new AxiError(`invalid operation URL '${value}'`, "VALIDATION_ERROR", [
       "Pass the absolute operation URL from the write response",
-      "Example: `az-axi op status https://management.azure.com/<operation-path>?api-version=<v>`",
+      "Example: `az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'`",
     ]);
   }
   if (url.protocol !== "https:" || url.host !== LRO_HOST) {
@@ -70,20 +78,13 @@ export function assertOperationUrl(value: string): string {
   return url.toString();
 }
 
-/** `--timeout` to milliseconds: seconds by default, `s` or `m` suffix allowed. */
+/** `--timeout` in seconds to milliseconds. */
 export function parseTimeoutFlag(value: string | undefined): number {
   if (value === undefined) return DEFAULT_TIMEOUT_MS;
-  const match = /^\s*(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)?\s*$/i.exec(value);
-  if (!match) {
+  const ms = Number(value) * 1000;
+  if (!value.trim() || !Number.isFinite(ms) || !(ms > 0)) {
     throw new AxiError(`invalid --timeout '${value}'`, "VALIDATION_ERROR", [
-      "Use seconds like --timeout 600, or minutes like --timeout 10m",
-    ]);
-  }
-  const minutes = (match[2] ?? "").toLowerCase().startsWith("m");
-  const ms = Number(match[1]) * (minutes ? 60_000 : 1000);
-  if (!(ms > 0)) {
-    throw new AxiError("flag --timeout must be greater than 0", "VALIDATION_ERROR", [
-      "Example: --timeout 600",
+      "Use positive numeric seconds like --timeout 600",
     ]);
   }
   return ms;
@@ -96,6 +97,7 @@ export function operationUrls(response: ApiResponse<unknown>): LroUrls {
   return {
     ...(asyncOperationUrl ? { asyncOperationUrl } : {}),
     ...(locationUrl ? { locationUrl } : {}),
+    ...(response.headers["retry-after"] !== undefined ? { retryAfter: response.headers["retry-after"] } : {}),
   };
 }
 
@@ -141,13 +143,13 @@ export function describeOperation(response: ApiResponse<unknown>): OperationStat
 }
 
 /** Seconds, or an HTTP date. Absent or unparseable means the default. */
-function retryAfterMs(headers: Record<string, string>): number {
+function retryAfterMs(headers: Record<string, string>, now: () => number): number {
   const raw = headers["retry-after"];
   if (raw === undefined) return DEFAULT_RETRY_AFTER_MS;
   const seconds = Number(raw);
   if (Number.isFinite(seconds)) return Math.max(0, seconds) * 1000;
   const at = Date.parse(raw);
-  if (!Number.isNaN(at)) return Math.max(0, at - Date.now());
+  if (!Number.isNaN(at)) return Math.max(0, at - now());
   return DEFAULT_RETRY_AFTER_MS;
 }
 
@@ -180,9 +182,38 @@ export async function pollOperation(
   const deadline = now() + timeoutMs;
 
   let last: ApiResponse<unknown> | undefined;
+  const timeout = () => new AxiError(
+    `operation did not finish within ${Math.round(timeoutMs / 1000)}s`,
+    "OPERATION_TIMEOUT",
+    [
+      `Resume with \`${opStatusCommand(pollUrl, profile)}\``,
+      ...(last?.requestId ? [`requestId: ${last.requestId}`] : []),
+    ],
+  );
+  let waitMs = urls.retryAfter === undefined ? 0 : retryAfterMs({ "retry-after": urls.retryAfter }, now);
   for (;;) {
-    const response = await sendRequest<unknown>(profile, { path: pollUrl });
+    if (now() >= deadline) throw timeout();
+    if (waitMs > 0) await delay(Math.min(waitMs, deadline - now()));
+    if (now() >= deadline) throw timeout();
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let response: ApiResponse<unknown>;
+    try {
+      response = await Promise.race([
+        sendRequest<unknown>(profile, { path: pollUrl, signal: controller.signal }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const error = timeout();
+            controller.abort(error);
+            reject(error);
+          }, deadline - now());
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
     last = response;
+    if (now() >= deadline) throw timeout();
     const state = describeOperation(response);
     if (state.failed) {
       const what = state.code ? `${state.state} (${state.code})` : state.state;
@@ -193,16 +224,6 @@ export async function pollOperation(
       ]);
     }
     if (!state.running) return response;
-    if (now() >= deadline) {
-      throw new AxiError(
-        `operation did not finish within ${Math.round(timeoutMs / 1000)}s`,
-        "OPERATION_TIMEOUT",
-        [
-          `Resume with \`az-axi op status ${pollUrl}\``,
-          ...(last.requestId ? [`requestId: ${last.requestId}`] : []),
-        ],
-      );
-    }
-    await delay(retryAfterMs(response.headers));
+    waitMs = retryAfterMs(response.headers, now);
   }
 }

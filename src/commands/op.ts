@@ -2,7 +2,7 @@ import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, parseArgs } from "../lib/args.js";
 import { sendRequest } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
-import { assertOperationUrl, describeOperation } from "../lib/lro.js";
+import { assertOperationUrl, describeOperation, opStatusCommand } from "../lib/lro.js";
 import type { CommandMeta } from "../lib/registry.js";
 
 /**
@@ -21,7 +21,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const operationUrl = args.positionals[1];
   if (!operationUrl) {
     throw new AxiError("missing operation URL for `op status`", "VALIDATION_ERROR", [
-      "Example: `az-axi op status https://management.azure.com/<operation-path>?api-version=<v>`",
+      "Example: `az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'`",
     ]);
   }
   if (args.positionals.length > 2) {
@@ -36,7 +36,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const state = describeOperation(response);
 
   const help: string[] = [];
-  if (state.running) help.push(`Re-run \`az-axi op status ${url}\` to check again`);
+  if (state.running) help.push(`Re-run \`${opStatusCommand(url, profile)}\` to check again`);
 
   return {
     operation: url,

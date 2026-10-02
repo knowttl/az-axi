@@ -149,6 +149,6 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
     "One read-only GET of a long-running operation URL on management.azure.com; anything else is rejected.",
     "Reports the operation state (InProgress, Succeeded, Failed, Canceled) with the error when it failed.",
     "A still-running operation hints the exact command to re-run. Get the URL from a 201/202 write response.",
-    "Examples: az-axi op status https://management.azure.com/<operation-path>?api-version=<v>",
+    "Examples: az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'",
   ].join("\n"),
 });
