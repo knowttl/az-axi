@@ -746,22 +746,29 @@ Applied to `write` and `destructive` requests, in this order, stopping at the fi
 2. Profile `allowWrites` is not `true` -> `WRITES_DISABLED`.
 3. The subscription parsed from the path is not in the profile's `subscriptions` -> `SUBSCRIPTION_NOT_WRITABLE`. Paths with no subscription segment (management group or tenant scope) are always blocked in v1.
 4. No `--execute` -> dry run (Section 6.13.3), exit 0.
-5. `destructive` without `--confirm` -> `CONFIRM_REQUIRED`; a value that is not the target resource's name (the final name segment of the path) -> `CONFIRM_MISMATCH`.
+5. `destructive` without `--confirm` -> `CONFIRM_REQUIRED`; a value that is not the target resource's name -> `CONFIRM_MISMATCH`.
+   The name is the percent-decoded final name segment, or the preceding segment for a destructive POST action such as `.../vm1/restart`.
 6. Execute (Section 6.13.4).
 
 Hints for gates 1 to 3 must not tell an agent how to enable writes. They say writes are disabled for this profile and point the human to `README.md#writes`.
 
 #### 6.13.3 Dry run (`dryRun.ts`, `diff.ts`)
 
-Without `--execute`, nothing is sent except reads needed for the preview. Output:
+Without `--execute`, nothing is sent except reads and deployment what-if queries needed for the preview.
+Output:
 
 - `dryRun: true`, `class`, `method`, shortened `target`, `subscription`, the request body (redacted, truncated unless `--full`).
 - PUT or PATCH on an existing resource: GET the current state and show `changes[]{path,from,to}` (capped at 20 rows, count of the rest). PATCH compares only paths present in the body; PUT also lists fields that would be removed. No changes -> `noop: true` and a hint that executing would do nothing.
 - PUT on a resource that does not exist: `creates: true` with the body summary.
 - DELETE: current resource summary (name, type, location, tag count) and a warning if a resource lock exists on it or its resource group (GET `.../providers/Microsoft.Authorization/locks`). Reference: Lock your resources (https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources).
-- Deployment PUT: call `whatIf` and summarize counts by change type (create, modify, delete, no change). Reference: Deployments - What If (https://learn.microsoft.com/en-us/rest/api/resources/deployments/what-if).
-- `etag` of the current state when present.
-- `help[]`: the exact command to execute, including `--execute`, `--if-match <etag>` when an ETag exists, and `--confirm <name>` for destructive requests.
+- Deployment PUT: call `whatIf` and summarize completed results as `whatIf` counts keyed by lower-cased change type.
+  Failed or Canceled status, or an error object, returns `OPERATION_FAILED`.
+  HTTP 202 or another nonterminal status returns `pending: true`, `operationUrl` from the Location header, and a shell-quoted `az-axi op status <operation-url>` command with the original selectors in `help[]`; no execute command or counts are emitted and no polling occurs.
+  A pending result without Location or a completed result without `properties.changes[]` returns `API_ERROR`.
+  Reference: Deployments - What If (https://learn.microsoft.com/en-us/rest/api/resources/deployments/what-if).
+- `etag` of the current state when present, preferring the response header over the top-level string body field.
+- `help[]`: except for pending deployment results, a shell-quoted command including `--execute`, `--if-match <etag>` when an ETag exists, and `--confirm <name>` for every destructive class.
+  Bodies containing secrets use a `<json-body>` placeholder that must be replaced with the original body before use; secrets are also redacted in displayed diff values.
 
 #### 6.13.4 Execute
 
@@ -827,7 +834,7 @@ These are non-negotiable. The agent must not weaken them; if one blocks progress
 - Defaults are read-only at every layer: `allowWrites` is `false` unless hand-edited, `AZ_AXI_READ_ONLY=1` overrides every profile, and `--execute` is required for every write.
 - No az-axi command can enable writes, and no error hint may tell an agent how to.
 - `secret` class requests are blocked in all modes. Writes to `graph` and `logs` are blocked in all modes.
-- Until Phase 6, `gates.ts` returns `WRITES_DISABLED` for every `write` and `destructive` request unconditionally. Phase 6 replaces that stub with the full gate order.
+- The gate order is defined in Section 6.13.2; current build availability is documented in [README.md#writes](README.md#writes).
 - `test/policy.test.ts` snapshots the policy rules and every command's declared effect. Changing either requires updating the snapshot, which CODEOWNERS routes to the owner.
 
 ### 7.2 No secrets or tokens in output, logs or repo

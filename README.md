@@ -216,7 +216,16 @@ See [Writes](#writes) for the read-only policy.
 
 ## Writes
 
-Writes are disabled.
-Every write or destructive request is blocked with `WRITES_DISABLED`.
-Writes are not implemented yet, so `allowWrites: true` currently does not enable writes.
+Writes are disabled by default.
+To permit `api` previews, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
+`AZ_AXI_READ_ONLY=1` still blocks previews with `WRITES_DISABLED`.
+Preview targets must belong to that profile's configured subscriptions; flag and environment overrides cannot widen this list, and tenant or management-group targets are blocked.
 A profile with an invalid write configuration is rejected before it is used.
+
+Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
+For example, `az-axi api PATCH <resource-path> --api-version <version> --body '<json>' --profile <profile>` previews a field-level diff.
+See [PLAN.md Section 6.13.3](PLAN.md#6133-dry-run-dryrunts-diffts) for the detailed preview output contract.
+
+Execution is not available in this build: `--execute` returns `API_ERROR` after the gates pass.
+Destructive execution also requires `--confirm <resource-name>`; missing or mismatched confirmation fails first.
+Pending deployment previews return a suggested `az-axi op status` command, but that command is not implemented in this build.

@@ -17,7 +17,7 @@ export interface DryRunRequest {
   resource: Resource;
   /** Upper-cased method, as classified. */
   method: string;
-  /** Path as passed on the command line (may carry a query string). */
+  /** Canonical host-root path with the effective query string. */
   path: string;
   cls: RequestClass;
   /** Parsed `--body`, or undefined when absent. */
