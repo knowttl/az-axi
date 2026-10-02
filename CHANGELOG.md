@@ -21,3 +21,5 @@ This project follows [Semantic Versioning](https://semver.org/).
 - `api` write dry runs replace the earlier unconditional write block: write-enabled profiles now receive a gated preview without `--execute`.
   Previews send only reads plus, for deployments, a what-if POST query that changes nothing.
   Execution remains unavailable: every passing `--execute` returns `API_ERROR`, with `--confirm` required first for destructive requests.
+- `op status`: read-only check of a long-running operation URL on `management.azure.com`; anything else is rejected with `VALIDATION_ERROR`.
+- `lro.ts`: long-running operation polling for the write framework (prefers `Azure-AsyncOperation`, else polls `Location` until not 202; honours `Retry-After`, defaults `--timeout` to 600s, maps `Failed`/`Canceled` to `OPERATION_FAILED`).

@@ -13,7 +13,7 @@ export const TOP_LEVEL_HELP = [
   "az-axi exposure [--check all]             # internet-exposed resources",
   "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   "az-axi api GET /subscriptions            # escape hatch for any read or query request",
-  "az-axi op status <operation-url>          # read a pending operation's current result",
+  "az-axi op status <operation-url>         # check a long-running operation (resume after --timeout)",
   "",
   "Selector flags on every command: --profile, --tenant, --subscription a,b, --management-group, --config.",
   "Output: TOON on stdout. --full disables truncation, --fields a,b limits list columns, --limit N caps rows.",
@@ -146,10 +146,9 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
   op: [
     "az-axi op status <operation-url>",
     "",
-    "Read-only GET of an absolute https://management.azure.com operation URL, including its api-version query.",
-    "Returns the current response body once; does not poll or execute writes.",
-    "Selector flags: --profile, --tenant, --subscription, --management-group, --config.",
-    "Examples: az-axi op status 'https://management.azure.com/subscriptions/<id>/operations/<id>?api-version=<version>'",
-    "          az-axi op status '<operation-url>' --profile work",
+    "One read-only GET of a long-running operation URL on management.azure.com; anything else is rejected.",
+    "Reports the operation state (InProgress, Succeeded, Failed, Canceled) with the error when it failed.",
+    "A still-running operation hints the exact command to re-run. Get the URL from a 201/202 write response.",
+    "Examples: az-axi op status https://management.azure.com/<operation-path>?api-version=<v>",
   ].join("\n"),
 });
