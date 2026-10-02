@@ -33,6 +33,7 @@ import { run as runLogs } from "../src/commands/logs.js";
 import { run as runApi } from "../src/commands/api.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { requestAll, sendRequest } from "../src/lib/client.js";
+import { collapseHomeDirectory } from "../src/lib/paths.js";
 import {
   DEFENDER_ACTIVE_ALERT_COUNTS,
   EXPOSURE_ANY_ANY,
@@ -73,9 +74,9 @@ const ok = (body: unknown) => ({ status: 200, headers: {}, body, clientRequestId
 // Measured TOON tokens plus 20 percent, rounded up. Re-measure with a failing
 // run (the assertion prints the actual size) after any output shape change.
 const CEILINGS: Record<string, number> = {
-  home: 328,
-  doctor: 116,
-  "config list": 156,
+  home: 227,
+  doctor: 102,
+  "config list": 146,
   "sub list": 136,
   "rg query": 204,
   "rbac list": 150,
@@ -90,7 +91,15 @@ const CEILINGS: Record<string, number> = {
 };
 
 function tokensOf(result: Record<string, unknown>): number {
-  return encodeTokens(encodeToon(result)).length;
+  // Machine-dependent paths must not consume the output-shape allowance.
+  const normalized = {
+    ...result,
+    ...(typeof result.bin === "string" ? { bin: "az-axi" } : {}),
+    ...(typeof result.config === "string"
+      ? { config: result.config.replace(collapseHomeDirectory(process.env.AZ_AXI_CONFIG!), "/config.json") }
+      : {}),
+  };
+  return encodeTokens(encodeToon(normalized)).length;
 }
 
 async function expectUnderBudget(key: string, result: Record<string, unknown>): Promise<void> {
