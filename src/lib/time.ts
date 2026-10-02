@@ -64,3 +64,92 @@ export function parseSince(value: string, now: Date = new Date()): Date {
 export function ageDays(start: Date, now: Date = new Date()): number {
   return (now.getTime() - start.getTime()) / 86_400_000;
 }
+
+/** Date-only or full ISO instant. `Date.parse` also accepts prose dates; those are not timespans. */
+const ISO_INSTANT =
+  /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/i;
+
+function timespanInvalid(value: string): never {
+  throw new AxiError(`invalid --timespan '${value}'`, "VALIDATION_ERROR", [
+    "Use a duration like 30m, 24h, 7d or P1D",
+    "An ISO date means from that instant until now",
+    "Or a start/end interval like 2026-09-01T00:00:00Z/2026-09-02T00:00:00Z",
+    "Example: --timespan P1D",
+  ]);
+}
+
+/** True for a positive ISO 8601 duration (`P1D`, `PT24H`). Does not throw. */
+export function isIsoDuration(value: string): boolean {
+  const text = value.trim();
+  if (!/^P/i.test(text)) return false;
+  try {
+    durationMs(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isoInstant(value: string): string | undefined {
+  const text = value.trim();
+  if (!ISO_INSTANT.test(text)) return undefined;
+  const year = Number(text.slice(0, 4));
+  const month = Number(text.slice(5, 7));
+  const day = Number(text.slice(8, 10));
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)) return undefined;
+  const at = Date.parse(text);
+  if (Number.isNaN(at)) return undefined;
+  return new Date(at).toISOString();
+}
+
+/**
+ * `--timespan` to the ISO 8601 value Log Analytics accepts.
+ * Relative times become durations (`24h` -> `PT24H`). An ISO date means from that
+ * instant until `now`. `start/end` intervals are normalized, not rewritten
+ * into a query filter.
+ */
+export function normalizeTimespan(value: string, now: Date = new Date()): string {
+  const text = value.trim();
+  if (text === "") timespanInvalid(value);
+
+  const relative = RELATIVE.exec(text);
+  if (relative) {
+    const amount = Number(relative[1]);
+    const unit = (relative[2] ?? "").toLowerCase();
+    if (!(amount > 0)) timespanInvalid(text);
+    if (unit === "m") return `PT${amount}M`;
+    if (unit === "h") return `PT${amount}H`;
+    return `P${amount}D`;
+  }
+
+  if (isIsoDuration(text)) return text.toUpperCase();
+
+  const slash = text.indexOf("/");
+  if (slash > 0) {
+    const start = isoInstant(text.slice(0, slash));
+    const endRaw = text.slice(slash + 1).trim();
+    if (!start) timespanInvalid(text);
+    const end = isoInstant(endRaw);
+    if (!end) timespanInvalid(text);
+    if (Date.parse(end) <= Date.parse(start)) {
+      throw new AxiError(`--timespan '${text}' ends before it starts`, "VALIDATION_ERROR", [
+        "Use start/end in chronological order",
+        "Example: --timespan 2026-09-01/2026-09-02",
+      ]);
+    }
+    return `${start}/${end}`;
+  }
+
+  const instant = isoInstant(text);
+  if (!instant) timespanInvalid(text);
+  if (Date.parse(instant) >= now.getTime()) {
+    throw new AxiError(`--timespan '${text}' is not in the past`, "VALIDATION_ERROR", [
+      "An ISO date means from that instant until now",
+      "Use a start/end interval to query a closed window",
+      "Example: --timespan 2026-09-01T00:00:00Z/2026-09-02T00:00:00Z",
+    ]);
+  }
+  return `${instant}/${now.toISOString()}`;
+}

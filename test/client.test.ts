@@ -198,6 +198,60 @@ describe("error translation", () => {
     fetchMock.mockImplementation(async () => json(ERROR_BODY("InvalidApiVersionParameter", "x"), 400));
     expect((await failure(request(profile(), { path: "/x", apiVersion: "1" }))).suggestions.join(" ")).toContain("--api-version");
   });
+
+  it("surfaces the Log Analytics syntax error hidden in innererror", async () => {
+    fetchMock.mockImplementation(async () =>
+      json(
+        {
+          error: {
+            code: "BadArgumentError",
+            message: "The request had some invalid properties",
+            innererror: {
+              code: "SyntaxError",
+              message: "Query could not be parsed at 'foo' on line [1,13]",
+            },
+          },
+        },
+        400,
+      ),
+    );
+    const error = await failure(request(profile(), { resource: "logs", path: "/v1/workspaces/x/query", method: "POST" }));
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.message).toContain("parsed at 'foo'");
+    expect(error.suggestions.join(" ")).toContain("KQL");
+    expect(error.suggestions.join(" ")).toContain("SyntaxError");
+  });
+
+  it("treats an invalid logs token as auth failure, not a missing Reader role", async () => {
+    fetchMock.mockImplementation(async () =>
+      json({ error: { code: "InvalidAuthenticationToken", message: "The access token is invalid." } }, 403),
+    );
+    const error = await failure(request(profile(), { resource: "logs", path: "/v1/workspaces/x/query" }));
+    expect(error.code).toBe("AUTH_REQUIRED");
+    expect(error.suggestions.join(" ")).not.toContain("Log Analytics Reader");
+    expect(error.suggestions.join(" ")).toContain("AZ_AXI_LOGS_TOKEN");
+  });
+
+  it("points a missing workspace at the customer ID query", async () => {
+    fetchMock.mockImplementation(async () =>
+      json({ error: { code: "PathNotFoundError", message: "The requested path does not exist" } }, 404),
+    );
+    const error = await failure(request(profile(), { resource: "logs", path: "/v1/workspaces/x/query" }));
+    expect(error.code).toBe("NOT_FOUND");
+    expect(error.suggestions.join(" ")).toContain("properties.customerId");
+    expect(error.suggestions.join(" ")).not.toContain("api-version");
+  });
+
+  it("tells a timed-out logs query to narrow the KQL, not to raise --limit", async () => {
+    fetchMock.mockImplementation(async () => json({}, 504));
+    const timeout = await failure(request(profile(), { resource: "logs", path: "/v1/workspaces/x/query" }));
+    expect(timeout.code).toBe("API_ERROR");
+    expect(timeout.suggestions.join(" ")).toContain("timeout");
+    fetchMock.mockImplementation(async () => json({}, 429, { "retry-after": "60" }));
+    const limited = await failure(request(profile(), { resource: "logs", path: "/v1/workspaces/x/query" }));
+    expect(limited.suggestions.join(" ")).toContain("shorten --timespan");
+    expect(limited.suggestions.join(" ")).not.toContain("Resource Graph quota");
+  });
 });
 
 describe("retry", () => {

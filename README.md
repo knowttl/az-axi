@@ -125,6 +125,18 @@ Point Node at your organization's root CA (a PEM file) and re-run `az-axi doctor
 export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
 ```
 
+## Query logs
+
+Run KQL against a workspace configured in the selected profile:
+
+```
+az-axi logs query "SigninLogs | take 5" --workspace sentinel
+az-axi logs query --file hunt.kql --workspace sentinel --timespan P7D
+```
+
+The identity needs Log Analytics Reader on the workspace.
+Use `az-axi logs --help` for workspace IDs, query input handling, time windows and output limits.
+
 ## Writes
 
 Writes are disabled.

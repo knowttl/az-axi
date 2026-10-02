@@ -669,7 +669,9 @@ az-axi logs query --file hunt.kql --workspace sentinel
 - `--workspace` resolves through profile `workspaces` aliases, otherwise must be a GUID. If the value looks like an ARM resource ID, return `VALIDATION_ERROR` explaining that the workspace ID (customer ID GUID) is required, with the `rg query` command that finds it.
 - `--timespan` default `P1D`.
 - `kusto.ts` converts `tables[0].columns` and `rows` into an array of objects. If more than one table is returned, include the others with their row counts only.
-- `--limit` caps rows shown client-side (default 50). Report `rows: <shown> of <total>` and, when truncated, a `help[]` hint to add `| summarize` or `| take` to the query. Never rewrite the query.
+- `--limit` caps rows shown client-side (default 50). Report `rows: <shown> of <total>` and, when truncated, a `help[]` hint to add `| summarize` or `| take` to the query.
+  Do not add row limits or time filters to the query.
+  See `az-axi logs --help` for query input handling.
 - Map partial errors (HTTP 200 with an `error` object) to output with a `warning` field rather than failing.
 - **Reference:** Query - Execute (https://learn.microsoft.com/en-us/rest/api/loganalytics/dataaccess/query/execute); Log Analytics API overview and limits (search Microsoft Learn for "Azure Monitor Log Analytics API overview").
 

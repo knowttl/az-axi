@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageDays, parseSince } from "../src/lib/time.js";
+import { ageDays, normalizeTimespan, parseSince } from "../src/lib/time.js";
 
 const NOW = new Date("2026-10-01T00:00:00.000Z");
 
@@ -30,5 +30,52 @@ describe("parseSince", () => {
   it("measures age in days", () => {
     expect(ageDays(new Date("2026-09-30T00:00:00Z"), NOW)).toBe(1);
     expect(ageDays(new Date("2026-06-01T00:00:00Z"), NOW)).toBeGreaterThan(90);
+  });
+});
+
+describe("normalizeTimespan", () => {
+  it("converts relative times and durations to uppercase ISO durations", () => {
+    expect(normalizeTimespan("24h", NOW)).toBe("PT24H");
+    expect(normalizeTimespan("30m", NOW)).toBe("PT30M");
+    expect(normalizeTimespan("7d", NOW)).toBe("P7D");
+    expect(normalizeTimespan("p1dt12h", NOW)).toBe("P1DT12H");
+  });
+
+  it("turns an ISO date into an interval ending at now", () => {
+    expect(normalizeTimespan("2026-09-01T00:00:00Z", NOW)).toBe("2026-09-01T00:00:00.000Z/2026-10-01T00:00:00.000Z");
+    expect(normalizeTimespan("2026-09-01", NOW)).toBe("2026-09-01T00:00:00.000Z/2026-10-01T00:00:00.000Z");
+  });
+
+  it("normalizes start/end intervals", () => {
+    expect(normalizeTimespan("2026-09-01/2026-09-02", NOW)).toBe(
+      "2026-09-01T00:00:00.000Z/2026-09-02T00:00:00.000Z",
+    );
+  });
+
+  it("rejects impossible calendar dates in standalone instants and either endpoint", () => {
+    for (const date of ["2026-02-30", "2026-02-29", "1900-02-29", "2026-04-31", "2026-00-01", "2026-01-00"]) {
+      for (const instant of [date, `${date}T12:00:00Z`, `${date}T12:00:00+02:00`]) {
+        for (const value of [instant, `${instant}/2026-09-01`, `1899-01-01/${instant}`]) {
+          expect(() => normalizeTimespan(value, NOW)).toThrowError(/invalid --timespan/);
+        }
+      }
+    }
+    expect(normalizeTimespan("2024-02-29", NOW)).toBe("2024-02-29T00:00:00.000Z/2026-10-01T00:00:00.000Z");
+    expect(normalizeTimespan("2000-02-29T00:30:00+02:00", NOW)).toBe(
+      "2000-02-28T22:30:00.000Z/2026-10-01T00:00:00.000Z",
+    );
+  });
+
+  it("rejects empty, future, reversed and non-duration values without --since hints", () => {
+    for (const value of ["", "yesterday", "P0D", "PT", "2999-01-01", "2026-09-02/2026-09-01", "2026-09-01T00:00:00Z/p1d"]) {
+      expect(() => normalizeTimespan(value, NOW)).toThrowError(/timespan/);
+      try {
+        normalizeTimespan(value, NOW);
+      } catch (err) {
+        const suggestions = (err as { suggestions?: string[] }).suggestions ?? [];
+        expect(`${(err as Error).message}\n${suggestions.join("\n")}`).not.toMatch(/--since/);
+        expect((err as { code?: string }).code).toBe("VALIDATION_ERROR");
+      }
+    }
   });
 });
