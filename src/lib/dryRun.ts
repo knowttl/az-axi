@@ -159,8 +159,8 @@ async function listLocks(request: DryRunRequest, scopePath: string): Promise<Loc
 
 /**
  * Dry run for a write or destructive request (PLAN.md Section 6.13.3). Sends
- * only reads: the current-state GET, lock listings, and the deployment what-if
- * (a query-class POST). Never sends the write itself.
+ * only current-state reads and lock listings, plus the non-mutating deployment
+ * what-if query (a query-class POST). Never sends the write itself.
  */
 export async function dryRun(request: DryRunRequest): Promise<Record<string, unknown>> {
   const bare = barePath(request.path);
