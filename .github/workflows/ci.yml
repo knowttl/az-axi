@@ -17,11 +17,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             node: "22"
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             node: "24"
-          - os: windows-latest
+          - os: windows-2025
             node: "22"
     steps:
       - uses: actions/checkout@v7
@@ -29,7 +29,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 9
+          version: 10.34.6
 
       - name: Use Node.js ${{ matrix.node }}
         uses: actions/setup-node@v7

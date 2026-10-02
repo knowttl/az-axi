@@ -875,7 +875,7 @@ This repository is public. It must never contain the owner's tenant, subscriptio
 | CLI smoke (CI) | `--version`, `--help`, unknown command exits 2, unknown flag exits 2 | `.github/workflows/ci.yml` |
 | Live smoke (local only) | Real read-only calls with the owner's `az login`; in Phase 6, a write round trip against a sandbox resource group | `scripts/live-smoke.mjs` |
 
-CI runs on Ubuntu with Node 22 and 24, and on Windows with Node 22. Windows matters because of the az `.cmd` shim. CI steps match ado-axi's `ci.yml`: install with `--frozen-lockfile`, build, test, then the CLI smoke checks.
+CI runs on Ubuntu 24.04 with Node 22 and 24, and on Windows Server 2025 with Node 22. Windows matters because of the az `.cmd` shim. CI steps match ado-axi's `ci.yml`: install with `--frozen-lockfile`, build, test, then the CLI smoke checks.
 
 ---
 
