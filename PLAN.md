@@ -61,7 +61,7 @@ ado-axi (about 5,000 lines of TypeScript) is organized as:
 | `src/lib/paths.ts`, `stdin.ts`, `context.ts` | 49 | Home dir collapsing, piped stdin, profile from args | Vendor |
 | `src/help.ts` | 207 | `TOP_LEVEL_HELP` and per-command help strings | Copy pattern |
 | `src/commands/api.ts`, `doctor.ts`, `config.ts`, `home.ts` | ~460 | Escape hatch, auth check, profile management, dashboard | Copy pattern, rewrite |
-| `.github/workflows/ci.yml`, `release.yml`, `scripts/release-notes.mjs` | | CI matrix (Ubuntu and Windows, Node 20 and 22), tag-driven npm release | Copy nearly unchanged |
+| `.github/workflows/ci.yml`, `release.yml`, `scripts/release-notes.mjs` | | CI matrix (Ubuntu Node 22 and 24, Windows Node 22), tag-driven npm release | Copy nearly unchanged |
 | `tsconfig.json`, `.nvmrc`, `.gitignore`, `pnpm-workspace.yaml`, vitest setup | | Tooling | Copy |
 | `benchmark/`, `scripts/benchmark/*.mjs`, `BENCHMARK.md`, `test/benchmark.test.ts` | | Scenario list, fetch preload hook for record and replay, default-deny scrubber, token counter, published results | Copy pattern; adapt scenarios and the scrubber to Azure identifiers (Section 13.4) |
 | `test/*.test.ts` | | Flat test folder, one file per area and aspect, inline payloads, `vi.mock("../src/lib/client.js")` | Copy pattern |
@@ -167,7 +167,7 @@ az-axi/
       ci.yml                           copied from ado-axi
       release.yml                      copied from ado-axi
   .gitignore                           copied, names changed (Section 4.2)
-  .nvmrc                               20
+  .nvmrc                               22
   BENCHMARK.md                         published benchmark results (Section 13.4)
   CHANGELOG.md
   LICENSE                              MIT, owner's copyright
@@ -875,7 +875,7 @@ This repository is public. It must never contain the owner's tenant, subscriptio
 | CLI smoke (CI) | `--version`, `--help`, unknown command exits 2, unknown flag exits 2 | `.github/workflows/ci.yml` |
 | Live smoke (local only) | Real read-only calls with the owner's `az login`; in Phase 6, a write round trip against a sandbox resource group | `scripts/live-smoke.mjs` |
 
-CI runs on Ubuntu with Node 20 and 22, and on Windows with Node 20, as upstream does. Windows matters because of the az `.cmd` shim. CI steps match ado-axi's `ci.yml`: install with `--frozen-lockfile`, build, test, then the CLI smoke checks.
+CI runs on Ubuntu with Node 22 and 24, and on Windows with Node 22. Windows matters because of the az `.cmd` shim. CI steps match ado-axi's `ci.yml`: install with `--frozen-lockfile`, build, test, then the CLI smoke checks.
 
 ---
 
@@ -1281,7 +1281,7 @@ node dist/bin/az-axi.js --help
 node dist/bin/az-axi.js definitely-not-a-command; echo "exit=$?"   # expect exit=2
 ```
 
-CI repeats these on Ubuntu (Node 20 and 22) and Windows (Node 20). A PR is not ready until all pass on all three.
+CI repeats these on Ubuntu (Node 22 and 24) and Windows (Node 22). A PR is not ready until all pass on all three.
 
 ### 14.2 Verifying an API version
 
