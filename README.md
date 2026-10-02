@@ -254,7 +254,9 @@ See [Check an operation](#check-an-operation) for URL requirements, output and r
 
 The source checkout provides `scrub` in `scripts/benchmark/scrub.mjs` and `countTokens` in `scripts/benchmark/tokens.mjs`.
 Build with `pnpm run build` before importing the scrubber, which uses constants from `dist`.
-These modules are not packaged with the CLI; capture and replay commands are not implemented yet.
+These modules and the benchmark harness are not packaged with the CLI.
+Use `pnpm bench` for offline replay of owner-made captures and `pnpm bench:surface` for skill and help token counts.
+Only the owner runs `pnpm bench:capture`; see [BENCHMARK.md](BENCHMARK.md) for targets, privacy constraints, replay matching and measurement limitations.
 
 `scrub(value, { leakCheck: [] })` returns scrubbed JSON data without mutating the input.
 It replaces string values and object keys by default, preserving only exact, case-sensitive entries in the module's `PUBLIC_VOCABULARY` and parseable timestamps of the form `YYYY-MM-DDTHH:mm:ss[.fraction](Z|±HH:mm)`.
@@ -268,7 +270,8 @@ There are no rename, preserve or suffix modes.
 Supply known private strings in `leakCheck`.
 The scrubber throws before returning if any appears as a case-insensitive substring in decoded keys, string values or serialized output, even when the text is otherwise allowed.
 The error does not print the private string.
-Keep real captures local in the gitignored `benchmark/fixtures/` and `benchmark/raw/` directories; never commit them, even scrubbed.
+See [BENCHMARK.md](BENCHMARK.md#owner-capture) for capture storage and privacy constraints.
 
 `countTokens(text)` measures text using `gpt-tokenizer`'s `o200k_base` encoding, treating special-token spellings as ordinary text.
 Synthetic scrubber, response replay and token counter coverage lives in `test/benchmark.test.ts`.
+Built-CLI record/replay, scenario runner and surface measurement coverage lives in `test/benchmarkHarness.test.ts`.
