@@ -15,8 +15,8 @@ const SYNTHETIC_GUID = /^00000000-0000-0000-0000-0000000000[0-9a-f]{2}$/;
 // Public, Microsoft-wide GUIDs that are required for function and are not tenant data.
 // Built-in role definition IDs belong in src/lib/roles.ts and are imported from there, not listed here.
 const PUBLIC_GUIDS: readonly string[] = [
-  // Azure DevOps resource ID, a public Microsoft constant. It appears in the unmodified vendored
-  // src/lib/auth.ts and is removed in Phase 1 when auth.ts is generalized.
+  // Azure DevOps resource ID, a public Microsoft constant. It no longer appears in src/lib/auth.ts
+  // (generalized in Phase 1) but PLAN.md still quotes it, so it stays allowed.
   "499b84ac-1321-427f-aa17-267ca6975798",
 ];
 
