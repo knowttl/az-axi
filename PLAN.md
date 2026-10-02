@@ -1067,7 +1067,8 @@ The owner also confirms the guard hook prompts for approval when an agent runs a
 
 Tasks:
 
-1. Write `skills/az-axi/SKILL.md`: frontmatter under 100 tokens (name, description with trigger words such as Azure, subscription, Resource Graph, RBAC, role assignment, activity log, Defender for Cloud, secure score, NSG, public IP, Log Analytics, KQL), then orientation, profiles, every command with one example, the safe shell input section adapted from ado-axi, and a "writes" section stating that writes are disabled by default, always need `--execute`, show a dry run first, and must be approved by the human. It must not explain how to enable writes; it points to `docs/writes.md` for the human.
+1. Write `skills/az-axi/SKILL.md`: frontmatter under 100 tokens (name, description with trigger words such as Azure, subscription, Resource Graph, RBAC, role assignment, activity log, Defender for Cloud, secure score, NSG, public IP, Log Analytics, KQL), then orientation, profiles, every command with one example, the safe shell input section adapted from ado-axi, and a "writes" section stating that writes are disabled by default, always need `--execute`, show a dry run first, and must be approved by the human.
+   It must not explain how to enable writes; it points to `README.md#writes` for the human.
 2. Complete `README.md` with every section in Section 4.3, in that order.
 3. Add `test/budget.test.ts` with a token ceiling per `test/samples.ts` payload (set each ceiling at measured size plus 20 percent).
 4. Review every `help[]` hint for accuracy against the final command surface.
