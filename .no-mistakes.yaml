@@ -2,6 +2,24 @@
 commands:
   prepare: 'corepack pnpm install --frozen-lockfile --ignore-scripts'
   test: 'corepack pnpm test'
+  lint: 'corepack pnpm exec tsc --noEmit -p tsconfig.json'
+document:
+  instructions: |
+    README.md owns the product introduction, installation, usage, and behavior reference.
+    skills/az-axi/SKILL.md is the packaged agent skill surface and must stay
+    consistent with the CLI help and commands; update both together.
+    PLAN.md is design history, not a behavior specification; do not treat it as normative.
+    This repository has no AGENTS.md or CLAUDE.md.
+review:
+  path_instructions:
+    - path: "src/lib/**"
+      instructions: |
+        Credential and secret handling must go through the redaction in
+        src/lib/redact.ts. Request classification (read vs query vs secret vs
+        destructive vs write) is owned by src/lib/policy.ts, and anything the
+        rules do not recognize falls through to write, never to read.
+        New Azure actions that return credentials or that destroy or disrupt
+        resources must extend SECRET_ACTIONS or DESTRUCTIVE_ACTIONS there.
 auto_fix:
   review: 1
   test: 3
