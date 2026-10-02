@@ -123,7 +123,7 @@ const patch = (extra: string[] = [], profile = "--profile writer") =>
   run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", '{"tags":{"env":"prod","team":"a"}}', ...profile.split(" "), ...extra]);
 
 function commandArguments(command: string): string[] {
-  return execFileSync("sh", ["-c", `az-axi() { printf '%s\\0' "$@"; }; ${command.slice(1, -1)}`], { encoding: "utf8" })
+  return execFileSync("sh", ["-c", `capture() { printf '%s\\0' "$@"; }; ${command.slice(1, -1).replace(/^az-axi /, "capture ")}`], { encoding: "utf8" })
     .split("\0").slice(0, -1);
 }
 
@@ -338,11 +338,11 @@ describe("write-enabled profile without --execute", () => {
 
   it.each([DEPLOYMENT, `${SUB_PATH}/providers/Microsoft.Resources/deployments/dep1`])(
     "preserves effective deployment queries for %s", async (path) => {
-      for (const [suffix, flags, version] of [
-        [`?api-version=path-version&keep=path`, [], "path-version"],
-        ["?keep=path", ["--query", "api-version=query-version&keep=query"], "query-version"],
-        ["?api-version=path-version&keep=path", ["--api-version", "flag-version", "--query", "keep=query"], "path-version"],
-        ["?api-version=path-version&keep=path", ["--api-version", "flag-version", "--query", "api-version=query-version"], "query-version"],
+      for (const [suffix, flags, version, keep] of [
+        [`?api-version=path-version&keep=path`, [], "path-version", "path"],
+        ["?keep=path", ["--query", "api-version=query-version&keep=query"], "query-version", "query"],
+        ["?api-version=path-version&keep=path", ["--api-version", "flag-version", "--query", "keep=query"], "path-version", "query"],
+        ["?api-version=path-version&keep=path", ["--api-version", "flag-version", "--query", "api-version=query-version"], "query-version", "path"],
       ] as const) {
         fetchMock.mockClear();
         const result = await run(["PUT", `${path}${suffix}`, ...flags, "--profile", "writer", "--body", '{"properties":{"template":{}}}']);
@@ -350,7 +350,7 @@ describe("write-enabled profile without --execute", () => {
         const url = new URL(fetchMock.mock.calls[0]![0] as string);
         expect(url.pathname).toBe(`${path}/whatIf`);
         expect(url.searchParams.get("api-version")).toBe(version);
-        expect(url.searchParams.get("keep")).toBe(flags.some((flag) => flag === "keep=query") ? "query" : "path");
+        expect(url.searchParams.get("keep")).toBe(keep);
         assertOnlyPreviewReads();
       }
     },

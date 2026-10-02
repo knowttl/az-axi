@@ -14,7 +14,7 @@ import { formatFlagValue, quoteFlagValue } from "../src/lib/shell.js";
 import { parseArgs } from "../src/lib/args.js";
 
 function argumentsOf(shell: string, command: string): string[] {
-  return execFileSync(shell, ["-c", `az-axi() { printf '%s\\0' "$@"; }; ${command}`], { encoding: "utf8" }).split("\0").slice(0, -1);
+  return execFileSync(shell, ["-c", `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}`], { encoding: "utf8" }).split("\0").slice(0, -1);
 }
 
 describe.each(["sh", "zsh"])("command hints in %s", (shell) => {
@@ -78,7 +78,8 @@ describe.each(["sh", "zsh"])("command hints in %s", (shell) => {
     const hint = (result.help as string[])[0]!;
     const argv = argumentsOf(shell, hint.slice(hint.indexOf("`") + 1, -1));
     expect(parseArgs(argv)).toEqual({ positionals: ["api", "/things"], flags: { "api-version": "--version", query: "--key=value&x=1", all: true } });
+    vi.mocked(sendRequest).mockClear();
     await run(argv.slice(1));
-    expect(vi.mocked(sendRequest).mock.lastCall?.[1]).toMatchObject({ apiVersion: "--version", query: { "--key": "value", x: "1" } });
+    expect(vi.mocked(sendRequest).mock.calls[0]?.[1]).toMatchObject({ apiVersion: "--version", query: { "--key": "value", x: "1" } });
   });
 });
