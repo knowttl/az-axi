@@ -135,7 +135,7 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
     "Escape hatch for any read or query request. Paths are relative to the host root.",
     "--api-version is required for arm when the path has no api-version query parameter.",
     "Lists with a value[] array return count plus value; --all follows ARM nextLink (up to 10 pages).",
-    "Strings truncate at 4,000 chars unless --full. Writes are blocked with WRITES_DISABLED in Phase 2.",
+    "Strings truncate at 4,000 chars unless --full. Writes are blocked with WRITES_DISABLED; only reads and queries are served.",
     "Examples: az-axi api /subscriptions --api-version 2022-12-01",
   ].join("\n"),
 });
