@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AxiError } from "axi-sdk-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
@@ -130,7 +129,7 @@ describe("api escape hatch", () => {
     sendMock
       .mockResolvedValueOnce(ok({ value: [1], nextLink: "https://management.azure.com/next1?api-version=1" }))
       .mockResolvedValueOnce(ok({ value: [2] }));
-    const result = await run(["POST", "/things", "--api-version", "1", "--all"]);
+    const result = await run(["POST", "/providers/Microsoft.ResourceGraph/resources", "--api-version", "1", "--all"]);
     expect(result.value).toEqual([1, 2]);
     expect(sendMock.mock.calls[1]?.[1]).toMatchObject({
       method: "GET",
@@ -147,18 +146,10 @@ describe("api escape hatch", () => {
     expect(help).not.toContain("api-version");
   });
 
-  it("refuses writes through the Phase 1 gate stub and secrets as read-only", async () => {
-    sendMock.mockRejectedValue(
-      new AxiError("blocked: writes are disabled for profile 'az' (DELETE request)", "WRITES_DISABLED", [
-        "Writes are disabled for this profile",
-      ]),
-    );
+  it("refuses writes through the gates and secrets as read-only, before sending", async () => {
     await expect(run(["DELETE", "/x", "--api-version", "1"])).rejects.toMatchObject({ code: "WRITES_DISABLED" });
-
-    sendMock.mockRejectedValue(
-      new AxiError("blocked: POST listKeys returns credentials", "READ_ONLY", ["az-axi never calls actions that return keys"]),
-    );
     await expect(run(["POST", "/x/listKeys", "--api-version", "1"])).rejects.toMatchObject({ code: "READ_ONLY" });
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("rejects bad usage", async () => {

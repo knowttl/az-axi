@@ -172,18 +172,24 @@ describe("read-only boundary and gates", () => {
   );
 
   it.each(CLASSIFICATION.filter(([, , , cls]) => cls === "write" || cls === "destructive"))(
-    "the Phase 1 gate stub blocks %s %s %s even for a write-enabled profile",
+    "the gates block %s %s %s on a default profile with WRITES_DISABLED",
     (resource, method, path, cls) => {
-      const enabled = profile({
-        allowWrites: true,
-        subscriptions: ["00000000-0000-0000-0000-000000000020"],
-        writeSubscriptions: ["00000000-0000-0000-0000-000000000020"],
-      });
-      expect(() => enforceGates(enabled, { resource, method, path }, cls)).toThrowError(
+      expect(() => enforceGates(profile(), { resource, method, path }, cls)).toThrowError(
         expect.objectContaining({ code: "WRITES_DISABLED" }),
       );
     },
   );
+
+  it("lets a write-enabled profile reach the dry run without --execute", () => {
+    const enabled = profile({
+      allowWrites: true,
+      subscriptions: ["00000000-0000-0000-0000-000000000020"],
+      writeSubscriptions: ["00000000-0000-0000-0000-000000000020"],
+    });
+    expect(() =>
+      enforceGates(enabled, { resource: "arm", method: "PATCH", path: SUB }, "write"),
+    ).not.toThrow();
+  });
 
   it("lets read and query requests through the gates", () => {
     for (const cls of ["read", "query"] as const) {

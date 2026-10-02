@@ -129,13 +129,16 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
   ].join("\n"),
   api: [
     "az-axi api [GET|POST|PUT|PATCH|DELETE] <path> [--resource arm|logs|graph] [--api-version <v>]",
-    "         [--query 'k=v&k2=v2'] [--body '<json>'] [--raw] [--all]",
+    "         [--query 'k=v&k2=v2'] [--body '<json>'] [--raw] [--all] [--execute] [--confirm <name>] [--if-match <etag>]",
     "az-axi api /subscriptions --api-version 2022-12-01",
     "",
     "Escape hatch for any read or query request. Paths are relative to the host root.",
     "--api-version is required for arm when the path has no api-version query parameter.",
     "Lists with a value[] array return count plus value; --all follows ARM nextLink (up to 10 pages).",
-    "Strings truncate at 4,000 chars unless --full. Writes are blocked with WRITES_DISABLED; only reads and queries are served.",
+    "Strings truncate at 4,000 chars unless --full.",
+    "Writes and destructive requests return a dry-run preview (nothing is sent except preview reads),",
+    "with the exact --execute command in help[]. Destructive requests need --confirm <resource-name>.",
+    "Execution is not available yet: with --execute every passing gate still reports that.",
     "Examples: az-axi api /subscriptions --api-version 2022-12-01",
   ].join("\n"),
 });
