@@ -41,11 +41,11 @@ function walk(value: unknown, parentKey: string | undefined): unknown {
     "value" in record &&
     ("keyName" in record || ("name" in record && (parentKey === "passwords" || parentKey === "keys")));
 
-  const out: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(record)) {
-    const redactChild =
-      (key === "value" && isSecretPair) || (typeof child === "string" && isSecretKeyName(key));
-    out[key] = redactChild ? REDACTED : walk(child, key);
-  }
-  return out;
+  return Object.fromEntries(
+    Object.entries(record).map(([key, child]) => {
+      const redactChild =
+        (key === "value" && isSecretPair) || (typeof child === "string" && isSecretKeyName(key));
+      return [key, redactChild ? REDACTED : walk(child, key)];
+    }),
+  );
 }

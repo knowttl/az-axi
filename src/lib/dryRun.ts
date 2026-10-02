@@ -8,6 +8,7 @@ import { subscriptionOfPath, targetResourceName } from "./gates.js";
 import { classifyRequest, type RequestClass } from "./policy.js";
 import { redact } from "./redact.js";
 import { shortenResourceId } from "./scope.js";
+import { quoteFlagValue } from "./shell.js";
 
 const BODY_TRUNCATE = 4000;
 
@@ -33,12 +34,6 @@ export interface DryRunRequest {
   full?: boolean;
   /** User-passed `--if-match`, echoed when no fresher ETag is read. */
   ifMatch?: string;
-}
-
-/** Shell-quotes one flag value; also used by the api command's paging hint. */
-export function quoteFlagValue(value: string): string {
-  if (!/[\s"'$`\\]/.test(value)) return value;
-  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function barePath(path: string): string {
@@ -111,9 +106,13 @@ export function buildExecuteCommand(options: {
   const parts = ["az-axi", "api", options.method, quoteFlagValue(options.path)];
   if (options.selectors) parts.push(options.selectors);
   if (options.resource !== "arm") parts.push(`--resource ${options.resource}`);
-  if (options.apiVersion) parts.push(`--api-version ${options.apiVersion}`);
+  if (options.apiVersion) parts.push(`--api-version ${quoteFlagValue(options.apiVersion)}`);
   if (options.queryRaw) parts.push(`--query ${quoteFlagValue(options.queryRaw)}`);
-  if (options.bodyRaw !== undefined) parts.push(`--body ${quoteFlagValue(options.bodyRaw)}`);
+  if (options.bodyRaw !== undefined) {
+    const body = JSON.parse(options.bodyRaw) as unknown;
+    const safeBody = JSON.stringify(redact(body)) === JSON.stringify(body) ? options.bodyRaw : "<json-body>";
+    parts.push(`--body ${quoteFlagValue(safeBody)}`);
+  }
   if (options.etag) parts.push(`--if-match ${quoteFlagValue(options.etag)}`);
   parts.push("--execute");
   if (options.confirmName !== undefined) parts.push(`--confirm ${quoteFlagValue(options.confirmName)}`);
@@ -281,7 +280,9 @@ async function dryRunDeployment(
     help.push(command({}));
     return { ...base, help };
   }
-  const whatIfPath = `${barePath(request.path)}/whatIf`;
+  const queryStart = request.path.indexOf("?");
+  const query = queryStart < 0 ? "" : request.path.slice(queryStart).split("#", 1)[0];
+  const whatIfPath = `${barePath(request.path)}/whatIf${query}`;
   // Defensive: the preview POST must stay a query-class request, never a write.
   const whatIfShape = { resource: request.resource, method: "POST", path: whatIfPath };
   if (classifyRequest(whatIfShape) !== "query") {
@@ -302,6 +303,7 @@ async function dryRunDeployment(
     method: "POST",
     resource: request.resource,
     path: whatIfPath,
+    query: request.query,
     apiVersion: request.apiVersion,
     body: whatIfBody,
   });

@@ -1,4 +1,5 @@
 /** Field-level diff for dry runs (PLAN.md Section 6.13.3). Pure module: no I/O. */
+import { redact } from "./redact.js";
 
 export const MAX_CHANGES = 20;
 
@@ -45,49 +46,64 @@ function valuesEqual(a: unknown, b: unknown): boolean {
 }
 
 /** Leaf changes for paths present in `body`. PATCH and the changed half of PUT. */
-function changedPaths(current: unknown, body: unknown, base: string, out: FieldChange[]): void {
+function changedPaths(
+  current: unknown,
+  body: unknown,
+  shownCurrent: unknown,
+  shownBody: unknown,
+  base: string,
+  out: FieldChange[],
+): void {
   if (isRecord(body) && isRecord(current)) {
     for (const key of Object.keys(body)) {
-      changedPaths(Object.hasOwn(current, key) ? current[key] : undefined, body[key], joinPath(base, key), out);
+      changedPaths(
+        Object.hasOwn(current, key) ? current[key] : undefined,
+        body[key],
+        Object.hasOwn(current, key) ? (shownCurrent as Record<string, unknown>)[key] : undefined,
+        (shownBody as Record<string, unknown>)[key],
+        joinPath(base, key),
+        out,
+      );
     }
     return;
   }
-  if (!valuesEqual(current, body)) out.push({ path: base, from: current, to: body });
+  if (!valuesEqual(current, body)) out.push({ path: base, from: shownCurrent, to: shownBody });
 }
 
 /** Leaf paths in `current` that `body` drops. PUT only; PATCH leaves them alone. */
-function removedPaths(current: unknown, body: unknown, base: string, out: FieldChange[]): void {
+function removedPaths(current: unknown, body: unknown, shownCurrent: unknown, base: string, out: FieldChange[]): void {
   if (isRecord(current) && isRecord(body)) {
     for (const key of Object.keys(current)) {
       if (!Object.hasOwn(body, key)) {
-        removedLeaves(current[key], joinPath(base, key), out);
+        removedLeaves(current[key], (shownCurrent as Record<string, unknown>)[key], joinPath(base, key), out);
       } else {
-        removedPaths(current[key], body[key], joinPath(base, key), out);
+        removedPaths(current[key], body[key], (shownCurrent as Record<string, unknown>)[key], joinPath(base, key), out);
       }
     }
   }
 }
 
-function removedLeaves(value: unknown, base: string, out: FieldChange[]): void {
+function removedLeaves(value: unknown, shownValue: unknown, base: string, out: FieldChange[]): void {
   if (isRecord(value)) {
     const keys = Object.keys(value);
     if (keys.length > 0) {
-      for (const key of keys) removedLeaves(value[key], joinPath(base, key), out);
+      for (const key of keys) removedLeaves(value[key], (shownValue as Record<string, unknown>)[key], joinPath(base, key), out);
       return;
     }
   }
-  out.push({ path: base, from: value, to: undefined });
+  out.push({ path: base, from: shownValue, to: undefined });
 }
 
 /**
  * Compares a PUT or PATCH body against current resource state.
  * PATCH compares only paths present in the body; PUT also lists fields the
- * body would remove. Inputs are never mutated; `from`/`to` alias input values.
+ * body would remove. Inputs are never mutated; displayed values are redacted.
  */
 export function diffResource(current: unknown, body: unknown, method: "PUT" | "PATCH"): ResourceDiff {
   const all: FieldChange[] = [];
-  changedPaths(current, body, "", all);
-  if (method === "PUT") removedPaths(current, body, "", all);
+  const shownCurrent = redact(current);
+  changedPaths(current, body, shownCurrent, redact(body), "", all);
+  if (method === "PUT") removedPaths(current, body, shownCurrent, "", all);
   const changes = all.slice(0, MAX_CHANGES);
   return { changes, remaining: all.length - changes.length, noop: all.length === 0 };
 }

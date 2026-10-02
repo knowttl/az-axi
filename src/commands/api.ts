@@ -2,7 +2,8 @@ import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs } from "../lib/args.js";
 import { sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
-import { dryRun, quoteFlagValue } from "../lib/dryRun.js";
+import { dryRun } from "../lib/dryRun.js";
+import { quoteFlagValue } from "../lib/shell.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
@@ -32,9 +33,9 @@ function morePagesHint(options: {
 }): string {
   const parts = ["az-axi api"];
   if (options.method !== "GET") parts.push(options.method);
-  parts.push(options.path);
+  parts.push(quoteFlagValue(options.path));
   if (options.resource !== "arm") parts.push(`--resource ${options.resource}`);
-  if (options.apiVersion) parts.push(`--api-version ${options.apiVersion}`);
+  if (options.apiVersion) parts.push(`--api-version ${quoteFlagValue(options.apiVersion)}`);
   if (options.query) parts.push(`--query ${quoteFlagValue(options.query)}`);
   if (options.body) parts.push(`--body ${quoteFlagValue(options.body)}`);
   parts.push("--all");

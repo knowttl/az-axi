@@ -275,6 +275,9 @@ describe("write-enabled profile without --execute", () => {
     const short = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", '{"adminPassword":"hunter2"}', "--profile", "writer"]);
     expect(JSON.stringify(short.body)).toContain("***redacted***");
     expect(JSON.stringify(short.body)).not.toContain("hunter2");
+    expect(JSON.stringify(short)).not.toContain("hunter2");
+    expect(short.changes).toEqual([{ path: "adminPassword", to: "***redacted***" }]);
+    expect((short.help as string[]).join("\n")).toContain("--body '<json-body>'");
 
     const truncated = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", big, "--profile", "writer"]);
     expect(typeof truncated.body).toBe("string");
@@ -294,6 +297,57 @@ describe("write-enabled profile without --execute", () => {
     expect(typeof full.body).toBe("object");
     assertOnlyPreviewReads();
   });
+
+  it.each(["PUT", "PATCH"])("redacts %s changes without hiding secret replacements", async (method) => {
+    fetchMock.mockResolvedValue(json({ properties: { adminPassword: "old-password", nested: { clientSecret: "old-secret" } }, passwords: [{ name: "login", value: "old-pair" }] }));
+    const result = await run([method, STORAGE, "--api-version", API_VERSION, "--profile", "writer", "--body",
+      JSON.stringify({ properties: { adminPassword: "new-password", nested: { clientSecret: "new-secret" } }, passwords: [{ name: "login", value: "new-pair" }] })]);
+    expect(result.noop).toBeUndefined();
+    expect(result.changes).toEqual([
+      { path: "properties.adminPassword", from: "***redacted***", to: "***redacted***" },
+      { path: "properties.nested.clientSecret", from: "***redacted***", to: "***redacted***" },
+      { path: "passwords", from: [{ name: "login", value: "***redacted***" }], to: [{ name: "login", value: "***redacted***" }] },
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/old-password|new-password|old-secret|new-secret|old-pair|new-pair/);
+    assertOnlyPreviewReads();
+  });
+
+  it("redacts removed PUT secrets", async () => {
+    fetchMock.mockResolvedValue(json({ properties: { adminPassword: "removed-password" } }));
+    const result = await run(["PUT", STORAGE, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"]);
+    expect(result.changes).toEqual([{ path: "properties.adminPassword", from: "***redacted***" }]);
+    expect(JSON.stringify(result)).not.toContain("removed-password");
+    assertOnlyPreviewReads();
+  });
+
+  it.each([["PUT", MISSING], ["POST", CHECK_ACCESS], ["DELETE", STORAGE], ["PUT", DEPLOYMENT]])(
+    "keeps secret bodies out of %s %s command hints", async (method, path) => {
+      const result = await run([method, path, "--api-version", API_VERSION, "--profile", "writer", "--body", '{"adminPassword":"hunter2"}']);
+      expect(JSON.stringify(result)).not.toContain("hunter2");
+      expect((result.help as string[]).join("\n")).toContain("--body '<json-body>'");
+      assertOnlyPreviewReads();
+    },
+  );
+
+  it.each([DEPLOYMENT, `${SUB_PATH}/providers/Microsoft.Resources/deployments/dep1`])(
+    "preserves effective deployment queries for %s", async (path) => {
+      for (const [suffix, flags, version] of [
+        [`?api-version=path-version&keep=path`, [], "path-version"],
+        ["?keep=path", ["--query", "api-version=query-version&keep=query"], "query-version"],
+        ["?api-version=path-version&keep=path", ["--api-version", "flag-version", "--query", "keep=query"], "path-version"],
+        ["?api-version=path-version&keep=path", ["--api-version", "flag-version", "--query", "api-version=query-version"], "query-version"],
+      ] as const) {
+        fetchMock.mockClear();
+        const result = await run(["PUT", `${path}${suffix}`, ...flags, "--profile", "writer", "--body", '{"properties":{"template":{}}}']);
+        expect(result.whatIf).toEqual({ create: 1, modify: 1, nochange: 1 });
+        const url = new URL(fetchMock.mock.calls[0]![0] as string);
+        expect(url.pathname).toBe(`${path}/whatIf`);
+        expect(url.searchParams.get("api-version")).toBe(version);
+        expect(url.searchParams.get("keep")).toBe(flags.some((flag) => flag === "keep=query") ? "query" : "path");
+        assertOnlyPreviewReads();
+      }
+    },
+  );
 });
 
 describe("write-enabled profile with --execute", () => {

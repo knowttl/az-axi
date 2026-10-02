@@ -1,6 +1,7 @@
 import { AxiError } from "axi-sdk-js";
 import { readOnlyForced, type ResolvedProfile } from "./config.js";
 import { DESTRUCTIVE_ACTIONS, type RequestClass, type RequestShape } from "./policy.js";
+import { quoteFlagValue } from "./shell.js";
 
 export interface GateOptions {
   /** `--execute`: only the api command supplies this; the client backstop never does. */
@@ -117,14 +118,14 @@ export function enforceGates(
       throw new AxiError(
         `blocked: destructive ${method} needs --confirm '${target}' (profile '${profile.name}')`,
         "CONFIRM_REQUIRED",
-        [`Re-run with --confirm ${target}`],
+        [`Re-run with --confirm ${quoteFlagValue(target)}`],
       );
     }
     if (options.confirm !== target) {
       throw new AxiError(
         `blocked: --confirm '${options.confirm}' does not match target resource '${target}' (profile '${profile.name}')`,
         "CONFIRM_MISMATCH",
-        [`Re-run with --confirm ${target}`],
+        [`Re-run with --confirm ${quoteFlagValue(target)}`],
       );
     }
   }
