@@ -1,7 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
+vi.mock("../src/lib/client.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/lib/client.js")>(),
+  sendRequest: vi.fn(),
+}));
 
 import { run } from "../src/commands/api.js";
 import { sendRequest } from "../src/lib/client.js";

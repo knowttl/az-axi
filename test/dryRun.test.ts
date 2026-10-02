@@ -356,6 +356,51 @@ describe("write-enabled profile without --execute", () => {
   );
 });
 
+describe("canonical request paths", () => {
+  it.each([
+    ["PATCH", STORAGE, '{"tags":{"env":"prod"}}'],
+    ["PUT", MISSING, "{}"],
+    ["DELETE", STORAGE, undefined],
+    ["POST", VM_RESTART, undefined],
+    ["PUT", DEPLOYMENT, '{"properties":{"template":{}}}'],
+    ["PUT", `${SUB_PATH}/providers/Microsoft.Resources/deployments/dep1`, '{"properties":{"template":{}}}'],
+    ...["roleAssignments", "roleDefinitions", "locks", "policyAssignments"].map((type) =>
+      ["PUT", `${SUB_PATH}/providers/Microsoft.Authorization/${type}/assignment1`, "{}"],
+    ),
+  ])("preserves %s %s previews across path representations", async (method, path, body) => {
+    const flags = ["--profile", "writer", "--api-version", "flag-version", "--query", "keep=query&extra=1", ...(body === undefined ? [] : ["--body", body])];
+    const suffix = "?api-version=path-version&keep=path";
+    const reference = await run([method!, `${path}${suffix}`, ...flags]);
+    const requests = () => fetchMock.mock.calls.map(([url, init]) => ({ url, method: init.method, body: init.body }));
+    const referenceRequests = requests();
+    for (const representation of [path!.slice(1), `https://management.azure.com${path}`]) {
+      fetchMock.mockClear();
+      expect(await run([method!, `${representation}${suffix}`, ...flags])).toEqual(reference);
+      expect(requests()).toEqual(referenceRequests);
+      for (const { url } of requests()) {
+        const parsed = new URL(url as string);
+        if (parsed.pathname.endsWith("/locks")) continue;
+        expect(parsed.searchParams.get("api-version")).toBe("path-version");
+        expect(parsed.searchParams.get("keep")).toBe("query");
+        expect(parsed.searchParams.get("extra")).toBe("1");
+      }
+      assertOnlyPreviewReads();
+    }
+  });
+
+  it("gates the normalized subscription after dot-segment resolution", async () => {
+    await expect(run(["PATCH", `${SUB_PATH}/../00000000-0000-0000-0000-000000000022/resourceGroups/rg-x`, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"])).rejects.toMatchObject({ code: "SUBSCRIPTION_NOT_WRITABLE" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["http://management.azure.com", "https://other.example"])(
+    "rejects a write URL on %s before previewing", async (host) => {
+      await expect(run(["PATCH", `${host}${STORAGE}`, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("selected preview regressions", () => {
   it("replays a DELETE preview for a name beginning with --", async () => {
     fetchMock.mockImplementation(async () => json({ name: "--prod" }));

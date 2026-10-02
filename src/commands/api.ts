@@ -1,6 +1,6 @@
 import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs } from "../lib/args.js";
-import { sendRequest } from "../lib/client.js";
+import { buildUrl, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { dryRun } from "../lib/dryRun.js";
 import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
@@ -143,7 +143,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     .join(" ");
 
   // Every request is classified and gated here; the command never decides itself.
-  const shape = { resource, method, path: path as string };
+  const url = new URL(buildUrl({ resource, path: path as string, query, apiVersion }));
+  const shape = { resource, method, path: url.pathname };
   const cls = classifyRequest(shape);
   assertReadOnlyBoundary(shape, cls);
   if (cls === "write" || cls === "destructive") {
@@ -154,7 +155,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
       profile,
       resource,
       method,
-      path: path as string,
+      path: `${url.pathname}${url.search}`,
       cls,
       body,
       bodyRaw,

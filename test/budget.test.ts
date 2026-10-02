@@ -16,7 +16,11 @@ import { encode as encodeToon } from "@toon-format/toon";
 import { encode as encodeTokens } from "gpt-tokenizer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn(), requestAll: vi.fn() }));
+vi.mock("../src/lib/client.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/lib/client.js")>(),
+  sendRequest: vi.fn(),
+  requestAll: vi.fn(),
+}));
 vi.mock("../src/lib/auth.js", () => ({ runAz: vi.fn(), identityOf: vi.fn(), resolveCredential: vi.fn() }));
 vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn() }));
 

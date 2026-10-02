@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
+vi.mock("../src/lib/client.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/lib/client.js")>(),
+  sendRequest: vi.fn(),
+}));
 
 import { run } from "../src/commands/api.js";
 import { sendRequest } from "../src/lib/client.js";
@@ -55,6 +58,13 @@ describe("api escape hatch", () => {
     sendMock.mockResolvedValue(ok({ value: [] }));
     await run(["/subscriptions", "--api-version", "2022-12-01"]);
     expect(sendMock.mock.calls[0]?.[1]).toMatchObject({ method: "GET", path: "/subscriptions" });
+  });
+
+  it("classifies an absolute Resource Graph URL as a query", async () => {
+    sendMock.mockResolvedValue(ok({ data: [] }));
+    const path = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=1";
+    await run(["POST", path, "--body", '{"query":"Resources | take 1"}']);
+    expect(sendMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: "POST", path, body: { query: "Resources | take 1" } }));
   });
 
   it("passes resource, query string and parsed body through", async () => {
