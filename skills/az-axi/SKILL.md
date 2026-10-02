@@ -83,8 +83,8 @@ az-axi rbac list --show-query
 az-axi activity list --since 24h --status Failed
 ```
 
-`rbac list` runs one Resource Graph query over `authorizationresources`, joined
-to role definitions. `--privileged` keeps Owner, Contributor, User Access
+`rbac list` queries Resource Graph over `authorizationresources`, joined to role definitions, paging as needed.
+`--privileged` keeps Owner, Contributor, User Access
 Administrator, and RBAC Administrator by built-in role GUID. `--principal`
 accepts an object ID or a UPN (UPNs resolve through Graph; if Graph is
 unavailable, pass the object ID). Principal names are best effort: on any Graph
@@ -198,7 +198,6 @@ The human owns write access; this skill does not describe how to enable it.
   runnable next steps. Follow hints literally.
 - Exit codes: 0 success (including no-ops), 1 runtime error, 2 usage error.
 - Unknown flags are rejected by name - read the `help` line and retry once.
-  Flags that do not apply to the subcommand are rejected the same way.
 - Lists take `--limit` and `--fields a,b`; detail views truncate and take
   `--full`.
 - Read-only commands never change Azure state. `config init` writes a local
