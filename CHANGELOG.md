@@ -13,3 +13,4 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Dashboard (`az-axi` with no arguments): active alerts by severity, secure score average and lowest subscription, and exposure counts. A failed section degrades to a hint.
 - `logs query`: Log Analytics KQL with workspace aliases, ISO timespans, `--file`/stdin, client-side row caps, multi-table counts and partial-error warnings.
 - Write framework groundwork (still disabled): pure field-level diff for dry-run change previews.
+- `skills/az-axi/SKILL.md`: agent usage guide with every command, safe shell input, the naming notice, and the writes policy.
