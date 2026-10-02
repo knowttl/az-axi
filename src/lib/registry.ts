@@ -24,6 +24,8 @@ export const COMMANDS: Record<string, () => Promise<CommandModule>> = Object.ass
   doctor: () => import("../commands/doctor.js"),
   config: () => import("../commands/config.js"),
   sub: () => import("../commands/sub.js"),
+  rg: () => import("../commands/rg.js"),
+  api: () => import("../commands/api.js"),
 });
 
 let activeEffect: Effect | undefined;

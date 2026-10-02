@@ -1,0 +1,183 @@
+import { AxiError } from "axi-sdk-js";
+import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs } from "../lib/args.js";
+import { sendRequest } from "../lib/client.js";
+import { profileFromArgs } from "../lib/context.js";
+import { countLine, pickFields, truncate } from "../lib/format.js";
+import type { CommandMeta } from "../lib/registry.js";
+import type { Resource } from "../lib/config.js";
+
+/**
+ * Escape hatch for any read or query request (PLAN.md Section 6.11). In Phase 2
+ * only reads and queries are served; writes reach the Phase 1 gate stub and are
+ * reported as WRITES_DISABLED, with the full dry-run flow arriving in Phase 6.
+ */
+export const meta: CommandMeta = { name: "api", effect: "dynamic" };
+
+const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
+const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all"] as const;
+const STRING_TRUNCATE = 4000;
+const MAX_PAGES = 10;
+
+function parseQueryString(raw: string | undefined): Record<string, string> {
+  if (!raw) return {};
+  const text = raw.startsWith("?") ? raw.slice(1) : raw;
+  const params = new URLSearchParams(text);
+  const out: Record<string, string> = {};
+  for (const [key, value] of params) out[key] = value;
+  if (Object.keys(out).length === 0 && text.trim() !== "") {
+    throw new AxiError(`invalid --query '${raw}'`, "VALIDATION_ERROR", ["Example: --query 'k=v&k2=v2'"]);
+  }
+  return out;
+}
+
+function truncateDeep(value: unknown, full: boolean): unknown {
+  if (typeof value === "string") return full ? value : truncate(value, STRING_TRUNCATE).text;
+  if (Array.isArray(value)) return value.map((item) => truncateDeep(item, full));
+  if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) out[key] = truncateDeep(child, full);
+    return out;
+  }
+  return value;
+}
+
+export async function run(argv: string[]): Promise<Record<string, unknown>> {
+  const args = parseArgs(argv);
+  assertKnownFlags(args, KNOWN_FLAGS, "api");
+
+  let method = "GET";
+  let path: string | undefined;
+  const upper0 = args.positionals[0]?.toUpperCase();
+  if (upper0 && (METHODS as readonly string[]).includes(upper0)) {
+    method = upper0;
+    path = args.positionals[1];
+    if (!path) {
+      throw new AxiError(`missing path for \`api ${method}\``, "VALIDATION_ERROR", [
+        "Example: `az-axi api GET /subscriptions --api-version 2022-12-01`",
+        "Or: `az-axi api /subscriptions --api-version 2022-12-01`",
+      ]);
+    }
+    if (args.positionals.length > 2) {
+      throw new AxiError(`unexpected argument \`${args.positionals[2]}\` for \`api\``, "VALIDATION_ERROR", [
+        "Pass one method and one path",
+      ]);
+    }
+  } else {
+    path = args.positionals[0];
+    if (!path) {
+      throw new AxiError("missing path for `api`", "VALIDATION_ERROR", [
+        "Example: `az-axi api /subscriptions --api-version 2022-12-01`",
+        "Example: `az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body '{\"query\":\"Resources | take 1\"}'`",
+      ]);
+    }
+    if (args.positionals.length > 1) {
+      throw new AxiError(`unexpected argument \`${args.positionals[1]}\` for \`api\``, "VALIDATION_ERROR", [
+        "Pass an optional method before the path: `az-axi api GET <path>`",
+      ]);
+    }
+  }
+
+  const resource = (flagString(args, "resource") ?? "arm") as Resource;
+  if (resource !== "arm" && resource !== "logs" && resource !== "graph") {
+    throw new AxiError(`--resource must be arm, logs or graph, got '${resource}'`, "VALIDATION_ERROR", [
+      "Example: --resource arm",
+    ]);
+  }
+  const apiVersion = flagString(args, "api-version");
+  const query = parseQueryString(flagString(args, "query"));
+  const rawFlag = flagBool(args, "raw");
+  const all = flagBool(args, "all");
+  const full = flagBool(args, "full");
+  const fields = flagList(args, "fields");
+  const limit = flagNumber(args, "limit");
+  if (limit !== undefined && !(limit > 0)) {
+    throw new AxiError("flag --limit must be greater than 0", "VALIDATION_ERROR", ["Example: --limit 20"]);
+  }
+
+  let body: unknown;
+  const bodyRaw = flagString(args, "body");
+  if (bodyRaw !== undefined) {
+    try {
+      body = JSON.parse(bodyRaw);
+    } catch {
+      throw new AxiError("flag --body must be valid JSON", "VALIDATION_ERROR", [
+        "Example: --body '{\"query\":\"Resources | take 1\"}'",
+      ]);
+    }
+  }
+
+  const profile = profileFromArgs(args);
+  const first = await sendRequest<unknown>(profile, {
+    method,
+    resource,
+    path,
+    query,
+    body,
+    apiVersion,
+    raw: rawFlag,
+  });
+
+  if (rawFlag || typeof first.body === "string") {
+    const text = typeof first.body === "string" ? first.body : JSON.stringify(first.body);
+    return {
+      status: first.status,
+      body: full ? text : truncate(text ?? "", STRING_TRUNCATE).text,
+    };
+  }
+
+  const asRecord =
+    first.body !== null && typeof first.body === "object" && Object.getPrototypeOf(first.body) === Object.prototype
+      ? (first.body as Record<string, unknown>)
+      : undefined;
+  const value = asRecord?.["value"];
+
+  if (!Array.isArray(value)) {
+    return {
+      status: first.status,
+      ...(asRecord ? (truncateDeep(asRecord, full) as Record<string, unknown>) : { body: first.body }),
+    };
+  }
+
+  let rows: unknown[] = [...value];
+  let nextLink: string | undefined =
+    typeof asRecord?.["nextLink"] === "string" ? (asRecord?.["nextLink"] as string) : undefined;
+  if (all && nextLink) {
+    for (let page = 1; page < MAX_PAGES && nextLink; page++) {
+      const link: string = nextLink;
+      const pageBody = await sendRequest<{ value?: unknown[]; nextLink?: string }>(profile, {
+        method,
+        resource,
+        path: link,
+      });
+      rows.push(...(pageBody.body?.value ?? []));
+      nextLink = pageBody.body?.nextLink;
+    }
+  }
+
+  const capped = limit !== undefined ? rows.slice(0, limit) : rows;
+  const shaped = full ? capped : (truncateDeep(capped, false) as unknown[]);
+  const picked = Array.isArray(shaped) && shaped.every((row) => row !== null && typeof row === "object")
+    ? pickFields(shaped as Array<Record<string, unknown>>, fields)
+    : shaped;
+
+  const help: string[] = [];
+  if (nextLink && !all) {
+    const verb = method === "GET" ? "" : `${method} `;
+    help.push(`More pages exist: re-run with --all (up to ${MAX_PAGES} pages): \`az-axi api ${verb}${path} --api-version ${apiVersion ?? "<version>"} --all\``);
+  } else if (nextLink) {
+    help.push("More pages exist but paging stopped at the page cap");
+  }
+
+  const count = nextLink
+    ? picked.length < rows.length
+      ? `${picked.length} of ${rows.length}+ items`
+      : `${picked.length}+ items`
+    : countLine(picked.length, rows.length, "items");
+
+  return {
+    status: first.status,
+    count,
+    value: picked,
+    ...(help.length > 0 ? { help } : {}),
+  };
+}

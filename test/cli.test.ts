@@ -38,20 +38,21 @@ describe("command dispatch", () => {
 
     const homeHelp = run(["home", "--help"]);
     expect(homeHelp.status).toBe(0);
-    expect(homeHelp.stdout).toContain("placeholder dashboard");
+    expect(homeHelp.stdout).toContain("dashboard");
 
     const home = run([]);
     expect(home.status).toBe(0);
-    expect(home.stdout).toContain("doctor, config, and sub list are available; the dashboard arrives in Phase 2");
+    expect(home.stdout).toContain("profile: az");
+    expect(home.stdout).toContain("writes:");
 
     const selected = run(["--profile", "work"]);
     expect(selected.status).toBe(0);
-    expect(selected.stdout).toContain("dashboard arrives in Phase 2");
+    expect(selected.stdout).toContain("profile 'work' not found");
     expect(selected.stdout).not.toContain("unexpected argument");
 
     await expect(homeRun(["extra"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(homeRun(["--org", "x"])).rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
-    expect((await homeRun(["--full", "--limit", "5"])).status).toContain("dashboard arrives in Phase 2");
+    expect((await homeRun(["--full", "--limit", "5"])).profile).toBe("az");
 
     const update = run(["update"]);
     expect(update.status).toBe(2);
@@ -140,5 +141,30 @@ describe("end to end with a stubbed network", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Sandbox");
     expect(result.stdout).not.toContain("must come after the command");
+  }, 30_000);
+
+  it("queries Resource Graph without ever printing the token", () => {
+    const result = runStubbed(["rg", "query", "Resources | take 1"], 200, {
+      totalRecords: 1,
+      count: 1,
+      data: [{ name: "vm1", id: `/subscriptions/${SUB}/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm1` }],
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("1 resources");
+    expect(result.stdout).toContain("vm1");
+    expect(result.stdout + result.stderr).not.toContain(TOKEN);
+  }, 30_000);
+
+  it("reads through the api escape hatch and blocks writes", () => {
+    const read = runStubbed(["api", "/subscriptions", "--api-version", "2022-12-01"], 200, {
+      value: [{ subscriptionId: SUB, displayName: "Sandbox" }],
+    });
+    expect(read.status).toBe(0);
+    expect(read.stdout).toContain("1 items");
+    expect(read.stdout + read.stderr).not.toContain(TOKEN);
+
+    const blocked = runStubbed(["api", "DELETE", "/x", "--api-version", "1"], 200, {});
+    expect(blocked.status).toBe(2);
+    expect(blocked.stdout).toContain("WRITES_DISABLED");
   }, 30_000);
 });
