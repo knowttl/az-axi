@@ -254,7 +254,9 @@ See [Check an operation](#check-an-operation) for URL requirements, output and r
 
 The source checkout provides `scrub` in `scripts/benchmark/scrub.mjs` and `countTokens` in `scripts/benchmark/tokens.mjs`.
 Build with `pnpm run build` before importing the scrubber, which uses constants from `dist`.
-These modules are not packaged with the CLI; capture and replay commands are not implemented yet.
+These modules and the benchmark harness are not packaged with the CLI.
+Use `pnpm bench` for offline replay of owner-made captures and `pnpm bench:surface` for skill and help token counts.
+Only the owner runs `pnpm bench:capture`; see [BENCHMARK.md](BENCHMARK.md) for targets, privacy constraints, replay matching and measurement limitations.
 
 `scrub(value, { leakCheck: [] })` returns scrubbed JSON data without mutating the input.
 It replaces string values and object keys by default, preserving only exact, case-sensitive entries in the module's `PUBLIC_VOCABULARY` and parseable timestamps of the form `YYYY-MM-DDTHH:mm:ss[.fraction](Z|±HH:mm)`.

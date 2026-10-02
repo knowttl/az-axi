@@ -1,0 +1,24 @@
+{
+  "tokenizer": "o200k_base",
+  "skill": {
+    "frontmatter": 62,
+    "body": 2238,
+    "total": 2299
+  },
+  "help": {
+    "topLevel": 297,
+    "home": 105,
+    "doctor": 91,
+    "config": 170,
+    "sub": 58,
+    "rg": 186,
+    "rbac": 208,
+    "activity": 171,
+    "defender": 261,
+    "exposure": 184,
+    "logs": 295,
+    "api": 253,
+    "op": 98
+  },
+  "helpTotal": 2377
+}

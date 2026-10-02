@@ -1,0 +1,6 @@
+{
+  "profile": "work",
+  "subscription": "00000000-0000-0000-0000-000000000001",
+  "workspace": "00000000-0000-0000-0000-000000000010",
+  "leakCheck": ["contoso", "contoso.com"]
+}
