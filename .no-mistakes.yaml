@@ -3,6 +3,6 @@ commands:
   prepare: 'corepack pnpm install --frozen-lockfile --ignore-scripts'
   test: 'corepack pnpm test'
 auto_fix:
-  review: 3
+  review: 1
   test: 3
-  lint: 3
+  lint: 0
