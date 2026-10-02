@@ -35,6 +35,55 @@ describe("diffResource", () => {
     ]);
   });
 
+  it("treats prototype-named fields as own additions and removals", () => {
+    for (const key of ["toString", "constructor", "__proto__"]) {
+      const tags = Object.fromEntries([[key, "billing"]]);
+      for (const method of ["PUT", "PATCH"] as const) {
+        expect(diffResource({ tags: {} }, { tags }, method)).toEqual({
+          changes: [{ path: `tags.${key}`, from: undefined, to: "billing" }],
+          remaining: 0,
+          noop: false,
+        });
+        expect(diffResource({ tags }, { tags }, method).noop).toBe(true);
+      }
+      expect(diffResource({ tags }, { tags: {} }, "PUT")).toEqual({
+        changes: [{ path: `tags.${key}`, from: "billing", to: undefined }],
+        remaining: 0,
+        noop: false,
+      });
+      expect(diffResource({ tags }, { tags: {} }, "PATCH").noop).toBe(true);
+    }
+  });
+
+  it("requires matching own keys in objects inside arrays", () => {
+    const current = { list: [JSON.parse('{"__proto__":{}}')] };
+    const body = { list: [{ other: {} }] };
+    for (const method of ["PUT", "PATCH"] as const) {
+      for (const [from, to] of [[current, body], [body, current]] as const) {
+        expect(diffResource(from, to, method)).toEqual({
+          changes: [{ path: "list", from: from.list, to: to.list }],
+          remaining: 0,
+          noop: false,
+        });
+      }
+    }
+  });
+
+  it("lists empty objects as terminal PUT removals at every depth", () => {
+    const current = { properties: { settings: {}, nested: { empty: {}, value: 1 } } };
+    expect(diffResource(current, { properties: {} }, "PUT")).toEqual({
+      changes: [
+        { path: "properties.settings", from: {}, to: undefined },
+        { path: "properties.nested.empty", from: {}, to: undefined },
+        { path: "properties.nested.value", from: 1, to: undefined },
+      ],
+      remaining: 0,
+      noop: false,
+    });
+    expect(diffResource(current, { properties: {} }, "PATCH").noop).toBe(true);
+    expect(diffResource(current, current, "PUT").noop).toBe(true);
+  });
+
   it("detects a no-op for equal bodies regardless of key order", () => {
     const body = {
       properties: { accessTier: "Hot", sku: { name: "Standard_LRS" } },

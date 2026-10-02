@@ -39,7 +39,7 @@ function valuesEqual(a: unknown, b: unknown): boolean {
   if (isRecord(a) && isRecord(b)) {
     const aKeys = Object.keys(a);
     const bKeys = Object.keys(b);
-    return aKeys.length === bKeys.length && aKeys.every((key) => key in b && valuesEqual(a[key], b[key]));
+    return aKeys.length === bKeys.length && aKeys.every((key) => Object.hasOwn(b, key) && valuesEqual(a[key], b[key]));
   }
   return false;
 }
@@ -48,7 +48,7 @@ function valuesEqual(a: unknown, b: unknown): boolean {
 function changedPaths(current: unknown, body: unknown, base: string, out: FieldChange[]): void {
   if (isRecord(body) && isRecord(current)) {
     for (const key of Object.keys(body)) {
-      changedPaths(current[key], body[key], joinPath(base, key), out);
+      changedPaths(Object.hasOwn(current, key) ? current[key] : undefined, body[key], joinPath(base, key), out);
     }
     return;
   }
@@ -59,7 +59,7 @@ function changedPaths(current: unknown, body: unknown, base: string, out: FieldC
 function removedPaths(current: unknown, body: unknown, base: string, out: FieldChange[]): void {
   if (isRecord(current) && isRecord(body)) {
     for (const key of Object.keys(current)) {
-      if (!(key in body)) {
+      if (!Object.hasOwn(body, key)) {
         removedLeaves(current[key], joinPath(base, key), out);
       } else {
         removedPaths(current[key], body[key], joinPath(base, key), out);
@@ -70,8 +70,11 @@ function removedPaths(current: unknown, body: unknown, base: string, out: FieldC
 
 function removedLeaves(value: unknown, base: string, out: FieldChange[]): void {
   if (isRecord(value)) {
-    for (const key of Object.keys(value)) removedLeaves(value[key], joinPath(base, key), out);
-    return;
+    const keys = Object.keys(value);
+    if (keys.length > 0) {
+      for (const key of keys) removedLeaves(value[key], joinPath(base, key), out);
+      return;
+    }
   }
   out.push({ path: base, from: value, to: undefined });
 }
