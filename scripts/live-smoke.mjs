@@ -85,6 +85,30 @@ const checks = [
     const r = azAxi(["api", "DELETE", "/subscriptions/x", "--api-version", "2022-12-01"]);
     return r.status === 2 && r.stdout.includes("WRITES_DISABLED");
   }],
+  ["dashboard: Defender and exposure sections", () => {
+    const r = azAxi([]);
+    return r.status === 0 && r.stdout.includes("defender:") && r.stdout.includes("score:") && r.stdout.includes("exposure:");
+  }],
+  ["defender score: secure scores per subscription", () => {
+    const r = azAxi(["defender", "score"]);
+    return r.status === 0 && (/scores|0 secure scores found/.test(r.stdout));
+  }],
+  ["defender assessments: grouped recommendations", () => {
+    const r = azAxi(["defender", "assessments", "--severity", "High"]);
+    return r.status === 0 && (/recommendations|0 Defender recommendations found/.test(r.stdout));
+  }],
+  ["defender alerts: active alerts newest first", () => {
+    const r = azAxi(["defender", "alerts", "--severity", "High"]);
+    return r.status === 0 && (/alerts|0 Defender alerts found/.test(r.stdout));
+  }],
+  ["exposure: per-check counts and sample rows", () => {
+    const r = azAxi(["exposure"]);
+    return r.status === 0 && r.stdout.includes("exposures");
+  }],
+  ["exposure --show-query prints KQL without network", () => {
+    const r = azAxi(["exposure", "--show-query", "--check", "mgmt-ports"]);
+    return r.status === 0 && r.stdout.includes("networksecuritygroups");
+  }],
   ["unknown flag exits 2 with a rename hint", () => {
     const r = azAxi(["sub", "list", "--top", "5"]);
     return r.status === 2 && r.stdout.includes("use --limit instead");

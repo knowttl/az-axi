@@ -120,6 +120,8 @@ describe("command effect registry", () => {
       rg: "read",
       rbac: "read",
       activity: "read",
+      defender: "read",
+      exposure: "read",
       api: "dynamic",
     });
   });

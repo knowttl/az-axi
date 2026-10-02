@@ -2,13 +2,15 @@ export const DESCRIPTION =
   "Read-only Azure inspection for agents: resource inventory, RBAC, activity log, Defender for Cloud and Log Analytics";
 
 export const TOP_LEVEL_HELP = [
-  "az-axi                                   # dashboard: profile, identity, subscriptions, write status",
+  "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
   "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
   "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
   "az-axi sub list                          # subscriptions visible to the identity",
   "az-axi rg query \"<kql>\"                  # Resource Graph query across subscriptions",
   "az-axi rbac list [--privileged]           # role assignments with principal names",
   "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
+  "az-axi defender alerts|assessments|score  # Defender for Cloud posture",
+  "az-axi exposure [--check all]             # internet-exposed resources",
   "az-axi api GET /subscriptions            # escape hatch for any read or query request",
   "",
   "Selector flags on every command: --profile, --tenant, --subscription a,b, --management-group, --config.",
@@ -18,11 +20,12 @@ export const TOP_LEVEL_HELP = [
 
 export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(null), {
   home: [
-    "az-axi                                   # dashboard: profile, identity, subscriptions, write status",
+    "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
     "az-axi home                              # same as above",
     "",
     "Selector flags are accepted. No positional arguments. --help prints this reference.",
-    "Defender, score and exposure sections arrive in Phase 4.",
+    "defender is active alerts by severity. score is the average ascScore and the lowest subscription.",
+    "exposure is a count per canned check. A failed section degrades to a hint; the rest still render.",
     "Examples: az-axi; az-axi home; az-axi home --help",
   ].join("\n"),
   doctor: [
@@ -81,6 +84,33 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
     "Server filter: time range plus resourceGroupName. caller is not a legal $filter field, so caller, status and operation filter client-side while paging.",
     "Output: total, count, topCallers, rows (time, caller, operation, status, resource).",
     "Examples: az-axi activity list --since 24h --status Failed",
+  ].join("\n"),
+  defender: [
+    "az-axi defender alerts [--severity High,Medium] [--status Active] [--since 7d] [--limit 50]",
+    "az-axi defender alerts get <alert-resource-id>",
+    "az-axi defender assessments [--severity High] [--status Unhealthy] [--limit 25]",
+    "az-axi defender assessments --resource <name>   # per-resource rows; name matches a path segment, not the recommendation",
+    "az-axi defender score",
+    "",
+    "Alerts come from ARM per subscription (api-version 2022-01-01), newest first.",
+    "Default --status is Active. --status all lists every status. Omitting --since lists every retained alert.",
+    "Flags that do not apply to the subcommand are rejected. `get` takes the full alert resource ID only.",
+    "Assessments and score come from Resource Graph securityresources (api-version 2024-04-01).",
+    "Assessments: one row per recommendation (recommendation, severity, unhealthyCount, total), worst severity first.",
+    "Score is the ascScore for each subscription (current, max, percent), lowest percent first.",
+    "--show-query on assessments prints the exact KQL without running it.",
+    "Examples: az-axi defender alerts --severity High; az-axi defender assessments --severity High; az-axi defender score",
+  ].join("\n"),
+  exposure: [
+    "az-axi exposure [--check public-ips|mgmt-ports|any-any|all] [--limit 50]",
+    "az-axi exposure --show-query              # print the canned Resource Graph KQL without running it",
+    "",
+    "Canned Resource Graph queries (api-version 2024-04-01). public-ips is attached addresses only.",
+    "mgmt-ports matches ports 22, 3389, 5985 and 5986 exactly, including ranges. any-any is any source to any port.",
+    "Default --check all returns per-check counts plus the first 10 rows of each. --limit changes that cap.",
+    "A failed check degrades to a hint; the others still render.",
+    "Output: total, count, checks{<check>: count plus rows (resource, resourceGroup, subscription, detail)}.",
+    "Examples: az-axi exposure; az-axi exposure --check mgmt-ports",
   ].join("\n"),
   api: [
     "az-axi api [GET|POST|PUT|PATCH|DELETE] <path> [--resource arm|logs|graph] [--api-version <v>]",

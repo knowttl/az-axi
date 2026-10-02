@@ -5,14 +5,15 @@ import { AxiError } from "axi-sdk-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/lib/auth.js", () => ({ identityOf: vi.fn() }));
-vi.mock("../src/lib/client.js", () => ({ requestAll: vi.fn() }));
+vi.mock("../src/lib/client.js", () => ({ requestAll: vi.fn(), sendRequest: vi.fn() }));
 
 import { run } from "../src/commands/home.js";
 import { identityOf } from "../src/lib/auth.js";
-import { requestAll } from "../src/lib/client.js";
+import { requestAll, sendRequest } from "../src/lib/client.js";
 
 const identityMock = vi.mocked(identityOf);
 const allMock = vi.mocked(requestAll);
+const sendMock = vi.mocked(sendRequest);
 
 let dir: string;
 const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_READ_ONLY"];
@@ -26,6 +27,18 @@ beforeEach(() => {
   vi.resetAllMocks();
   identityMock.mockResolvedValue({ name: "ada@contoso.com", type: "user", tenantId: "00000000-0000-0000-0000-000000000001" });
   allMock.mockResolvedValue({ items: [{}, {}] });
+  sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+    const query = String((options["body"] as { query?: string })?.query ?? "");
+    if (query.includes("securescores")) {
+      return {
+        status: 200,
+        headers: {},
+        body: { totalRecords: 1, data: [{ subscriptionId: "00000000-0000-0000-0000-000000000001", current: 80, max: 100, percent: 80 }] },
+        clientRequestId: "r",
+      } as never;
+    }
+    return { status: 200, headers: {}, body: { totalRecords: 0, data: [] }, clientRequestId: "r" } as never;
+  });
 });
 
 afterEach(() => {
@@ -57,15 +70,58 @@ describe("dashboard skeleton", () => {
     expect(identityMock).not.toHaveBeenCalled();
   });
 
+  it("shows alert counts, secure score and exposure sections", async () => {
+    const result = await run([]);
+    expect(result.defender).toBe("0 active alerts");
+    expect(result.score).toEqual({
+      average: "80.0%",
+      lowest: "00000000-0000-0000-0000-000000000001",
+      lowestPercent: "80.0%",
+    });
+    expect(result.exposure).toEqual({ publicIps: 0, mgmtPorts: 0, anyAny: 0 });
+    expect((result.help as string[]).join("\n")).toContain("defender assessments --severity High");
+  });
+
+  it("keeps a successful section when another call fails", async () => {
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      const query = String((options["body"] as { query?: string })?.query ?? "");
+      if (query.includes("locations/alerts")) throw new Error("denied");
+      if (query.includes("securescores")) {
+        return {
+          status: 200,
+          headers: {},
+          body: { totalRecords: 1, data: [{ subscriptionId: "00000000-0000-0000-0000-000000000001", current: 80, max: 100, percent: 80 }] },
+          clientRequestId: "r",
+        } as never;
+      }
+      return { status: 200, headers: {}, body: { totalRecords: 2, data: [] }, clientRequestId: "r" } as never;
+    });
+    const result = await run([]);
+    expect(result.defender).toBe("-");
+    expect(result.score).toEqual({
+      average: "80.0%",
+      lowest: "00000000-0000-0000-0000-000000000001",
+      lowestPercent: "80.0%",
+    });
+    expect(result.exposure).toEqual({ publicIps: 2, mgmtPorts: 2, anyAny: 2 });
+    expect((result.help as string[]).join("\n")).toContain("[defender]");
+  });
+
   it("degrades a section with a hint instead of failing", async () => {
     identityMock.mockRejectedValue(new AxiError("not signed in", "AUTH_REQUIRED", ["Run `az login`"]));
     allMock.mockRejectedValue(new AxiError("boom", "API_ERROR", ["requestId: r1"]));
+    sendMock.mockRejectedValue(new AxiError("boom", "API_ERROR", ["requestId: r1"]));
     const result = await run([]);
     expect(result.identity).toBe("-");
     expect(result.subscriptions).toBe("-");
+    expect(result.defender).toBe("-");
+    expect(result.score).toBe("-");
+    expect(result.exposure).toBe("-");
     const help = (result.help as string[]).join("\n");
     expect(help).toContain("[identity]");
     expect(help).toContain("[subscriptions]");
+    expect(help).toContain("[defender]");
+    expect(help).toContain("[exposure]");
     expect(help).toContain("az-axi doctor");
   });
 
