@@ -46,7 +46,7 @@ export async function executeWrite(options: {
   try {
     current = await sendRequest(profile, { path: probePath });
   } catch (error) {
-    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || (method !== "PUT" && method !== "DELETE")) throw error;
+    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || (method !== "PUT" && method !== "DELETE" && method !== "POST")) throw error;
     if (error instanceof ApiRequestError) missing = error;
   }
   const noop = method === "DELETE" ? current === undefined :

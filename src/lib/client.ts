@@ -152,26 +152,28 @@ export async function sendRequest<T = unknown>(
       throw new ApiRequestError(networkError(err, resource, clientRequestId, scrub), 0, clientRequestId);
     }
 
-    const retryMs = retryDelayMs(response.headers.get("retry-after"));
-    if (
-      attempt === 0 &&
-      (response.status === 429 || response.status === 503) &&
-      retryMs !== undefined &&
-      retryMs <= MAX_RETRY_AFTER_MS
-    ) {
-      await response.arrayBuffer();
-      if (options.signal) await delay(retryMs, undefined, { signal: options.signal });
-      else await new Promise((resolve) => setTimeout(resolve, retryMs));
-      continue;
-    }
-
-    const text = await response.text();
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key.toLowerCase()] = value;
     });
     const requestId = responseHeaders["x-ms-request-id"];
     const correlationId = responseHeaders["x-ms-correlation-request-id"];
+    const retryMs = retryDelayMs(response.headers.get("retry-after"));
+    const retry = attempt === 0 && (response.status === 429 || response.status === 503) &&
+      retryMs !== undefined && retryMs <= MAX_RETRY_AFTER_MS;
+    let text = "";
+    try {
+      if (retry) await response.arrayBuffer();
+      else text = await response.text();
+    } catch (err) {
+      throw new ApiRequestError(networkError(err, resource, clientRequestId, scrub), response.status,
+        requestId ?? clientRequestId, correlationId);
+    }
+    if (retry) {
+      if (options.signal) await delay(retryMs, undefined, { signal: options.signal });
+      else await new Promise((resolve) => setTimeout(resolve, retryMs));
+      continue;
+    }
     if (!response.ok) {
       throw new ApiRequestError(translateError({
         status: response.status,

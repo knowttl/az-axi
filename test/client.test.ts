@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
 import { clearCredentialCache } from "../src/lib/auth.js";
-import { buildUrl, request, requestAll, sendRequest } from "../src/lib/client.js";
+import { ApiRequestError, buildUrl, request, requestAll, sendRequest } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { redact } from "../src/lib/redact.js";
 
@@ -49,6 +49,27 @@ describe("client execution backstop", () => {
   const sub = "00000000-0000-0000-0000-000000000021";
   const path = `/subscriptions/${sub}/resourceGroups/rg-demo`;
   const writer = () => profile({ allowWrites: true, subscriptions: [sub], writeSubscriptions: [sub] });
+
+  it.each([201, 202, 400, 429, 503])("preserves HTTP %s metadata when reading the body fails", async (status) => {
+    const response = new Response(new ReadableStream({
+      start(controller) { controller.error(new Error(`connection lost ${TOKEN}`)); },
+    }), { status, headers: { "x-ms-request-id": "req-body", "x-ms-correlation-request-id": "corr-body", "retry-after": "0" } });
+    fetchMock.mockResolvedValueOnce(response);
+    const error = await failure(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }));
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({ code: "NETWORK_ERROR", httpStatus: status, requestId: "req-body", correlationId: "corr-body" });
+    expect(render(error)).not.toContain(TOKEN);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("uses the client request ID when interrupted response headers omit the server ID", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(new ReadableStream({
+      start(controller) { controller.error(new Error("connection lost")); },
+    }), { status: 202 }));
+    const error = await failure(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }));
+    expect(error).toMatchObject({ httpStatus: 202,
+      requestId: fetchMock.mock.calls[0]![1].headers["x-ms-client-request-id"] });
+  });
 
   it("blocks a write without explicit execution even on a permitted profile", async () => {
     await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1" }))

@@ -87,6 +87,39 @@ describe("API write execution", () => {
     expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ identity: "analyst@contoso.com" }));
   });
 
+  it.each(["prod", "dev"])("previews and executes tag removals with env=%s", async (env) => {
+    const current = response({ tags: { env: "prod", team: "billing" } });
+    const body = JSON.stringify({ tags: { env } });
+    send.mockReset().mockResolvedValueOnce(current);
+    const preview = await run(["PATCH", TARGET, "--api-version", "1", "--body", body]);
+    expect(preview.noop).toBeUndefined();
+    expect(preview.changes).toContainEqual({ path: "tags.team", from: "billing", to: undefined });
+    send.mockReset().mockResolvedValueOnce(current).mockResolvedValueOnce(response());
+    expect(await execute([], "PATCH", body)).toMatchObject({ result: "done" });
+    expect(send.mock.calls[1]?.[1]).toMatchObject({ method: "PATCH", body: { tags: { env } } });
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it.each([undefined, '"reviewed"'])("executes validation with an absent deployment and ETag %s", async (ifMatch) => {
+    const path = `${TARGET}/providers/Microsoft.Resources/deployments/new-deployment/validate`;
+    send.mockReset().mockRejectedValueOnce(new ApiRequestError(new AxiError("gone", "NOT_FOUND", []), 404))
+      .mockResolvedValueOnce(response());
+    expect(await run(["POST", path, "--api-version", "1", "--body", "{}", "--execute",
+      ...(ifMatch === undefined ? [] : ["--if-match", ifMatch])])).toMatchObject({ result: "done" });
+    expect(send.mock.calls[0]?.[1].path).toBe(`https://management.azure.com${path.slice(0, path.lastIndexOf("/"))}?api-version=1`);
+    expect(send.mock.calls[1]?.[1]).toMatchObject({ method: "POST", execute: true, ifMatch });
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it("executes a confirmed destructive POST after a parent 404", async () => {
+    send.mockReset().mockRejectedValueOnce(new AxiError("gone", "NOT_FOUND", []))
+      .mockResolvedValueOnce(response());
+    expect(await run(["POST", `${TARGET}/restart`, "--api-version", "1", "--execute", "--confirm", "rg-demo"]))
+      .toMatchObject({ result: "done" });
+    expect(send.mock.calls[1]?.[1]).toMatchObject({ execute: true, confirm: "rg-demo", ifMatch: undefined });
+    expect(log).toHaveBeenCalledOnce();
+  });
+
   it.each(["PUT", "PATCH", "DELETE"])("skips a %s no-op with no write and no log", async (method) => {
     send.mockReset();
     if (method === "DELETE") send.mockRejectedValueOnce(new AxiError("gone", "NOT_FOUND", []));
@@ -103,11 +136,22 @@ describe("API write execution", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it("does not send or log after a failed state read", async () => {
-    send.mockReset().mockRejectedValueOnce(new AxiError("denied", "FORBIDDEN", []));
-    await expect(execute()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(send).toHaveBeenCalledOnce();
+  it.each(["PATCH", "POST"])("does not send or log %s after a failed state read", async (method) => {
+    for (const code of ["FORBIDDEN", "AUTH_REQUIRED", "NETWORK_ERROR"]) {
+      send.mockReset().mockRejectedValueOnce(new AxiError("denied", code, []));
+      await expect(execute([], method)).rejects.toMatchObject({ code });
+      expect(send).toHaveBeenCalledOnce();
+    }
     expect(log).not.toHaveBeenCalled();
+  });
+
+  it.each([201, 202, 429, 503])("reports and audits received HTTP %s metadata on a body failure", async (status) => {
+    send.mockRejectedValueOnce(new ApiRequestError(new AxiError("body interrupted", "NETWORK_ERROR", []), status, "req-body", "corr-body"));
+    await expect(execute()).rejects.toMatchObject({ code: "NETWORK_ERROR",
+      output: { result: "failed", status, requestId: "req-body", correlationId: "corr-body" } });
+    expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ httpStatus: status,
+      requestId: "req-body", correlationId: "corr-body", outcome: "NETWORK_ERROR" }));
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it.each(["PRECONDITION_FAILED", "CONFLICT", "NETWORK_ERROR"])("logs the %s write failure once", async (code) => {
