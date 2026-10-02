@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appendWriteLog, resolveWriteLogPath, type WriteLogInput } from "../src/lib/writeLog.js";
 
 const SUB = "00000000-0000-0000-0000-000000000020";
@@ -96,11 +96,17 @@ describe("appendWriteLog", () => {
 
   it("defaults time to now and omits absent correlation IDs", () => {
     const file = join(dir, "writes.log");
-    const { requestId: _dropped, correlationId: _alsoDropped, ...withoutIds } = INPUT;
-    appendWriteLog(withoutIds, file);
+    const { time: _time, requestId: _dropped, correlationId: _alsoDropped, ...withoutTimeAndIds } = INPUT;
+    const now = new Date("2026-10-03T12:34:56.789Z");
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(now);
+      appendWriteLog(withoutTimeAndIds, file);
+    } finally {
+      vi.useRealTimers();
+    }
     const [entry] = linesOf(file) as [Record<string, unknown>];
-    expect(typeof entry.time).toBe("string");
-    expect(Date.parse(entry.time as string)).not.toBeNaN();
+    expect(entry.time).toBe(now.toISOString());
     expect(entry).not.toHaveProperty("requestId");
     expect(entry).not.toHaveProperty("correlationId");
   });
