@@ -32,18 +32,19 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   const url = assertOperationUrl(operationUrl);
   const profile = profileFromArgs(args);
-  const response = await sendRequest<unknown>(profile, { path: url });
+  const response = await sendRequest<Record<string, unknown>>(profile, { path: url });
   const state = describeOperation(response);
 
   const help: string[] = [];
   if (state.running) help.push(`Re-run \`${opStatusCommand(url, profile)}\` to check again`);
 
   return {
-    operation: url,
-    state: state.state,
-    status: response.status,
-    ...(state.code ? { code: state.code } : {}),
-    ...(state.message ? { error: state.message } : {}),
+    ...(typeof response.body?.status === "string" ? {} : {
+      operation: url,
+      state: state.state,
+      status: response.status,
+    }),
+    ...response.body,
     ...(help.length > 0 ? { help } : {}),
   };
 }

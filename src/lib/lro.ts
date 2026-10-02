@@ -1,6 +1,7 @@
 import { AxiError } from "axi-sdk-js";
 import { sendRequest, type ApiResponse } from "./client.js";
 import type { ResolvedProfile } from "./config.js";
+import { formatFlagValue, quoteFlagValue } from "./shell.js";
 
 /**
  * Long-running operation polling (PLAN.md Section 6.13.5).
@@ -52,10 +53,9 @@ const TERMINAL_SUCCESS = "SUCCEEDED";
 const TERMINAL_FAILURE = new Set(["FAILED", "CANCELED"]);
 
 export function opStatusCommand(url: string, profile: ResolvedProfile): string {
-  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-  return `az-axi op status ${quote(url)}` +
-    (profile.configPath ? ` --config ${quote(profile.configPath)} --profile ${quote(profile.name)}` : "") +
-    (profile.tenant ? ` --tenant ${quote(profile.tenant)}` : "");
+  return `az-axi op status ${quoteFlagValue(url)}` +
+    (profile.configPath ? ` ${formatFlagValue("config", profile.configPath)} ${formatFlagValue("profile", profile.name)}` : "") +
+    (profile.tenant ? ` ${formatFlagValue("tenant", profile.tenant)}` : "");
 }
 
 /** Only absolute https URLs on the ARM host may be polled or inspected. */

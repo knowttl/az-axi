@@ -1,7 +1,6 @@
 // Long-running operations and `op status` (PLAN.md Sections 6.13.5, 8).
 // The client is mocked; polling delays run on fake timers or an injected clock.
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
 
 import { run } from "../src/commands/op.js";
+import { parseArgs } from "../src/lib/args.js";
 import { sendRequest } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { saveConfig } from "../src/lib/config.js";
@@ -47,7 +47,7 @@ const resp = (body: unknown, extra: Record<string, unknown> = {}) => ({
 const asyncOp = (status: string, error?: unknown) => resp(error ? { status, error } : { status });
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "az-axi-lro-"));
+  dir = mkdtempSync(join(process.cwd(), ".az-axi-lro-"));
   saved = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
   for (const key of ENV_KEYS) delete process.env[key];
   process.env.AZ_AXI_CONFIG = join(dir, "config.json");
@@ -181,17 +181,20 @@ describe("pollOperation", () => {
       .rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
   });
 
-  it("bounds a pending request and aborts it with a contextual resume command", async () => {
+  it.each(["asyncOperationUrl", "locationUrl"])("bounds a pending %s request and aborts it with a contextual resume command", async (key) => {
     vi.useFakeTimers();
     sendMock.mockImplementation(() => new Promise(() => {}));
-    const selected = { ...profile(), configPath: "/work/team.json", name: "work", tenant: "T" };
-    const pending = pollOperation(selected, { asyncOperationUrl: OP_URL }, { timeoutMs: 25_000 });
+    const selected = { ...profile(), configPath: "--team's config.json", name: "--work", tenant: "--T" };
+    const pending = pollOperation(selected, { [key]: OP_URL }, { timeoutMs: 25_000 });
     const assertion = expect(pending).rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
     await vi.advanceTimersByTimeAsync(25_000);
     await assertion;
     expect(sendMock.mock.calls[0]?.[1].signal?.aborted).toBe(true);
     const error = await pending.catch((err) => err);
     expect(error.suggestions).toContain(`Resume with \`${opStatusCommand(OP_URL, selected)}\``);
+    const command = opStatusCommand(OP_URL, selected);
+    const argv = JSON.parse(execFileSync("bash", ["-c", `az-axi() { node -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- "$@"; }; ${command}`], { encoding: "utf8" })) as string[];
+    expect(parseArgs(argv)).toEqual({ positionals: ["op", "status", OP_URL], flags: { config: selected.configPath, profile: selected.name, tenant: selected.tenant } });
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -273,16 +276,33 @@ describe("pollOperation", () => {
 });
 
 describe("op status", () => {
-  it("retains the selected config, profile and tenant when its hint is executed", async () => {
-    const config = saveConfig({ profiles: { work: { auth: "token", tenant: "original" } } }, join(dir, "work.json"));
+  it.each(["InProgress", "Succeeded", "Failed", "Canceled"])("preserves the %s response payload", async (status) => {
+    const body = { status, properties: { changes: [{ changeType: "Create" }] }, error: { code: "Detail", message: "operation detail" } };
+    sendMock.mockResolvedValue(resp(body));
+    const result = await run(["status", OP_URL]);
+    expect(result).toMatchObject(body);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(result.help !== undefined).toBe(status === "InProgress");
+  });
+
+  it.each([200, 202])("preserves a Location result with HTTP %s and no body status", async (status) => {
+    const body = { properties: { changes: [{ changeType: "Create" }] } };
+    sendMock.mockResolvedValue(resp(body, { status }));
+    const result = await run(["status", LOCATION_URL]);
+    expect(result).toMatchObject({ ...body, state: status === 202 ? "InProgress" : "Succeeded", status });
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(result.help !== undefined).toBe(status === 202);
+  });
+
+  it.each(["work", "--work"])("retains config, profile %s and tenant when its hint is executed", async (name) => {
+    const config = saveConfig({ profiles: { [name]: { auth: "token", tenant: "original" } } }, join(dir, "work.json"));
     sendMock.mockResolvedValue(asyncOp("InProgress"));
-    const result = await run(["status", OP_URL, "--config", config, "--profile", "work", "--tenant", "T"]);
+    const result = await run(["status", OP_URL, "--config", config, `--profile=${name}`, "--tenant=--T"]);
     const hint = (result.help as string[])[0] as string;
     const command = hint.slice(hint.indexOf("`") + 1, hint.lastIndexOf("`"));
     const argv = JSON.parse(execFileSync("bash", ["-c", `az-axi() { node -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- "$@"; }; ${command}`], { encoding: "utf8" })) as string[];
-    expect(argv).toEqual(["op", "status", OP_URL, "--config", config, "--profile", "work", "--tenant", "T"]);
     await run(argv.slice(1));
-    expect(sendMock.mock.calls[1]?.[0]).toMatchObject({ configPath: config, name: "work", tenant: "T", auth: "token" });
+    expect(sendMock.mock.calls[1]?.[0]).toMatchObject({ configPath: config, name, tenant: "--T", auth: "token" });
   });
 
   it("preserves authentication selectors and shell arguments in recheck commands", async () => {
@@ -301,14 +321,14 @@ describe("op status", () => {
     sendMock.mockResolvedValue(asyncOp("Succeeded"));
     const result = await run(["status", OP_URL]);
     expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({ name: "az" }), { path: OP_URL });
-    expect(result).toMatchObject({ operation: OP_URL, state: "Succeeded", status: 200 });
+    expect(result).toEqual({ status: "Succeeded" });
     expect(result.help).toBeUndefined();
   });
 
   it("hints the re-run command while the operation is still going", async () => {
     sendMock.mockResolvedValue(asyncOp("InProgress"));
     const result = await run(["status", OP_URL]);
-    expect(result).toMatchObject({ state: "InProgress" });
+    expect(result).toMatchObject({ status: "InProgress" });
     expect(result.help).toEqual([`Re-run \`az-axi op status '${OP_URL}'\` to check again`]);
   });
 
@@ -316,9 +336,8 @@ describe("op status", () => {
     sendMock.mockResolvedValue(asyncOp("Failed", { code: "DeploymentFailed", message: "template validation failed" }));
     const result = await run(["status", OP_URL]);
     expect(result).toMatchObject({
-      state: "Failed",
-      code: "DeploymentFailed",
-      error: "template validation failed",
+      status: "Failed",
+      error: { code: "DeploymentFailed", message: "template validation failed" },
     });
   });
 
