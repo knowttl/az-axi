@@ -3,7 +3,7 @@
 export const MAX_CHANGES = 20;
 
 export interface FieldChange {
-  /** Dot path with `[i]` array indices, for example `tags.env` or `properties.list[0]`. */
+  /** Dot path, for example `tags.env`; arrays are compared as whole values. */
   path: string;
   from: unknown;
   /** `undefined` when a PUT body removes the field. */
