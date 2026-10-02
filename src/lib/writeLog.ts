@@ -7,9 +7,8 @@ import type { RequestClass } from "./policy.js";
 export const WRITE_LOG_ENV = "AZ_AXI_WRITE_LOG";
 
 /**
- * One executed write, successful or not. Exactly the fields in PLAN.md
- * Section 6.13.7: never request or response bodies, never headers. The type
- * has no body or header field, so callers cannot log them by accident.
+ * Metadata for one executed write, successful or not (PLAN.md Section 6.13.7).
+ * appendWriteLog serializes only these fields, excluding bodies and headers.
  */
 export interface WriteLogEntry {
   /** ISO-8601 timestamp of when the write completed. */
@@ -51,7 +50,7 @@ export function resolveWriteLogPath(env: NodeJS.ProcessEnv = process.env): strin
 /**
  * Appends one JSON Lines entry to the write log, creating the directory and
  * the file (user-only permissions where the OS supports them) when missing.
- * For executed writes only: dry runs never call this. Filesystem errors
+ * For executed writes only: callers must skip dry runs. Filesystem errors
  * propagate so the caller (the execute step) decides how to report them.
  */
 export function appendWriteLog(input: WriteLogInput, file: string = resolveWriteLogPath()): void {
