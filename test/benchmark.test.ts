@@ -1,5 +1,21 @@
 import { encode } from "gpt-tokenizer/encoding/o200k_base";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/lib/context.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/lib/context.js")>(),
+  profileFromArgs: () => ({ name: "benchmark", auth: "token", writeSubscriptions: [] }),
+}));
+vi.mock("../src/lib/auth.js", () => ({ resolveCredential: async () => ({ header: "Bearer benchmark-dummy" }) }));
+
+import { run as runRg } from "../src/commands/rg.js";
+import { run as runSub } from "../src/commands/sub.js";
+import { run as runLogs } from "../src/commands/logs.js";
+import { run as runRbac } from "../src/commands/rbac.js";
+import { run as runDefender } from "../src/commands/defender.js";
+import { run as runActivity } from "../src/commands/activity.js";
+import { run as runExposure } from "../src/commands/exposure.js";
+import { run as runOp } from "../src/commands/op.js";
+import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { PUBLIC_VOCABULARY, scrub } from "../scripts/benchmark/scrub.mjs";
 import { countTokens } from "../scripts/benchmark/tokens.mjs";
 
@@ -99,6 +115,110 @@ describe("benchmark scrubber", () => {
       }
     }
     expect(() => scrub("contoso-private", { leakCheck: ["contoso-private"] })).not.toThrow();
+  });
+});
+
+describe("scrubbed response replay", () => {
+  const fetchMock = vi.fn();
+  const timestamp = "2026-10-02T12:34:56Z";
+
+  beforeEach(() => {
+    clearSubscriptionCache();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps Resource Graph rows, totals, pagination and truncation warnings", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({
+      totalRecords: 2, count: 1, data: [{ name: "private-vm" }], $skipToken: "private-page",
+    })));
+    const result = await runRg(["query", "Resources | take 1", "--full"]);
+    expect(result.total).toBe(2);
+    expect(result.rows).toEqual([{ name: scrub("private-vm") }]);
+    expect(result.help).toEqual([expect.stringContaining(`--skip-token ${scrub("private-page")}`)]);
+
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({
+      totalRecords: 1, data: [{ name: "private-vm" }], resultTruncated: "true",
+    })));
+    expect((await runRg(["query", "Resources | take 1"])).help)
+      .toEqual([expect.stringContaining("truncated")]);
+  });
+
+  it("follows scrubbed ARM nextLink URLs and formats subscriptions", async () => {
+    const nextLink = "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=private-page";
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({
+      value: [{ subscriptionId: SUB, displayName: "private-sub", state: "Enabled" }], nextLink,
+    }))).mockResolvedValueOnce(Response.json(scrub({ value: [] })));
+    const result = await runSub(["list"]);
+    expect(result.subscriptions).toEqual([
+      { id: scrub(SUB), name: scrub("private-sub"), state: "Enabled", inScope: "yes" },
+    ]);
+    expect(fetchMock.mock.calls[1][0]).toBe(scrub(nextLink));
+  });
+
+  it("converts Log Analytics columns and rows and retains partial errors", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({
+      tables: [{ name: "PrimaryResult", columns: [{ name: "UserPrincipalName", type: "string" }], rows: [["private-user"]] }],
+      error: { code: "private-code", details: [{ message: "private-detail" }], innererror: { message: "private-inner" } },
+    })));
+    const result = await runLogs(["query", "SigninLogs | take 1", "--workspace", SUB, "--full"]);
+    expect(result.total).toBe(1);
+    expect(result.rows).toEqual([{ UserPrincipalName: scrub("private-user") }]);
+    expect(result.warning).toContain(scrub("private-detail"));
+    expect(result.warning).toContain(scrub("private-inner"));
+  });
+
+  it("resolves scrubbed RBAC principals through Graph", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({ data: [{
+      principalId: SUB, principalType: "User", roleName: "private-role", roleDefinitionId: "private-role-id",
+      scope: PATH, createdOn: timestamp,
+    }] }))).mockResolvedValueOnce(Response.json(scrub({ value: [{ id: SUB, displayName: "private-user" }] })));
+    const result = await runRbac(["list", "--full"]);
+    expect(result.rows).toEqual([expect.objectContaining({
+      principal: scrub("private-user"), type: "User", role: scrub("private-role"), scope: scrub(PATH),
+    })]);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ ids: [scrub(SUB)] });
+  });
+
+  it("keeps Defender assessment classifications, secure scores and alert fields", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({ data: [{
+      recommendation: "private-recommendation", severity: "High", status: "Unhealthy", resourceId: PATH,
+    }] })));
+    expect((await runDefender(["assessments", "--resource", scrub(PATH), "--full"])).rows)
+      .toEqual([expect.objectContaining({ severity: "High", status: "Unhealthy", recommendation: scrub("private-recommendation") })]);
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({ data: [{ subscriptionId: SUB, current: 3, max: 4, percent: 75 }] })));
+    expect((await runDefender(["score", "--full"])).rows)
+      .toEqual([{ subscription: scrub(SUB), current: 3, max: 4, percent: 75 }]);
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({ value: [{ id: PATH, properties: {
+      alertDisplayName: "private-alert", severity: "High", status: "Active", timeGeneratedUtc: timestamp,
+      resourceIdentifiers: [{ azureResourceId: PATH }],
+    } }] })));
+    expect((await runDefender(["alerts", "--subscription", SUB, "--full"])).rows)
+      .toEqual([expect.objectContaining({ alert: scrub("private-alert"), severity: "High", status: "Active" })]);
+  });
+
+  it("keeps activity status filters and exposure rows", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({ value: [{
+      eventTimestamp: timestamp, caller: "private-user", operationName: { value: "private-operation" },
+      status: { value: "Failed" }, resourceId: PATH,
+    }] })));
+    expect((await runActivity(["list", "--subscription", scrub(SUB), "--status", "Failed", "--full"])).rows)
+      .toEqual([expect.objectContaining({ caller: scrub("private-user"), status: "Failed", operation: scrub("private-operation") })]);
+    fetchMock.mockResolvedValueOnce(Response.json(scrub({ totalRecords: 1, data: [{ resource: "private-vm", detail: "private-detail" }] })));
+    expect((await runExposure(["--check", "public-ips", "--full"])).rows)
+      .toEqual([expect.objectContaining({ resource: scrub("private-vm"), detail: scrub("private-detail") })]);
+  });
+
+  it("keeps running, successful and failed operation states", async () => {
+    const url = "https://management.azure.com/subscriptions/private-sub/providers/Microsoft.Compute/private-operation?api-version=2024-04-01";
+    for (const status of ["InProgress", "Succeeded", "Failed", "Canceled"]) {
+      fetchMock.mockResolvedValueOnce(Response.json(scrub({ status })));
+      const result = await runOp(["status", scrub(url)]);
+      expect(result.status).toBe(status);
+      expect(Boolean(result.help)).toBe(status === "InProgress");
+    }
   });
 });
 
