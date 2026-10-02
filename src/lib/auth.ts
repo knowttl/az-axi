@@ -38,7 +38,9 @@ const cache = new Map<string, Credential>();
 export async function resolveCredential(
   profile: ResolvedProfile,
   resource: Resource,
+  signal?: AbortSignal,
 ): Promise<Credential> {
+  signal?.throwIfAborted();
   const key = `${profile.auth}:${resource}:${profile.tenant ?? ""}:${
     profile.auth === "token" ? tokenEnvFor(profile, resource) : ""
   }`;
@@ -46,7 +48,8 @@ export async function resolveCredential(
   if (hit && (hit.expiresAt === undefined || hit.expiresAt - Date.now() > EXPIRY_MARGIN_MS)) return hit;
 
   const credential =
-    profile.auth === "token" ? tokenCredential(profile, resource) : await azCredential(profile, resource);
+    profile.auth === "token" ? tokenCredential(profile, resource) : await azCredential(profile, resource, signal);
+  signal?.throwIfAborted();
   cache.set(key, credential);
   return credential;
 }
@@ -68,13 +71,14 @@ function tokenCredential(profile: ResolvedProfile, resource: Resource): Credenti
   return { header: `Bearer ${token}`, mode: "token" };
 }
 
-async function azCredential(profile: ResolvedProfile, resource: Resource): Promise<Credential> {
+async function azCredential(profile: ResolvedProfile, resource: Resource, signal?: AbortSignal): Promise<Credential> {
   let stdout: string;
   try {
     const azArgs = ["account", "get-access-token", ...AZ_RESOURCE_ARGS[resource], "--output", "json"];
     if (profile.tenant) azArgs.push("--tenant", profile.tenant);
-    stdout = await runAz(azArgs);
+    stdout = await runAz(azArgs, signal);
   } catch (err) {
+    signal?.throwIfAborted();
     throw azError(err instanceof Error ? err.message : String(err), profile, resource);
   }
   let parsed: { accessToken?: string; expiresOn?: string; expires_on?: number | string };
@@ -166,10 +170,13 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * shell-injection risk from argument values (e.g. `--tenant`).
  * The only place az-axi spawns `az`.
  */
-export function runAz(args: string[]): Promise<string> {
+export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
+    signal?.throwIfAborted();
     const child = spawn("az", args, {
       windowsHide: true,
+      signal,
+      killSignal: "SIGKILL",
       env: {
         ...process.env,
         AZURE_CORE_COLLECT_TELEMETRY: "no",

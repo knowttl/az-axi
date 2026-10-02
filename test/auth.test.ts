@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { spawn as spawnChild } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
@@ -8,6 +9,7 @@ vi.mock("cross-spawn", () => ({ default: vi.fn() }));
 import spawn from "cross-spawn";
 import { clearCredentialCache, identityOf, resolveCredential } from "../src/lib/auth.js";
 import { request } from "../src/lib/client.js";
+import { pollOperation } from "../src/lib/lro.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { redact } from "../src/lib/redact.js";
 
@@ -61,6 +63,50 @@ afterEach(() => {
 });
 
 describe("az mode", () => {
+  it.each(["arm", "logs", "graph"] as const)("cancels pending %s credentials and closes the child pipes", async (resource) => {
+    const controller = new AbortController();
+    const reason = new Error("poll deadline");
+    let child: ReturnType<typeof spawnChild> | undefined;
+    let closed: Promise<unknown> | undefined;
+    spawnMock.mockImplementation((_cmd, _args, options) => {
+      child = spawnChild(process.execPath, ["-e", "setInterval(() => {}, 1000)"], options);
+      closed = new Promise((resolve) => child!.once("close", (code, signal) => resolve({ code, signal })));
+      return child;
+    });
+    const pending = resolveCredential(profile(), resource, controller.signal);
+    const assertion = expect(pending).rejects.toBe(reason);
+    controller.abort(reason);
+    await assertion;
+    expect(await closed).toEqual({ code: null, signal: "SIGKILL" });
+    expect(child?.stdout?.destroyed).toBe(true);
+    expect(child?.stderr?.destroyed).toBe(true);
+    fakeAz({ stdout: tokenJson() });
+    expect((await resolveCredential(profile(), resource)).header).toBe(`Bearer ${TOKEN}`);
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not spawn for an already cancelled credential request", async () => {
+    const reason = new Error("poll deadline");
+    await expect(resolveCredential(profile(), "arm", AbortSignal.abort(reason))).rejects.toBe(reason);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["asyncOperationUrl", "locationUrl"])("kills uncached authentication at the %s polling deadline", async (key) => {
+    let closed: Promise<unknown> | undefined;
+    spawnMock.mockImplementation((_cmd, _args, options) => {
+      const child = spawnChild(process.execPath, ["-e", "setInterval(() => {}, 1000)"], options);
+      closed = new Promise((resolve) => child.once("close", (code, signal) => resolve({ code, signal })));
+      return child;
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(pollOperation(profile(), {
+      [key]: "https://management.azure.com/operations/1?api-version=1",
+    }, { timeoutMs: 50 })).rejects.toMatchObject({ code: "OPERATION_TIMEOUT" });
+    expect(await closed).toEqual({ code: null, signal: "SIGKILL" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("asks az for the right audience per resource and hardens the spawn", async () => {
     fakeAz({ stdout: tokenJson() });
     const p = profile({ tenant: "00000000-0000-0000-0000-000000000001" });

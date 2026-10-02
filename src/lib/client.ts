@@ -111,7 +111,7 @@ export async function sendRequest<T = unknown>(
   assertEffectAllows(cls);
   enforceGates(profile, shape, cls);
 
-  const credential = await resolveCredential(profile, resource);
+  const credential = await resolveCredential(profile, resource, options.signal);
   const token = credential.header.replace(/^Bearer /, "");
   const scrub = (text: string) => (token ? text.split(token).join(REDACTED) : text);
 
