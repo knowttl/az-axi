@@ -116,7 +116,11 @@ async function inspect(
   let subscriptions: string | number = "-";
   if (armOk) {
     const listed = await attempt("arm reachable", false, () =>
-      requestAll<unknown>(profile, { path: "/subscriptions", apiVersion: SUBSCRIPTIONS_LIST }),
+      requestAll<unknown>(
+        profile,
+        { path: "/subscriptions", apiVersion: SUBSCRIPTIONS_LIST },
+        100,
+      ),
     );
     if (listed) subscriptions = listed.nextLink ? `${listed.items.length}+` : listed.items.length;
   }

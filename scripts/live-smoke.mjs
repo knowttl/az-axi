@@ -55,7 +55,7 @@ const checks = [
   }],
   ["doctor: write status is disabled by default", () => {
     const r = azAxi(["doctor"]);
-    return r.stdout.includes("disabled") || r.stdout.includes("ENABLED");
+    return r.stdout.includes("disabled");
   }],
   ["doctor: AZ_AXI_READ_ONLY forces read-only", () => {
     const r = azAxi(["doctor"], { AZ_AXI_READ_ONLY: "1" });

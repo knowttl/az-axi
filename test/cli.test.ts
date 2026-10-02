@@ -41,7 +41,7 @@ describe("command dispatch", () => {
 
     const home = run([]);
     expect(home.status).toBe(0);
-    expect(home.stdout).toContain("bootstrap build: no commands are implemented yet");
+    expect(home.stdout).toContain("doctor, config, and sub list are available; the dashboard arrives in Phase 2");
 
     const update = run(["update"]);
     expect(update.status).toBe(2);

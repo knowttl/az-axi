@@ -60,7 +60,11 @@ describe("doctor", () => {
       { name: "az", auth: "az", identity: "ada@contoso.com", type: "user", subscriptions: 3, writes: "disabled (default)", status: "ok" },
     ]);
     expect(credentialMock.mock.calls.map(([, resource]) => resource)).toEqual(["arm", "logs", "graph"]);
-    expect(requestAllMock).toHaveBeenCalledWith(expect.anything(), { path: "/subscriptions", apiVersion: "2022-12-01" });
+    expect(requestAllMock).toHaveBeenCalledWith(
+      expect.anything(),
+      { path: "/subscriptions", apiVersion: "2022-12-01" },
+      100,
+    );
   });
 
   it("reports the identity type for service principals and managed identities", async () => {

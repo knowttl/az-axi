@@ -212,7 +212,7 @@ export function writeStatus(
   if (readOnlyForced()) return { enabled: false, label: "disabled (AZ_AXI_READ_ONLY)" };
   if (allowWrites !== true) return { enabled: false, label: "disabled (default)" };
   const count = writeSubscriptions.length;
-  if (count === 0) return { enabled: false, label: "disabled (invalid: no subscriptions)" };
+  if (count === 0) return { enabled: false, label: "disabled (invalid configuration)" };
   return { enabled: true, label: `ENABLED for ${count} ${count === 1 ? "subscription" : "subscriptions"}` };
 }
 

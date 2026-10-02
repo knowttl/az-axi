@@ -279,6 +279,16 @@ describe("nextLink paging", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toContain("skiptoken=p2");
   });
 
+  it("stops the generic default after 10 pages", async () => {
+    fetchMock.mockImplementation(async () =>
+      json({ value: [1], nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=more" }),
+    );
+    const result = await requestAll<number>(profile(), { path: "/subscriptions", apiVersion: "2022-12-01" });
+    expect(result.items).toHaveLength(10);
+    expect(result.nextLink).toContain("skiptoken=more");
+    expect(fetchMock).toHaveBeenCalledTimes(10);
+  });
+
   it("reports the unfetched nextLink when the page cap stops paging", async () => {
     fetchMock.mockImplementation(async () =>
       json({ value: [1], nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=more" }),

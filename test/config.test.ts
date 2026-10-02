@@ -173,7 +173,7 @@ describe("allowWrites rules", () => {
     expect(writeStatus(false, [SUB_A]).label).toBe("disabled (default)");
     expect(writeStatus(true, [SUB_A]).label).toBe("ENABLED for 1 subscription");
     expect(writeStatus(true, [SUB_A, SUB_B])).toEqual({ enabled: true, label: "ENABLED for 2 subscriptions" });
-    expect(writeStatus(true, []).enabled).toBe(false);
+    expect(writeStatus(true, [])).toEqual({ enabled: false, label: "disabled (invalid configuration)" });
   });
 
   it.each(["1", "true", "TRUE"])("$AZ_AXI_READ_ONLY=%s forces read-only over a write-enabled profile", (value) => {

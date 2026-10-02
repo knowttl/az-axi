@@ -43,10 +43,14 @@ afterEach(() => {
 describe("sub list", () => {
   it("lists subscriptions sorted by name with a count line", async () => {
     const result = await run(["list"]);
-    expect(requestAllMock).toHaveBeenCalledWith(expect.objectContaining({ name: "az" }), {
-      path: "/subscriptions",
-      apiVersion: "2022-12-01",
-    });
+    expect(requestAllMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "az" }),
+      {
+        path: "/subscriptions",
+        apiVersion: "2022-12-01",
+      },
+      100,
+    );
     expect(result.count).toBe("3 subscriptions");
     expect(result.subscriptions).toEqual([
       { name: "Alpha", id: ID(21), state: "Enabled", inScope: "yes" },

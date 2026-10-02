@@ -14,7 +14,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
   return {
     ...homeHeader(DESCRIPTION),
-    status: "bootstrap build: no commands are implemented yet",
+    status: "doctor, config, and sub list are available; the dashboard arrives in Phase 2",
     help: ["Run `az-axi --help` for the command surface"],
   };
 }

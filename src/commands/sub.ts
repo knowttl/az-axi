@@ -33,10 +33,14 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError("flag --limit must be greater than 0", "VALIDATION_ERROR", ["Example: --limit 20"]);
   }
 
-  const { items, nextLink } = await requestAll<Subscription>(profile, {
-    path: "/subscriptions",
-    apiVersion: SUBSCRIPTIONS_LIST,
-  });
+  const { items, nextLink } = await requestAll<Subscription>(
+    profile,
+    {
+      path: "/subscriptions",
+      apiVersion: SUBSCRIPTIONS_LIST,
+    },
+    100,
+  );
   if (items.length === 0) {
     return {
       profile: profile.name,
