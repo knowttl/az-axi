@@ -1,8 +1,8 @@
 // Token budgets per command (PLAN.md Sections 8 and 10.4 step 6).
 //
 // Each scenario drives a command handler with the shared synthetic payloads in
-// test/samples.ts, renders the result to TOON exactly as runAxiCli would, and
-// counts tokens with gpt-tokenizer (the counter PLAN.md Sections 4.4 and 13.4
+// test/samples.ts, normalizes machine-dependent paths, renders the result to
+// TOON, and counts tokens with gpt-tokenizer (the counter PLAN.md Sections 4.4 and 13.4
 // name; already a devDependency, so no new dependency).
 //
 // Ceiling rule: measured TOON token size plus 20 percent, rounded up. When a
