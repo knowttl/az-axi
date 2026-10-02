@@ -141,5 +141,5 @@ Use `az-axi logs --help` for workspace IDs, query input handling, time windows a
 
 Writes are disabled.
 Every write or destructive request is blocked with `WRITES_DISABLED`.
-Writes are not implemented yet, so `allowWrites` currently has no effect.
+Writes are not implemented yet, so `allowWrites: true` currently does not enable writes.
 A profile with an invalid write configuration is rejected before it is used.
