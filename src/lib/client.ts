@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { AxiError } from "axi-sdk-js";
 import { resolveCredential } from "./auth.js";
 import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
@@ -25,6 +26,7 @@ export interface RequestOptions {
   accept?: string;
   /** Return the response text instead of parsed JSON. */
   raw?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface ApiResponse<T> {
@@ -99,6 +101,7 @@ export async function sendRequest<T = unknown>(
   profile: ResolvedProfile,
   options: RequestOptions,
 ): Promise<ApiResponse<T>> {
+  options.signal?.throwIfAborted();
   const resource = options.resource ?? "arm";
   const method = (options.method ?? "GET").toUpperCase();
   const url = buildUrl(options);
@@ -108,7 +111,7 @@ export async function sendRequest<T = unknown>(
   assertEffectAllows(cls);
   enforceGates(profile, shape, cls);
 
-  const credential = await resolveCredential(profile, resource);
+  const credential = await resolveCredential(profile, resource, options.signal);
   const token = credential.header.replace(/^Bearer /, "");
   const scrub = (text: string) => (token ? text.split(token).join(REDACTED) : text);
 
@@ -118,6 +121,7 @@ export async function sendRequest<T = unknown>(
   }
 
   for (let attempt = 0; ; attempt++) {
+    options.signal?.throwIfAborted();
     const clientRequestId = randomUUID();
     const headers: Record<string, string> = {
       Authorization: credential.header,
@@ -130,8 +134,9 @@ export async function sendRequest<T = unknown>(
 
     let response: Response;
     try {
-      response = await fetch(url, { method, headers, body });
+      response = await fetch(url, { method, headers, body, signal: options.signal });
     } catch (err) {
+      options.signal?.throwIfAborted();
       throw networkError(err, resource, clientRequestId, scrub);
     }
 
@@ -143,7 +148,8 @@ export async function sendRequest<T = unknown>(
       retryMs <= MAX_RETRY_AFTER_MS
     ) {
       await response.arrayBuffer();
-      await new Promise((resolve) => setTimeout(resolve, retryMs));
+      if (options.signal) await delay(retryMs, undefined, { signal: options.signal });
+      else await new Promise((resolve) => setTimeout(resolve, retryMs));
       continue;
     }
 

@@ -215,6 +215,24 @@ See [Writes](#writes) for the read-only policy.
 | `NETWORK_ERROR` | 1 | The request could not be sent |
 | `API_ERROR` | 1 | Anything else, with the HTTP status and ARM `error.code` |
 
+## Check an operation
+
+Inspect an existing Azure long-running operation using the URL from its `Azure-AsyncOperation` or `Location` response header.
+Pass exactly one absolute HTTPS URL on `management.azure.com`, including its `api-version` query parameter.
+
+```
+az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'
+```
+
+This checks the current state once; re-run the suggested command if the operation is still running.
+The suggested command retains the selected config file, profile and tenant.
+Output preserves the response payload, including `status` and completed results such as `properties.changes`.
+A string `status` in the response body identifies the operation state; Succeeded, Failed and Canceled are terminal, matched case-insensitively, and other states are still running.
+Without a string body status, output adds `operation` (the URL), `state` and `status` (the HTTP status); HTTP 202 means InProgress and other successful HTTP responses mean Succeeded.
+Failed and Canceled are reported as operation states with any returned error details; a successful status lookup still exits 0.
+Returned error details remain in the response payload as `error.code` and `error.message`; request failures use the normal [error categories](#behavior).
+Automatic polling and `--timeout` are not exposed by the CLI yet.
+
 ## Writes
 
 Writes are disabled by default.
@@ -230,4 +248,4 @@ See [PLAN.md Section 6.13.3](PLAN.md#6133-dry-run-dryrunts-diffts) for the detai
 Execution is not available in this build: `--execute` returns `API_ERROR` after the gates pass.
 Destructive execution also requires `--confirm <resource-name>`; missing or mismatched confirmation fails first.
 Pending deployment previews return a suggested `az-axi op status` command.
-It reads the current response body once from the supplied absolute `https://management.azure.com` operation URL, including its query string, without polling or executing writes.
+See [Check an operation](#check-an-operation) for URL requirements, output and recheck behavior.

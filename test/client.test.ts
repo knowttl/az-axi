@@ -84,6 +84,35 @@ describe("buildUrl", () => {
 });
 
 describe("sendRequest", () => {
+  it("passes cancellation to fetch and preserves the abort reason", async () => {
+    const controller = new AbortController();
+    const reason = new Error("poll deadline");
+    fetchMock.mockImplementation(async (_url, init) => {
+      expect(init.signal).toBe(controller.signal);
+      controller.abort(reason);
+      throw reason;
+    });
+    await expect(sendRequest(profile(), { path: "/x", apiVersion: "1", signal: controller.signal }))
+      .rejects.toBe(reason);
+  });
+
+  it("never fetches after cancellation", async () => {
+    const signal = AbortSignal.abort(new Error("poll deadline"));
+    await expect(sendRequest(profile(), { path: "/x", apiVersion: "1", signal })).rejects.toThrow("poll deadline");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels the retry wait without issuing another request", async () => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation(async () => {
+      queueMicrotask(() => controller.abort());
+      return json({}, 503, { "retry-after": "10" });
+    });
+    await expect(sendRequest(profile(), { path: "/x", apiVersion: "1", signal: controller.signal }))
+      .rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sends a fresh client request id, user agent and bearer token on every request", async () => {
     fetchMock.mockImplementation(async () => json({ value: [] }));
     await sendRequest(profile(), { path: "/subscriptions", apiVersion: "2022-12-01" });
