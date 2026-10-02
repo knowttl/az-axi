@@ -13,6 +13,7 @@ export const TOP_LEVEL_HELP = [
   "az-axi exposure [--check all]             # internet-exposed resources",
   "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   "az-axi api GET /subscriptions            # escape hatch for any read or query request",
+  "az-axi op status <operation-url>          # read a pending operation's current result",
   "",
   "Selector flags on every command: --profile, --tenant, --subscription a,b, --management-group, --config.",
   "Output: TOON on stdout. --full disables truncation, --fields a,b limits list columns, --limit N caps rows.",
@@ -141,5 +142,14 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
     "Destructive execution needs --confirm <resource-name>.",
     "Execution is not available yet: with --execute every passing gate still reports that.",
     "Examples: az-axi api /subscriptions --api-version 2022-12-01",
+  ].join("\n"),
+  op: [
+    "az-axi op status <operation-url>",
+    "",
+    "Read-only GET of an absolute https://management.azure.com operation URL, including its api-version query.",
+    "Returns the current response body once; does not poll or execute writes.",
+    "Selector flags: --profile, --tenant, --subscription, --management-group, --config.",
+    "Examples: az-axi op status 'https://management.azure.com/subscriptions/<id>/operations/<id>?api-version=<version>'",
+    "          az-axi op status '<operation-url>' --profile work",
   ].join("\n"),
 });
