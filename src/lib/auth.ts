@@ -169,6 +169,9 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * through as an argv array (not a shell command string), so there's no
  * shell-injection risk from argument values (e.g. `--tenant`).
  * The only place az-axi spawns `az`.
+ * On Windows, cancellation requests tree termination with `taskkill` and
+ * closes local pipes, rejecting with the signal reason without waiting for
+ * termination. If `taskkill` cannot spawn, it falls back to killing the child.
  */
 export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
