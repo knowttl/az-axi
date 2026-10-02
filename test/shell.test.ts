@@ -14,7 +14,7 @@ import { formatFlagValue, quoteFlagValue } from "../src/lib/shell.js";
 import { parseArgs } from "../src/lib/args.js";
 
 function argumentsOf(shell: string, command: string): string[] {
-  return execFileSync(shell, ["-c", `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}`], { encoding: "utf8" }).split("\0").slice(0, -1);
+  return execFileSync(shell, ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
 }
 
 describe.each(["sh", "bash"])("command hints in %s", (shell) => {

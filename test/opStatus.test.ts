@@ -28,8 +28,9 @@ function cli(args: string[], shell = false, readOnly = false) {
       throw new Error('Unexpected operation request');
     return new Response(${JSON.stringify(JSON.stringify(RESULT))},{status:200});
   }`;
-  return spawnSync(shell ? "bash" : process.execPath, shell ? ["-c", args[0]!] : ["--import", "tsx", "src/bin/az-axi.ts", ...args], {
+  return spawnSync(shell ? "bash" : process.execPath, shell ? ["-s"] : ["--import", "tsx", "src/bin/az-axi.ts", ...args], {
     encoding: "utf8",
+    input: shell ? args[0]! : undefined,
     env: {
       ...process.env,
       NODE_OPTIONS: `--import data:text/javascript,${encodeURIComponent(stub)}`,

@@ -123,7 +123,7 @@ const patch = (extra: string[] = [], profile = "--profile writer") =>
   run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", '{"tags":{"env":"prod","team":"a"}}', ...profile.split(" "), ...extra]);
 
 function commandArguments(command: string): string[] {
-  return execFileSync("sh", ["-c", `capture() { printf '%s\\0' "$@"; }; ${command.slice(1, -1).replace(/^az-axi /, "capture ")}`], { encoding: "utf8" })
+  return execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.slice(1, -1).replace(/^az-axi /, "capture ")}` })
     .split("\0").slice(0, -1);
 }
 
