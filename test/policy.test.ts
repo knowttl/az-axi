@@ -123,6 +123,7 @@ describe("command effect registry", () => {
       defender: "read",
       exposure: "read",
       logs: "read",
+      op: "read",
       api: "dynamic",
     });
   });
