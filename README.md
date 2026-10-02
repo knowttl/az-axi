@@ -4,7 +4,7 @@ Agent-ergonomic CLI for Azure, read-only by default.
 Resource inventory, RBAC, activity log, Defender for Cloud and Log Analytics through token-efficient TOON output.
 
 This is not [`masyanru/az-axi`](https://github.com/masyanru/az-axi), an unrelated project that owns the unscoped npm package `az-axi`.
-This package is `@knowttl/az-axi`.
+This package is [`@knowttl/az-axi`](https://www.npmjs.com/package/@knowttl/az-axi).
 Never install both globally on one machine: the second install overwrites the `az-axi` binary.
 `az-axi doctor` prints the package name and version it runs as.
 

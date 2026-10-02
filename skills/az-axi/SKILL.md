@@ -69,12 +69,10 @@ az-axi rg query --file query.kql
 cat query.kql | az-axi rg query
 ```
 
-`rg query` POSTs the KQL unchanged to Resource Graph across the scope in
-`--subscription` / `--management-group` flags, then the profile
-`managementGroup`, then the profile `subscriptions`. `--limit` maps to `$top`
-(default 50, maximum 1000). Output is `total`, `count`, `rows`; nested objects
-render as compact JSON truncated at 200 characters unless `--full`. When a skip
-token is returned, `help[]` carries the exact command for the next page.
+`rg query` trims surrounding query whitespace, then POSTs the KQL to Resource Graph across the scope in `--subscription` / `--management-group` flags, then the profile `managementGroup`, then the profile `subscriptions`.
+`--limit` maps to `$top` (default 50, maximum 1000).
+Output is `total`, `count`, `rows`; nested objects render as compact JSON truncated at 200 characters unless `--full`.
+When a skip token is returned, `help[]` carries the exact command for the next page.
 
 ## Access and activity
 
@@ -141,8 +139,9 @@ cat hunt.kql | az-axi logs query --workspace sentinel
 ID GUID. An ARM resource ID is rejected with the `rg query` that finds the
 GUID. `--timespan` defaults to `P1D` and accepts `30m`, `24h`, `7d`, ISO 8601
 durations, ISO dates, and start/end intervals; it intersects any time filter in
-the query. The query is sent unchanged: no row limits or time filters are
-added. `--limit` caps displayed rows client-side (default 50). Output is
+the query.
+Surrounding query whitespace is trimmed; no row limits or time filters are added.
+`--limit` caps displayed rows client-side (default 50). Output is
 `total`, `count`, `rows` from the first table; extra tables appear by name and
 row count only. Partial errors return a `warning` instead of failing.
 
@@ -187,13 +186,11 @@ instead. For `api --body`, keep JSON single-quoted and short.
 
 ## Writes
 
-Writes are disabled by default. A write always needs `--execute`, always shows
-a dry run first (what would change, with the exact command to execute), and
-must be approved by the human on every invocation - never batch, chain, or
-pre-approve them. The human owns write access; this skill does not describe how
-to enable it. Point the human at `README.md#writes` in
-[`@knowttl/az-axi`](https://www.npmjs.com/package/@knowttl/az-axi) for the
-details.
+Writes are disabled by default.
+See [README.md#writes](../../README.md#writes) for current write support.
+For a future write-capable version, a write always needs `--execute`.
+Show a dry run first (what would change, with the exact command to execute), and obtain human approval on every invocation - never batch, chain, or pre-approve writes.
+The human owns write access; this skill does not describe how to enable it.
 
 ## Conventions
 
@@ -203,7 +200,6 @@ details.
 - Unknown flags are rejected by name - read the `help` line and retry once.
   Flags that do not apply to the subcommand are rejected the same way.
 - Lists take `--limit` and `--fields a,b`; detail views truncate and take
-  `--full`. Every list carries a count and an explicit empty state, never a
-  bare empty array.
+  `--full`.
 - Read-only commands never change Azure state. `config init` writes a local
   file only.
