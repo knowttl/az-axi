@@ -180,6 +180,7 @@ az-axi defender score                                   # secure score per subsc
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
 az-axi logs query --file hunt.kql --workspace sentinel   # Log Analytics KQL (see Query logs)
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
+az-axi op status '<operation-url>' --profile work       # read the current result of a pending operation
 ```
 
 See [Profiles](#profiles) for selector flags and environment overrides, and [Behavior](#behavior) for output controls.
@@ -228,4 +229,5 @@ See [PLAN.md Section 6.13.3](PLAN.md#6133-dry-run-dryrunts-diffts) for the detai
 
 Execution is not available in this build: `--execute` returns `API_ERROR` after the gates pass.
 Destructive execution also requires `--confirm <resource-name>`; missing or mismatched confirmation fails first.
-Pending deployment previews return a suggested `az-axi op status` command, but that command is not implemented in this build.
+Pending deployment previews return a suggested `az-axi op status` command.
+It reads the current response body once from the supplied absolute `https://management.azure.com` operation URL, including its query string, without polling or executing writes.
