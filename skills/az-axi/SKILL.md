@@ -157,6 +157,9 @@ return `count` plus `value`; `--all` follows ARM `nextLink` up to 10 pages.
 Strings truncate at 4,000 characters unless `--full`.
 See [README.md#writes](../../README.md#writes) for write and destructive request support.
 
+Use `az-axi op status '<operation-url>'` to inspect an existing long-running operation.
+See [README.md#check-an-operation](../../README.md#check-an-operation) for URL requirements, output and recheck behavior.
+
 ## Safe shell input
 
 In every shell, pass JSON bodies and KQL containing quotes, pipes, or other shell metacharacters through file or stdin input, never through interpolated command-line arguments.

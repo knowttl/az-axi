@@ -217,15 +217,21 @@ See [Writes](#writes) for the read-only policy.
 
 ## Check an operation
 
-Inspect an existing Azure long-running operation using the URL from its `Azure-AsyncOperation` or `Location` response header:
+Inspect an existing Azure long-running operation using the URL from its `Azure-AsyncOperation` or `Location` response header.
+Pass exactly one absolute HTTPS URL on `management.azure.com`, including its `api-version` query parameter.
 
 ```
 az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'
 ```
 
 This checks the current state once; re-run the suggested command if the operation is still running.
+The suggested command retains the selected config file, profile and tenant.
+Output includes `operation` (the URL), `state` and `status` (the HTTP status).
+The response body's string `status` is reported as the state; Succeeded, Failed and Canceled are terminal, matched case-insensitively, and other states are still running.
+Without a body status, HTTP 202 means InProgress and other successful HTTP responses mean Succeeded.
 Failed and Canceled are reported as operation states with any returned error details; a successful status lookup still exits 0.
-Use `az-axi op --help` for URL requirements and reported states.
+Returned error details appear as `code` and `error`; request failures use the normal [error categories](#behavior).
+This command checks operations started elsewhere; automatic polling and `--timeout` are not exposed by the CLI yet.
 
 ## Writes
 

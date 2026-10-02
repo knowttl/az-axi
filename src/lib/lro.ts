@@ -159,8 +159,9 @@ function defaultDelay(ms: number): Promise<void> {
 
 /**
  * Polls until the operation succeeds, fails, or the timeout elapses.
- * Prefers the `Azure-AsyncOperation` URL; otherwise polls `Location` until it
- * stops returning 202. Returns the terminal response. Throws OPERATION_FAILED
+ * Prefers the `Azure-AsyncOperation` URL; otherwise polls `Location`.
+ * A body status takes precedence over HTTP 202 for either URL.
+ * Returns the terminal response. Throws OPERATION_FAILED
  * with the operation's error, or OPERATION_TIMEOUT with an `op status` command
  * to check its current state when the budget runs out.
  */
