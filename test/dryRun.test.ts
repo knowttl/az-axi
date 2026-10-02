@@ -394,7 +394,7 @@ describe("canonical request paths", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it.each(["http://management.azure.com", "https://other.example"])(
+  it.each(["http://management.azure.com", "https://other.example.com"])(
     "rejects a write URL on %s before previewing", async (host) => {
       await expect(run(["PATCH", `${host}${STORAGE}`, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
       expect(fetchMock).not.toHaveBeenCalled();
