@@ -4,9 +4,9 @@ import type { ResolvedProfile } from "./config.js";
 
 /**
  * Long-running operation polling (PLAN.md Section 6.13.5).
- * The `api` execute flow calls this after a 201/202 write response carries an
- * `Azure-AsyncOperation` or `Location` header; `op status` reuses the response
- * reading for its single read-only GET. Every poll is a GET through `client.ts`,
+ * Intended for the future `api` execute flow after a 201/202 write response
+ * carries an `Azure-AsyncOperation` or `Location` header; `op status` reuses
+ * the response reading for its single read-only GET. Every poll is a GET through `client.ts`,
  * so policy, gates and correlation apply unchanged.
  *
  * Reference: Track asynchronous Azure operations
@@ -90,7 +90,7 @@ export function parseTimeoutFlag(value: string | undefined): number {
   return ms;
 }
 
-/** The `Azure-AsyncOperation` and `Location` URLs of a 201/202 write response, if any. */
+/** Preserves operation URLs and initial `Retry-After` scheduling from a write response. */
 export function operationUrls(response: ApiResponse<unknown>): LroUrls {
   const asyncOperationUrl = response.headers["azure-asyncoperation"];
   const locationUrl = response.headers["location"];
@@ -161,8 +161,8 @@ function defaultDelay(ms: number): Promise<void> {
  * Polls until the operation succeeds, fails, or the timeout elapses.
  * Prefers the `Azure-AsyncOperation` URL; otherwise polls `Location` until it
  * stops returning 202. Returns the terminal response. Throws OPERATION_FAILED
- * with the operation's error, or OPERATION_TIMEOUT with the `op status` resume
- * command when the budget runs out.
+ * with the operation's error, or OPERATION_TIMEOUT with an `op status` command
+ * to check its current state when the budget runs out.
  */
 export async function pollOperation(
   profile: ResolvedProfile,

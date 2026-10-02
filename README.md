@@ -215,6 +215,17 @@ See [Writes](#writes) for the read-only policy.
 | `NETWORK_ERROR` | 1 | The request could not be sent |
 | `API_ERROR` | 1 | Anything else, with the HTTP status and ARM `error.code` |
 
+## Check an operation
+
+Inspect an existing Azure long-running operation using the URL from its `Azure-AsyncOperation` or `Location` response header:
+
+```
+az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'
+```
+
+This checks the current state once; re-run the suggested command if the operation is still running.
+Use `az-axi op --help` for URL requirements and reported states.
+
 ## Writes
 
 Writes are disabled by default.
