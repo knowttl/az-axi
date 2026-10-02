@@ -25,7 +25,7 @@ version it runs as, so a clash is visible.
 ## Orientation
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
-subscriptions in scope, active Defender alerts by severity, average and lowest
+visible subscription count, active Defender alerts by severity, average and lowest
 secure score, exposure counts, and write status - enough to act without a second
 call. A failed section degrades to a hint; the rest still render.
 
@@ -182,7 +182,8 @@ single-quoted and short, and prefer `--file`-backed KQL through `rg query` or
 
 On Windows, never pass large or multiline content through the `.cmd` shim as an
 interpolated argument such as `--body "$(cat body.json)"`; `cmd.exe` can
-truncate it. Pipe or `--file` it instead.
+truncate it. For `rg query` and `logs query`, use piped stdin or `--file`
+instead. For `api --body`, keep JSON single-quoted and short.
 
 ## Writes
 
