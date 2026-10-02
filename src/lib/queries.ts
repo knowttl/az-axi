@@ -284,3 +284,14 @@ export function exposureQuery(check: ExposureCheck): string {
       return EXPOSURE_ANY_ANY;
   }
 }
+
+/**
+ * Workspace ID GUID (customer ID) for `logs query --workspace`.
+ * `customerId` lives under `properties`; projecting the bare name returns an empty column.
+ */
+export const WORKSPACE_CUSTOMER_ID_QUERY =
+  "Resources | where type =~ 'microsoft.operationalinsights/workspaces' | project name, customerId = tostring(properties.customerId), resourceGroup, subscriptionId";
+
+export function workspaceCustomerIdCommand(): string {
+  return `az-axi rg query "${WORKSPACE_CUSTOMER_ID_QUERY}"`;
+}

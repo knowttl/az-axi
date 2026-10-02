@@ -5,6 +5,7 @@ import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
 import { enforceGates } from "./gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "./policy.js";
 import { assertEffectAllows } from "./registry.js";
+import { workspaceCustomerIdCommand } from "./queries.js";
 import { REDACTED } from "./redact.js";
 import { packageInfo } from "./version.js";
 
@@ -263,21 +264,59 @@ interface ErrorContext {
   requestId: string;
 }
 
+interface ApiErrorNode {
+  code?: string;
+  message?: string;
+  innererror?: ApiErrorNode;
+}
+
+const AUTH_ERROR_CODES = new Set([
+  "authenticationfailed",
+  "expiredauthenticationtoken",
+  "invalidauthenticationtoken",
+  "invalidauthenticationtokenaudience",
+]);
+
+/** Outer code for classification; deepest message, because Log Analytics hides syntax errors in `innererror`. */
+function readApiError(text: string): { code?: string; message?: string; innerCode?: string } {
+  try {
+    const parsed = JSON.parse(text) as { error?: ApiErrorNode; message?: string };
+    const root = parsed.error;
+    let message = root?.message ?? parsed.message;
+    let innerCode: string | undefined;
+    let current = root;
+    const seen = new Set<ApiErrorNode>();
+    while (current?.innererror && typeof current.innererror === "object" && !seen.has(current)) {
+      seen.add(current);
+      current = current.innererror;
+      if (current.code) innerCode = current.code;
+      if (current.message?.trim()) message = current.message;
+    }
+    return { code: root?.code, message, innerCode };
+  } catch {
+    return {};
+  }
+}
+
+function isAuthFailure(status: number, code: string | undefined): boolean {
+  if (status === 401) return true;
+  return status === 403 && AUTH_ERROR_CODES.has((code ?? "").toLowerCase());
+}
+
 function translateError(ctx: ErrorContext): AxiError {
   const { status, headers, profile, resource, path } = ctx;
-  let message = ctx.text.slice(0, 400);
-  let armCode: string | undefined;
-  try {
-    const parsed = JSON.parse(ctx.text) as { error?: { code?: string; message?: string }; message?: string };
-    armCode = parsed.error?.code;
-    message = (parsed.error?.message ?? parsed.message ?? message).slice(0, 400);
-  } catch {
-    /* empty or non-JSON bodies keep the raw text */
-  }
+  const parsedError = readApiError(ctx.text);
+  const armCode = parsedError.code;
+  const innerCode = parsedError.innerCode;
+  const message = (parsedError.message ?? ctx.text).slice(0, 400);
   const trace = `requestId: ${ctx.requestId}`;
   const fail = (text: string, code: string, hints: string[]) => new AxiError(text, code, [...hints, trace]);
+  const codes = [
+    ...(armCode ? [`error code: ${armCode}`] : []),
+    ...(innerCode && innerCode !== armCode ? [`inner error: ${innerCode}`] : []),
+  ];
 
-  if (status === 401) {
+  if (isAuthFailure(status, armCode)) {
     const claims = /claims=/i.test(headers["www-authenticate"] ?? "");
     return fail(`not authorized for ${resource} (profile '${profile.name}')`, "AUTH_REQUIRED", [
       profile.auth === "token"
@@ -286,6 +325,7 @@ function translateError(ctx: ErrorContext): AxiError {
           ? `Run \`az logout\` then \`az login${profile.tenant ? ` --tenant ${profile.tenant}` : ""}\` to satisfy Conditional Access`
           : "Run `az login` - the Azure CLI token was rejected or expired",
       "Run `az-axi doctor` to verify authentication for this profile",
+      ...codes,
     ]);
   }
   if (status === 403) {
@@ -295,25 +335,29 @@ function translateError(ctx: ErrorContext): AxiError {
         : resource === "logs"
           ? "Log Analytics Reader is needed on the workspace"
           : "The identity lacks the Microsoft Graph permission for this lookup",
-      ...(armCode ? [`error code: ${armCode}`] : []),
+      ...codes,
     ]);
   }
   if (status === 404) {
     return fail(`not found: ${path}${armCode ? ` (${armCode})` : ""}`, "NOT_FOUND", [
       message,
-      armCode === "SubscriptionNotFound"
-        ? "Run `az-axi sub list` to see subscriptions visible to this identity"
-        : "Check the subscription, resource group, resource name and api-version",
+      resource === "logs"
+        ? `Check the workspace ID GUID (customer ID), not the ARM resource ID. Find it with \`${workspaceCustomerIdCommand()}\``
+        : armCode === "SubscriptionNotFound"
+          ? "Run `az-axi sub list` to see subscriptions visible to this identity"
+          : "Check the subscription, resource group, resource name and api-version",
     ]);
   }
   if (status === 400) {
     return fail(message || "bad request", "VALIDATION_ERROR", [
-      armCode === "InvalidQuery"
-        ? "The KQL query is invalid: fix its syntax"
-        : armCode === "InvalidApiVersionParameter" || armCode === "NoRegisteredProviderFound"
-          ? "The api-version is not supported for this resource type: pass a different --api-version"
-          : "Check the flag values and the request body",
-      ...(armCode ? [`error code: ${armCode}`] : []),
+      resource === "logs"
+        ? "The KQL query or --timespan was rejected: fix the syntax and retry"
+        : armCode === "InvalidQuery"
+          ? "The KQL query is invalid: fix its syntax"
+          : armCode === "InvalidApiVersionParameter" || armCode === "NoRegisteredProviderFound"
+            ? "The api-version is not supported for this resource type: pass a different --api-version"
+            : "Check the flag values and the request body",
+      ...codes,
     ]);
   }
   if (status === 409) {
@@ -331,11 +375,23 @@ function translateError(ctx: ErrorContext): AxiError {
     const quota = headers["x-ms-user-quota-resets-after"];
     return fail(`rate limited by ${HOSTS[resource]}`, "RATE_LIMITED", [
       `Retry after ${headers["retry-after"] ?? "a few"} seconds`,
-      ...(quota ? [`Resource Graph quota resets after ${quota}`] : []),
-      "Narrow the query with --limit or more filters",
+      ...(resource === "arm" && quota ? [`Resource Graph quota resets after ${quota}`] : []),
+      resource === "logs"
+        ? "Narrow the KQL with '| take' or '| summarize', or shorten --timespan, then retry. --limit only hides rows already returned"
+        : "Narrow the query with --limit or more filters",
+      ...codes,
+    ]);
+  }
+  if (status === 504) {
+    return fail(message || "the request timed out", "API_ERROR", [
+      resource === "logs"
+        ? "The query exceeded the Log Analytics timeout (3 minutes by default): shorten --timespan or narrow the KQL and retry"
+        : "The request timed out; retry or narrow it",
+      ...codes,
     ]);
   }
   return fail(message || `HTTP ${status}`, "API_ERROR", [
     `HTTP ${status} from ${path}${armCode ? ` (${armCode})` : ""}`,
+    ...codes,
   ]);
 }

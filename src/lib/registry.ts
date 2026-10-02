@@ -29,6 +29,7 @@ export const COMMANDS: Record<string, () => Promise<CommandModule>> = Object.ass
   activity: () => import("../commands/activity.js"),
   defender: () => import("../commands/defender.js"),
   exposure: () => import("../commands/exposure.js"),
+  logs: () => import("../commands/logs.js"),
   api: () => import("../commands/api.js"),
 });
 
