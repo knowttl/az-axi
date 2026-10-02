@@ -270,7 +270,8 @@ There are no rename, preserve or suffix modes.
 Supply known private strings in `leakCheck`.
 The scrubber throws before returning if any appears as a case-insensitive substring in decoded keys, string values or serialized output, even when the text is otherwise allowed.
 The error does not print the private string.
-Keep real captures local in the gitignored `benchmark/fixtures/` and `benchmark/raw/` directories; never commit them, even scrubbed.
+See [BENCHMARK.md](BENCHMARK.md#owner-capture) for capture storage and privacy constraints.
 
 `countTokens(text)` measures text using `gpt-tokenizer`'s `o200k_base` encoding, treating special-token spellings as ordinary text.
 Synthetic scrubber, response replay and token counter coverage lives in `test/benchmark.test.ts`.
+Built-CLI record/replay, scenario runner and surface measurement coverage lives in `test/benchmarkHarness.test.ts`.

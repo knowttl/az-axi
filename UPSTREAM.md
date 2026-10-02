@@ -31,7 +31,7 @@ Update the row of a file in the same commit that changes it.
 | `.github/workflows/release.yml` | `.github/workflows/release.yml` | none |
 | `scripts/release-notes.mjs` | `scripts/release-notes.mjs` | none |
 | `test/release-notes.test.ts` | `test/release-notes.test.ts` | none |
-| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`; `bench`, `bench:capture`, and `bench:surface` removed; dependencies identical |
+| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`; benchmark scripts adapted for Azure (see [BENCHMARK.md](BENCHMARK.md)) |
 
 ## Patterns reimplemented, not vendored
 

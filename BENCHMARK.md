@@ -2,7 +2,7 @@
 
 The harness compares pretty-printed REST JSON response bodies with the complete TOON stdout of the built az-axi CLI.
 It uses the existing `gpt-tokenizer` development dependency with `o200k_base`; it adds no runtime dependencies or runtime capture switches.
-Results below are intentionally unfilled until the owner runs captures.
+Scenario results below are intentionally unfilled until the owner runs captures.
 
 ## Owner capture
 
@@ -20,7 +20,8 @@ Every child forces `AZ_AXI_READ_ONLY=1`.
 The fetch preload keeps original responses and CLI output in memory only.
 Before writing a fixture it applies the merged strict allowlist scrubber to every decoded JSON body and fails if any `leakCheck` string survives.
 It also checks the serialized capture before writing.
-Request URLs, request bodies, credentials, response headers and CLI stdout/stderr are never saved.
+Request URLs, request bodies, credentials and CLI stdout/stderr are never saved.
+Response headers are omitted except for the numeric Retry-After value described below.
 Only fixed method/host metadata, HTTP status and a numeric Retry-After value accompany scrubbed bodies.
 No raw recording is written, even temporarily.
 Non-JSON responses and failed scenarios produce a generic failure without printing private output.
@@ -64,13 +65,7 @@ The script writes `benchmark/tool-surface.json` and prints the same counts; it m
 Token boundaries can make the complete skill count differ from the sum of its separately measured parts.
 Help total is the sum of individual help invocations and does not imply every help page loads in each agent session.
 
-| Surface | Tokens |
-|---|---:|
-| Skill frontmatter | Owner to fill |
-| Skill body | Owner to fill |
-| Complete skill | Owner to fill |
-| Top-level help | Owner to fill |
-| All help pages combined | Owner to fill |
+See the generated [tool-surface.json](benchmark/tool-surface.json) for skill and help counts.
 
 The owner should record CLI commit, Node version, capture date, tokenizer version and any empty or partial results alongside published numbers.
 Only method documentation and reviewed result tables belong in this report; no captures or target identifiers belong here.
