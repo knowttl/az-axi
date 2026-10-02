@@ -18,9 +18,9 @@ az-axi --help
 az-axi doctor
 ```
 
-`az-axi doctor` checks the Azure CLI, sign-in, tokens, reachability and write status of every profile; see [Configure](#configure).
+See [Configure](#configure) for authentication and profile checks.
 
-From source:
+From source (requires pnpm):
 
 ```
 git clone https://github.com/knowttl/az-axi.git
@@ -161,10 +161,12 @@ Use `az-axi logs --help` for workspace IDs, query input handling, time windows a
 
 ## Use
 
-One example per command; every command also accepts `--help` with its full reference.
+One example per inspection command; see [Profiles](#profiles) for `config init` and `config path` examples.
+Every command also accepts `--help` with its full reference.
 
 ```
 az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure
+az-axi home                                             # the same dashboard
 az-axi doctor                                           # check az, tokens, ARM reachability and write status per profile
 az-axi config list                                      # profiles with scope, write status and description
 az-axi sub list                                         # subscriptions visible to the identity
@@ -180,32 +182,33 @@ az-axi logs query "SigninLogs | take 5" --workspace sentinel  # Log Analytics KQ
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
 ```
 
-Every command accepts `--profile`, `--tenant`, `--subscription a,b`, `--management-group` and `--config`.
-List output honours `--fields a,b`, `--limit N` and `--full`.
+See [Profiles](#profiles) for selector flags and environment overrides, and [Behavior](#behavior) for output controls.
 
 ## Behavior
 
+Resource inspection commands bound rows and long cells by default, except `api` lists have no default row cap.
+Use `--limit N` to cap rows and `--fields a,b` to select list columns.
+`--full` expands truncated cells and removes display row limits for most inspection lists; `rg query` keeps its page cap, and `logs query` and `api` still honor `--limit`.
+`api` follows additional pages only with `--all`, subject to a page cap.
+Use each command's `--help` for its defaults and paging limits.
+
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
-Errors render as TOON with a `code` and at least one actionable `help[]` entry.
-Exit code 2 covers usage and access errors; exit code 1 covers requests that were sent but failed.
-Writes are currently blocked with `WRITES_DISABLED`; see Writes.
+Errors render as TOON with a `code` and `help[]` suggestions when available.
+Unexpected errors use `UNKNOWN` with exit code 1 and no `help[]`.
+Exit code 0 means successful completion; exit code 2 covers usage and access errors, and exit code 1 covers other failures, including network failures before a response is received.
+See [Writes](#writes) for the read-only policy.
 
 | Code | Exit | Meaning |
 |---|---|---|
 | `VALIDATION_ERROR` | 2 | Bad flag value, missing argument, unknown command |
-| `UNKNOWN_FLAG` | 2 | Flag not accepted by this command; the error names the closest valid flags |
+| `UNKNOWN_FLAG` | 2 | Flag not accepted by this command; the error names a known replacement or lists valid flags |
 | `AUTH_REQUIRED` | 2 | Not signed in, token missing or expired |
 | `FORBIDDEN` | 2 | Signed in, but RBAC denies access; the hint names the role needed |
 | `NOT_FOUND` | 2 | Subscription, workspace or resource not found |
 | `READ_ONLY` | 2 | Request class not permitted for this resource |
 | `WRITES_DISABLED` | 2 | Write or destructive request blocked because writes are disabled |
-| `SUBSCRIPTION_NOT_WRITABLE` | 2 | Write targets a subscription outside the writable scope (write framework) |
-| `CONFIRM_REQUIRED` | 2 | Destructive request without `--confirm <resource-name>` (write framework) |
-| `CONFIRM_MISMATCH` | 2 | `--confirm` value does not match the target resource name (write framework) |
 | `PRECONDITION_FAILED` | 1 | HTTP 412: the resource changed since it was read |
 | `CONFLICT` | 1 | HTTP 409 from ARM |
-| `OPERATION_FAILED` | 1 | A long-running operation finished as Failed or Canceled (write framework) |
-| `OPERATION_TIMEOUT` | 1 | Polling exceeded `--timeout` (write framework) |
 | `TLS_ERROR` | 1 | Certificate trust failure; see TLS-inspecting proxies in Configure |
 | `RATE_LIMITED` | 1 | HTTP 429 or throttled; the hint carries the retry delay |
 | `NETWORK_ERROR` | 1 | The request could not be sent |
