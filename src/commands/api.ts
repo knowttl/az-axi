@@ -1,27 +1,27 @@
 import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs } from "../lib/args.js";
-import { sendRequest } from "../lib/client.js";
+import { buildUrl, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
+import { dryRun } from "../lib/dryRun.js";
+import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
+import { enforceGates } from "../lib/gates.js";
+import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
 import type { CommandMeta } from "../lib/registry.js";
 import type { Resource } from "../lib/config.js";
 
 /**
- * Escape hatch for any read or query request (PLAN.md Section 6.11). In Phase 2
- * only reads and queries are served; writes reach the Phase 1 gate stub and are
- * reported as WRITES_DISABLED, with the full dry-run flow arriving in Phase 6.
+ * Escape hatch for any read or query request (PLAN.md Section 6.11). Reads and
+ * queries are served directly; writes and destructive requests go through the
+ * gate order (Section 6.13.2) and, without --execute, return the dry run
+ * (Section 6.13.3). Execution itself is not available yet.
  */
 export const meta: CommandMeta = { name: "api", effect: "dynamic" };
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
-const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all"] as const;
+const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all", "execute", "confirm", "if-match"] as const;
 const STRING_TRUNCATE = 4000;
 const MAX_PAGES = 10;
-
-function quoteFlagValue(value: string): string {
-  if (!/[\s"'$`\\]/.test(value)) return value;
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
 
 function morePagesHint(options: {
   method: string;
@@ -33,11 +33,11 @@ function morePagesHint(options: {
 }): string {
   const parts = ["az-axi api"];
   if (options.method !== "GET") parts.push(options.method);
-  parts.push(options.path);
-  if (options.resource !== "arm") parts.push(`--resource ${options.resource}`);
-  if (options.apiVersion) parts.push(`--api-version ${options.apiVersion}`);
-  if (options.query) parts.push(`--query ${quoteFlagValue(options.query)}`);
-  if (options.body) parts.push(`--body ${quoteFlagValue(options.body)}`);
+  parts.push(quoteFlagValue(options.path));
+  if (options.resource !== "arm") parts.push(formatFlagValue("resource", options.resource));
+  if (options.apiVersion) parts.push(formatFlagValue("api-version", options.apiVersion));
+  if (options.query) parts.push(formatFlagValue("query", options.query));
+  if (options.body) parts.push(formatFlagValue("body", options.body));
   parts.push("--all");
   return `More pages exist: re-run with --all (up to ${MAX_PAGES} pages): \`${parts.join(" ")}\``;
 }
@@ -131,6 +131,43 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
 
   const profile = profileFromArgs(args);
+  const execute = flagBool(args, "execute");
+  const confirm = flagString(args, "confirm") || undefined;
+  const ifMatch = flagString(args, "if-match") || undefined;
+  const selectors = ["profile", "tenant", "subscription", "management-group", "config"]
+    .map((name) => {
+      const value = flagString(args, name);
+      return value === undefined ? undefined : formatFlagValue(name, value);
+    })
+    .filter((part): part is string => part !== undefined)
+    .join(" ");
+
+  // Every request is classified and gated here; the command never decides itself.
+  const url = new URL(buildUrl({ resource, path: path as string, query, apiVersion }));
+  const shape = { resource, method, path: url.pathname };
+  const cls = classifyRequest(shape);
+  assertReadOnlyBoundary(shape, cls);
+  if (cls === "write" || cls === "destructive") {
+    // Gate order in gates.ts; without --execute this returns the dry run, and
+    // with --execute it reports that execution is not available yet.
+    enforceGates(profile, shape, cls, { execute, confirm });
+    return dryRun({
+      profile,
+      resource,
+      method,
+      path: `${url.pathname}${url.search}`,
+      cls,
+      body,
+      bodyRaw,
+      apiVersion,
+      query,
+      queryRaw: flagString(args, "query"),
+      selectors: selectors === "" ? undefined : selectors,
+      full,
+      ifMatch,
+    });
+  }
+
   const first = await sendRequest<unknown>(profile, {
     method,
     resource,

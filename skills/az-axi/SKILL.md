@@ -154,8 +154,8 @@ az-axi api /subscriptions --api-version 2022-12-01
 `--resource` selects `arm` (default), `logs`, or `graph`. `--api-version` is
 required for `arm` when the path carries none. Lists with a `value[]` array
 return `count` plus `value`; `--all` follows ARM `nextLink` up to 10 pages.
-Strings truncate at 4,000 characters unless `--full`. Write and destructive
-requests are blocked (see Writes below).
+Strings truncate at 4,000 characters unless `--full`.
+See [README.md#writes](../../README.md#writes) for write and destructive request support.
 
 ## Safe shell input
 

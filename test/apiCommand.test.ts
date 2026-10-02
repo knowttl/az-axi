@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AxiError } from "axi-sdk-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn() }));
+vi.mock("../src/lib/client.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/lib/client.js")>(),
+  sendRequest: vi.fn(),
+}));
 
 import { run } from "../src/commands/api.js";
 import { sendRequest } from "../src/lib/client.js";
@@ -56,6 +58,13 @@ describe("api escape hatch", () => {
     sendMock.mockResolvedValue(ok({ value: [] }));
     await run(["/subscriptions", "--api-version", "2022-12-01"]);
     expect(sendMock.mock.calls[0]?.[1]).toMatchObject({ method: "GET", path: "/subscriptions" });
+  });
+
+  it("classifies an absolute Resource Graph URL as a query", async () => {
+    sendMock.mockResolvedValue(ok({ data: [] }));
+    const path = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=1";
+    await run(["POST", path, "--body", '{"query":"Resources | take 1"}']);
+    expect(sendMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: "POST", path, body: { query: "Resources | take 1" } }));
   });
 
   it("passes resource, query string and parsed body through", async () => {
@@ -130,7 +139,7 @@ describe("api escape hatch", () => {
     sendMock
       .mockResolvedValueOnce(ok({ value: [1], nextLink: "https://management.azure.com/next1?api-version=1" }))
       .mockResolvedValueOnce(ok({ value: [2] }));
-    const result = await run(["POST", "/things", "--api-version", "1", "--all"]);
+    const result = await run(["POST", "/providers/Microsoft.ResourceGraph/resources", "--api-version", "1", "--all"]);
     expect(result.value).toEqual([1, 2]);
     expect(sendMock.mock.calls[1]?.[1]).toMatchObject({
       method: "GET",
@@ -147,18 +156,10 @@ describe("api escape hatch", () => {
     expect(help).not.toContain("api-version");
   });
 
-  it("refuses writes through the Phase 1 gate stub and secrets as read-only", async () => {
-    sendMock.mockRejectedValue(
-      new AxiError("blocked: writes are disabled for profile 'az' (DELETE request)", "WRITES_DISABLED", [
-        "Writes are disabled for this profile",
-      ]),
-    );
+  it("refuses writes through the gates and secrets as read-only, before sending", async () => {
     await expect(run(["DELETE", "/x", "--api-version", "1"])).rejects.toMatchObject({ code: "WRITES_DISABLED" });
-
-    sendMock.mockRejectedValue(
-      new AxiError("blocked: POST listKeys returns credentials", "READ_ONLY", ["az-axi never calls actions that return keys"]),
-    );
     await expect(run(["POST", "/x/listKeys", "--api-version", "1"])).rejects.toMatchObject({ code: "READ_ONLY" });
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("rejects bad usage", async () => {

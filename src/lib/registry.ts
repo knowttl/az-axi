@@ -31,6 +31,7 @@ export const COMMANDS: Record<string, () => Promise<CommandModule>> = Object.ass
   exposure: () => import("../commands/exposure.js"),
   logs: () => import("../commands/logs.js"),
   api: () => import("../commands/api.js"),
+  op: () => import("../commands/op.js"),
 });
 
 let activeEffect: Effect | undefined;
