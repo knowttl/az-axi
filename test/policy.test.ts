@@ -112,7 +112,16 @@ describe("command effect registry", () => {
       expect(meta.name).toBe(name);
       effects[name] = meta.effect;
     }
-    expect(effects).toEqual({ home: "read", doctor: "read", config: "read", sub: "read", rg: "read", api: "dynamic" });
+    expect(effects).toEqual({
+      home: "read",
+      doctor: "read",
+      config: "read",
+      sub: "read",
+      rg: "read",
+      rbac: "read",
+      activity: "read",
+      api: "dynamic",
+    });
   });
 
   it.each<[Effect, RequestClass, boolean]>([
