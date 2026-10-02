@@ -147,6 +147,9 @@ row count only. Partial errors return a `warning` instead of failing.
 
 ## Escape hatch
 
+These examples use POSIX shell quoting (Bash or Zsh).
+For Windows shells, use the JSON quoting shown under Safe shell input.
+
 ```sh
 az-axi api /subscriptions --api-version 2022-12-01
 az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body '{"query":"Resources | take 1"}'
@@ -161,9 +164,9 @@ requests are blocked (see Writes below).
 
 ## Safe shell input
 
-Multi-line KQL never goes on the command line. `rg query` and `logs query`
-take it from `--file` or piped stdin; passing both a query and `--file` is an
-error:
+Multi-line KQL never goes on the command line.
+`rg query` and `logs query` take it from `--file` or piped stdin; passing both a query and `--file` is an error.
+The following stdin and heredoc examples use a POSIX shell; `--file` works across shells:
 
 ```sh
 az-axi rg query --file query.kql
@@ -173,16 +176,28 @@ Resources | take 5
 EOF
 ```
 
-Never double-quote a flag value containing backticks, `$`, `!`, or quotes. The
-shell expands these before `az-axi` starts, so the CLI receives valid but
-mangled input and cannot detect it. The same applies to `--body` JSON: keep it
-single-quoted and short, and prefer `--file`-backed KQL through `rg query` or
-`logs query` over hand-built `api --body` payloads for anything multiline.
+In POSIX shells, never double-quote a flag value containing backticks, `$`, `!`, or quotes.
+The shell can expand these before `az-axi` starts, so the CLI receives valid but mangled input and cannot detect it.
+For short `--body` JSON without embedded single quotes, use single quotes as in the example above.
+Prefer `--file`-backed KQL through `rg query` or `logs query` over hand-built `api --body` payloads for anything multiline.
 
-On Windows, never pass large or multiline content through the `.cmd` shim as an
-interpolated argument such as `--body "$(cat body.json)"`; `cmd.exe` can
-truncate it. For `rg query` and `logs query`, use piped stdin or `--file`
-instead. For `api --body`, keep JSON single-quoted and short.
+On Windows, never pass large or multiline content through the `.cmd` shim as an interpolated argument such as PowerShell's `--body "$(cat body.json)"`; `cmd.exe` can truncate it.
+For `rg query` and `logs query`, use piped stdin or `--file` instead.
+For `api --body`, keep JSON short and use the quoting for your shell.
+In Windows Command Prompt (`cmd.exe`), single quotes are literal characters; wrap JSON in double quotes and escape its embedded double quotes with backslashes:
+
+```bat
+az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body "{\"query\":\"Resources | take 1\"}"
+```
+
+In PowerShell on Windows, use the stop-parsing token `--%` with the same escaped JSON when invoking the `.cmd` shim:
+
+```powershell
+az-axi --% api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body "{\"query\":\"Resources | take 1\"}"
+```
+
+These Windows forms are for short literal payloads without `%` expansions; avoid `!` when Command Prompt delayed expansion is enabled.
+See [Microsoft's shell quoting reference](https://learn.microsoft.com/en-us/cli/azure/use-azure-cli-successfully-quoting#json-strings) for shell differences.
 
 ## Writes
 
