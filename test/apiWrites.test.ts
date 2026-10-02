@@ -44,6 +44,36 @@ afterEach(() => {
 });
 
 describe("API write execution", () => {
+  it.each(["delete", "DELETE", "%64elete/?api-version=1"])("requires VMSS confirmation for POST %s", async (action) => {
+    const path = `${TARGET}/providers/Microsoft.Compute/virtualMachineScaleSets/scale1/${action}`;
+    const argv = ["POST", path, "--api-version", "1", "--body", '{"instanceIds":["0"]}'];
+    const preview = await run(argv);
+    expect(preview).toMatchObject({ dryRun: true, class: "destructive" });
+    expect(preview.help).toContainEqual(expect.stringContaining("--confirm scale1"));
+    expect(send).not.toHaveBeenCalled();
+    for (const confirm of [undefined, "wrong", "delete"]) {
+      await expect(run([...argv, "--execute", ...(confirm === undefined ? [] : ["--confirm", confirm])]))
+        .rejects.toMatchObject({ code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH" });
+      expect(send).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    }
+    send.mockResolvedValueOnce(response());
+    expect(await run([...argv, "--execute", "--confirm", "scale1"])).toMatchObject({ result: "done" });
+    expect(send.mock.calls[1]?.[1]).toMatchObject({ method: "POST", execute: true, confirm: "scale1", body: { instanceIds: ["0"] } });
+    expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ class: "destructive", method: "POST" }));
+  });
+
+  it.each(["listClusterAdminCredential", "listClusterUserCredential"])("never previews or executes AKS %s", async (action) => {
+    for (const representation of [action, action.toUpperCase(), `%6C${action.slice(1)}/?api-version=1`]) {
+      const path = `${TARGET}/providers/Microsoft.ContainerService/managedClusters/cluster1/${representation}`;
+      for (const flags of [[], ["--execute", "--confirm", "cluster1"]]) {
+        await expect(run(["POST", path, "--api-version", "1", ...flags])).rejects.toMatchObject({ code: "READ_ONLY" });
+        expect(send).not.toHaveBeenCalled();
+        expect(log).not.toHaveBeenCalled();
+      }
+    }
+  });
+
   it.each([200, 201, 204])("finishes a synchronous %s write with trace metadata and GET help", async (status) => {
     send.mockResolvedValueOnce(response({}, status));
     const result = await execute(["--if-match", '"reviewed"']);

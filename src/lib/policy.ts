@@ -23,10 +23,13 @@ export const SECRET_ACTIONS: readonly string[] = [
   "listSecrets",
   "listAdminCredentials",
   "listPublishingCredentials",
+  "listClusterAdminCredential",
+  "listClusterUserCredential",
 ];
 
 /** POST actions that destroy or disrupt a resource (final path segment, case-insensitive). */
 export const DESTRUCTIVE_ACTIONS: readonly string[] = [
+  "delete",
   "purge",
   "regenerateKey",
   "regenerateKeys",

@@ -43,9 +43,12 @@ const CLASSIFICATION: Row[] = [
   ["arm", "POST", `${STORAGE}/LISTKEYS`, "secret"],
   ["arm", "POST", `${STORAGE}/list%4Beys`, "secret"],
   ["arm", "POST", `${STORAGE}/listKeys/?api-version=2023-01-01`, "secret"],
+  ["arm", "POST", `${RG}/providers/Microsoft.ContainerService/managedClusters/cluster1/listClusterAdminCredential`, "secret"],
+  ["arm", "POST", `${RG}/providers/Microsoft.ContainerService/managedClusters/cluster1/listClusterUserCredential`, "secret"],
   // destructive: DELETE, destructive POST actions, protected Microsoft.Authorization types
   ["arm", "DELETE", STORAGE, "destructive"],
   ["arm", "delete", STORAGE, "destructive"],
+  ["arm", "POST", `${RG}/providers/Microsoft.Compute/virtualMachineScaleSets/scale1/delete`, "destructive"],
   ...DESTRUCTIVE_ACTIONS.map((action): Row => ["arm", "POST", `${RG}/providers/Microsoft.Compute/virtualMachines/vm1/${action}`, "destructive"]),
   ...PROTECTED_AUTHORIZATION_TYPES.flatMap((type): Row[] =>
     ["PUT", "PATCH", "DELETE"].map((method): Row => [
@@ -87,8 +90,11 @@ describe("policy rule lists", () => {
       "listSecrets",
       "listAdminCredentials",
       "listPublishingCredentials",
+      "listClusterAdminCredential",
+      "listClusterUserCredential",
     ]);
     expect(DESTRUCTIVE_ACTIONS).toEqual([
+      "delete",
       "purge",
       "regenerateKey",
       "regenerateKeys",
