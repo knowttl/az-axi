@@ -224,6 +224,7 @@ az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'
 ```
 
 This checks the current state once; re-run the suggested command if the operation is still running.
+Failed and Canceled are reported as operation states with any returned error details; a successful status lookup still exits 0.
 Use `az-axi op --help` for URL requirements and reported states.
 
 ## Writes
