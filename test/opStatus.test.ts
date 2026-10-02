@@ -69,7 +69,7 @@ describe("pending operation status", () => {
     ["op", "status", "/subscriptions/test/operations/op1?api-version=1"],
     ["op", "status", "https://example.com/operation?api-version=1"],
     ["op", "status", "http://management.azure.com/operation?api-version=1"],
-    ["op", "status", "https://management.azure.com.evil.test/operation?api-version=1"],
+    ["op", "status", "https://management.azure.com.example.com/operation?api-version=1"],
   ])("rejects invalid status invocation %j", (...args) => {
     const result = cli(args);
     expect(result.status, result.stdout).toBe(2);
