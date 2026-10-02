@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { scrub } from "../scripts/benchmark/scrub.mjs";
 import { countTokens } from "../scripts/benchmark/tokens.mjs";
@@ -32,7 +33,7 @@ describe("benchmark preload", () => {
     ] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
     writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token" } } }));
-    const child = spawnSync(process.execPath, ["--import", bootstrap, "--import", "./scripts/benchmark/fetch-hook.mjs",
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
       "dist/bin/az-axi.js", "sub", "list"], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
         AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
@@ -64,7 +65,7 @@ describe("benchmark preload", () => {
     writeFileSync(bootstrap, 'globalThis.fetch = async () => Response.json({ name: "contoso-private", severity: "High" });\n');
     for (const leakCheck of [["contoso-private"], ["HIGH"]]) {
       const file = join(dir, `record-${leakCheck.length}-${leakCheck[0]}.json`);
-      const child = spawnSync(process.execPath, ["--import", bootstrap, "--import", "./scripts/benchmark/fetch-hook.mjs",
+      const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
         "--input-type=module", "-e", 'await fetch("https://management.azure.com/subscriptions");'], {
         cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_READ_ONLY: "1",
           AZ_AXI_BENCH_MODE: "record", AZ_AXI_BENCH_FILE: file, AZ_AXI_BENCH_OWNER_CAPTURE: "1",
