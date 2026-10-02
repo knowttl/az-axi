@@ -13,3 +13,4 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Dashboard (`az-axi` with no arguments): active alerts by severity, secure score average and lowest subscription, and exposure counts. A failed section degrades to a hint.
 - `logs query`: Log Analytics KQL with workspace aliases, ISO timespans, `--file`/stdin, client-side row caps, multi-table counts and partial-error warnings.
 - Write framework groundwork (still disabled): pure field-level diff for dry-run change previews.
+- Token budgets: `test/samples.ts` holds a synthetic payload per command and `test/budget.test.ts` asserts each rendered TOON output stays under its measured-plus-20-percent ceiling.
