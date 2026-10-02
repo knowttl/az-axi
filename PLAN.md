@@ -880,7 +880,7 @@ This repository is public. It must never contain the owner's tenant, subscriptio
 | Commands | Each command with `vi.mock("../src/lib/client.js")` and inline or `test/samples.ts` payloads: default fields, `--fields`, `--full`, empty state, aggregates, `help[]` hints | `test/<command><Aspect>.test.ts`, for example `rgQuery.test.ts`, `defenderAlerts.test.ts` |
 | Guards | Identifiers, policy and effect snapshot | `test/identifiers.test.ts`, `test/policy.test.ts` |
 | Token budgets | Rendered TOON for each `test/samples.ts` payload stays under a ceiling (measured with `gpt-tokenizer`) | `test/budget.test.ts` |
-| Benchmark harness | Scrubber is default-deny and leaves no GUID, UPN, tenant or resource name; token counter matches ado-axi's | `test/benchmark.test.ts` |
+| Benchmark harness | Scrubber and token counter contracts: [README benchmark utilities](README.md#benchmark-utilities) | `test/benchmark.test.ts` |
 | CLI smoke (CI) | `--version`, `--help`, unknown command exits 2, unknown flag exits 2 | `.github/workflows/ci.yml` |
 | Live smoke (local only) | Real read-only calls with the owner's `az login`; in Phase 6, a write round trip against a sandbox resource group | `scripts/live-smoke.mjs` |
 
@@ -1260,7 +1260,8 @@ Mirror ado-axi's harness, which replaced the earlier idea of a capture switch in
 - `benchmark/scenarios.mjs` lists real az-axi invocations (for example `rg query` at 1, 10 and 50 rows, `rbac list --privileged`, `defender alerts`, `exposure`, `logs query`). Scenario `argv` never contains profile or subscription flags; the harness injects them.
 - `scripts/benchmark/fetch-hook.mjs` is a `node --import` preload that wraps `fetch`. With `AZ_AXI_BENCH_MODE=record` it records every response to `$AZ_AXI_BENCH_FILE`; with `replay` it serves them back with no network. Replay runs use a `token` mode profile with a dummy token, because token acquisition happens through `az`, outside `fetch`.
 - `scripts/benchmark/capture.mjs` (owner only) runs each scenario in record mode against the targets in the gitignored `benchmark/targets.json`, then scrubs before anything touches disk.
-- `scripts/benchmark/scrub.mjs` is ado-axi's default-deny scrubber adapted to Azure: subscription, tenant, object and application IDs, UPNs, resource and resource group names, hostnames and IP addresses all get stable synthetic replacements. `targets.json` carries a `leakCheck` list of the owner's private strings (organization name, domains, internal code names), and capture fails if any survives.
+- `scripts/benchmark/scrub.mjs` and `scripts/benchmark/tokens.mjs` are implemented; see [README benchmark utilities](README.md#benchmark-utilities) for their contracts.
+  The planned `targets.json` carries the owner's private strings (organization name, domains, internal code names) for the scrubber's `leakCheck` option.
 - `scripts/benchmark/bench.mjs` replays the scrubbed captures and compares raw REST JSON tokens against az-axi's TOON tokens; `capture-surface.mjs` measures the `skills/az-axi/SKILL.md` frontmatter, body and help surface, as ado-axi does in `tool-surface.json`.
 - Only `BENCHMARK.md` (numbers and method) is published. Captures stay in the gitignored `benchmark/fixtures/` and `benchmark/raw/`.
 - `test/benchmark.test.ts` tests the scrubber and token counter with synthetic inputs, as in ado-axi.

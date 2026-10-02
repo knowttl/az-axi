@@ -249,3 +249,26 @@ Execution is not available in this build: `--execute` returns `API_ERROR` after 
 Destructive execution also requires `--confirm <resource-name>`; missing or mismatched confirmation fails first.
 Pending deployment previews return a suggested `az-axi op status` command.
 See [Check an operation](#check-an-operation) for URL requirements, output and recheck behavior.
+
+## Benchmark utilities
+
+The source checkout provides `scrub` in `scripts/benchmark/scrub.mjs` and `countTokens` in `scripts/benchmark/tokens.mjs`.
+Build with `pnpm run build` before importing the scrubber, which uses constants from `dist`.
+These modules are not packaged with the CLI; capture and replay commands are not implemented yet.
+
+`scrub(value, { leakCheck: [] })` returns scrubbed JSON data without mutating the input.
+It replaces string values and object keys by default, preserving only exact, case-sensitive entries in the module's `PUBLIC_VOCABULARY` and parseable timestamps of the form `YYYY-MM-DDTHH:mm:ss[.fraction](Z|±HH:mm)`.
+The vocabulary includes public API names, schema fields, classifications and built-in role IDs.
+Mixed strings are split into segments: separators remain, and each non-public segment becomes `scrub_` followed by its SHA-256 hex digest.
+Empty and separator-only strings are replaced too.
+The same segment receives the same replacement across calls, keys, values and traversal orders.
+Numbers, booleans and null remain unchanged.
+There are no rename, preserve or suffix modes.
+
+Supply known private strings in `leakCheck`.
+The scrubber throws before returning if any appears as a case-insensitive substring in decoded keys, string values or serialized output, even when the text is otherwise allowed.
+The error does not print the private string.
+Keep real captures local in the gitignored `benchmark/fixtures/` and `benchmark/raw/` directories; never commit them, even scrubbed.
+
+`countTokens(text)` measures text using `gpt-tokenizer`'s `o200k_base` encoding, treating special-token spellings as ordinary text.
+Synthetic scrubber, response replay and token counter coverage lives in `test/benchmark.test.ts`.
