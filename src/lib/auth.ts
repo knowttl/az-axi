@@ -109,7 +109,7 @@ function azError(message: string, profile: ResolvedProfile, resource: Resource):
   const notInstalled = /az CLI is not installed/i.test(message);
   const conditionalAccess =
     !notInstalled && /AADSTS50076|AADSTS50079|AADSTS53003|claims/i.test(message);
-  const notLoggedIn = !notInstalled && !conditionalAccess && /az login|not logged in|AADSTS|Please run/i.test(message);
+  const notLoggedIn = !notInstalled && !conditionalAccess && /az login|not logged in/i.test(message);
   const tenantArg = profile.tenant ? ` --tenant ${profile.tenant}` : "";
   return new AxiError(
     notInstalled

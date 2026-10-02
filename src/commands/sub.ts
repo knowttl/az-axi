@@ -57,13 +57,19 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const shown = rows.slice(0, limit);
 
   const help: string[] = [];
-  if (shown.length < rows.length) help.push("Run `az-axi sub list --full` to list every subscription");
-  if (nextLink) help.push("More pages exist but paging stopped at the page cap; narrow with --subscription");
+  if (!nextLink && shown.length < rows.length) help.push("Run `az-axi sub list --full` to list every subscription");
+  if (nextLink) help.push("More pages exist but paging stopped at the page cap");
   if (inScope.size === 0) help.push("Narrow the scope with `--subscription <id>` on any command");
+
+  const count = nextLink
+    ? shown.length < rows.length
+      ? `${shown.length} of ${rows.length}+ subscriptions`
+      : `${shown.length}+ subscriptions`
+    : countLine(shown.length, rows.length, "subscriptions");
 
   return {
     profile: profile.name,
-    count: countLine(shown.length, nextLink ? undefined : rows.length, "subscriptions"),
+    count,
     subscriptions: pickFields(shown, flagList(args, "fields")),
     ...(help.length > 0 ? { help } : {}),
   };

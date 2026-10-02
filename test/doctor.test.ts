@@ -117,7 +117,9 @@ describe("doctor", () => {
     expect((result.profiles as Array<Record<string, unknown>>)[0]?.status).toBe("failed: az");
     expect(identityMock).not.toHaveBeenCalled();
     expect(credentialMock).not.toHaveBeenCalled();
-    expect((result.help as string[]).join("\n")).toContain("[az] az CLI is not installed or not on PATH");
+    const help = (result.help as string[]).join("\n");
+    expect(help).toContain("[az] Azure CLI ('az') is not installed or not on PATH");
+    expect(help).toContain("https://learn.microsoft.com/cli/azure/install-azure-cli");
   });
 
   it("records a present az CLI failure instead of diagnosing it as missing", async () => {

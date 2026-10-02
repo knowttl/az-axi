@@ -92,8 +92,25 @@ describe("sub list", () => {
   it("says when paging stopped early", async () => {
     requestAllMock.mockResolvedValue({ items: [sub(21, "Alpha")], nextLink: "https://management.azure.com/next" });
     const result = await run(["list"]);
-    expect(result.count).toBe("1 subscriptions");
-    expect(String((result.help as string[]).join("\n"))).toContain("page cap");
+    expect(result.count).toBe("1+ subscriptions");
+    const help = (result.help as string[]).join("\n");
+    expect(help).toContain("More pages exist but paging stopped at the page cap");
+    expect(help).not.toContain("--full");
+    expect(help).not.toContain("narrow with --subscription");
+  });
+
+  it("keeps a capped page walk open when --limit hides fetched rows", async () => {
+    requestAllMock.mockResolvedValue({
+      items: [sub(21, "Alpha"), sub(22, "Zeta"), sub(23, "Mid")],
+      nextLink: "https://management.azure.com/next",
+    });
+    const result = await run(["list", "--limit", "1"]);
+    expect(result.count).toBe("1 of 3+ subscriptions");
+    expect(result.subscriptions).toHaveLength(1);
+    const help = (result.help as string[]).join("\n");
+    expect(help).toContain("page cap");
+    expect(help).not.toContain("--full");
+    expect(help).not.toContain("narrow with --subscription");
   });
 
   it("rejects bad usage", async () => {

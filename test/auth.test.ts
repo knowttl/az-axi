@@ -147,6 +147,23 @@ describe("az mode", () => {
     expect(generic.code).toBe("AUTH_REQUIRED");
     expect(generic.suggestions.join("\n")).toContain("something odd");
 
+    for (const stderr of [
+      "AADSTS700016 application was not found",
+      "AADSTS7000215 invalid client secret",
+      "Please run 'az account set'",
+    ]) {
+      clearCredentialCache();
+      fakeAz({ code: 1, stderr });
+      const error = await failure(resolveCredential(profile(), "arm"));
+      expect(error.message).not.toContain("not signed in");
+      expect(error.suggestions.join("\n")).toContain(`az said: ${stderr}`);
+      clearCredentialCache();
+      fakeAz({ code: 1, stderr });
+      const identity = await failure(identityOf(profile()));
+      expect(identity.message).not.toContain("not signed in");
+      expect(identity.suggestions.join("\n")).toContain(`az said: ${stderr}`);
+    }
+
     clearCredentialCache();
     fakeAz({ stdout: "not json" });
     expect((await failure(resolveCredential(profile(), "arm"))).code).toBe("AUTH_REQUIRED");
