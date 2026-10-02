@@ -2,6 +2,7 @@
 import { encode } from "@toon-format/toon";
 import { AxiError, runAxiCli } from "axi-sdk-js";
 import { normalizeArgv } from "../lib/argv.js";
+import { WriteExecutionError } from "../lib/execute.js";
 import { redact } from "../lib/redact.js";
 import { COMMANDS, runCommand } from "../lib/registry.js";
 import { packageInfo } from "../lib/version.js";
@@ -22,7 +23,8 @@ const USAGE_CODES = new Set([
 
 function formatError(error: unknown): { output: string; exitCode: number } {
   if (error instanceof AxiError) {
-    const out: Record<string, unknown> = { error: error.message, code: error.code };
+    const out: Record<string, unknown> = { error: error.message, code: error.code,
+      ...(error instanceof WriteExecutionError ? error.output : {}) };
     if (error.suggestions.length > 0) out.help = error.suggestions;
     return { output: `${encode(redact(out))}\n`, exitCode: USAGE_CODES.has(error.code) ? 2 : 1 };
   }

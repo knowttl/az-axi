@@ -173,25 +173,17 @@ describe("gate 5: destructive confirm", () => {
   });
 
   it("skips the confirm gate for plain writes", () => {
-    expect(() => enforceGates(writer(), request("arm", "PATCH", RG), "write", { execute: true })).toThrowError(
-      expect.objectContaining({ code: "API_ERROR" }),
-    );
+    expect(enforceGates(writer(), request("arm", "PATCH", RG), "write", { execute: true })).toBe(true);
   });
 });
 
-describe("gate 6: execution is not available yet", () => {
-  it("reports a stable API_ERROR when every gate passes with --execute", () => {
+describe("gate 6: execution permission", () => {
+  it("permits execution only when every gate passes with --execute", () => {
     for (const options of [{ execute: true }, { execute: true, confirm: "stdemo" }]) {
       const path = options.confirm ? STORAGE : RG;
       const cls = options.confirm ? "destructive" : "write";
-      try {
-        enforceGates(writer(), request("arm", options.confirm ? "DELETE" : "PATCH", path), cls, options);
-      } catch (err) {
-        expect(err).toMatchObject({ code: "API_ERROR" });
-        expect(String((err as Error).message)).toContain("execution is not available yet");
-        continue;
-      }
-      throw new Error("expected API_ERROR");
+      expect(enforceGates(writer(), request("arm", options.confirm ? "DELETE" : "PATCH", path), cls, options)).toBe(true);
+      expect(enforceGates(writer(), request("arm", options.confirm ? "DELETE" : "PATCH", path), cls)).toBe(false);
     }
   });
 });

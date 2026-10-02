@@ -130,7 +130,7 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
   ].join("\n"),
   api: [
     "az-axi api [GET|POST|PUT|PATCH|DELETE] <path> [--resource arm|logs|graph] [--api-version <v>]",
-    "         [--query 'k=v&k2=v2'] [--body '<json>'] [--raw] [--all] [--execute] [--confirm <name>] [--if-match <etag>]",
+    "         [--query 'k=v&k2=v2'] [--body '<json>'] [--raw] [--all] [--execute] [--confirm <name>] [--if-match <etag>] [--timeout <seconds>] [--no-wait]",
     "az-axi api /subscriptions --api-version 2022-12-01",
     "",
     "Escape hatch for any read or query request. Paths are relative to the host root.",
@@ -140,7 +140,8 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
     "Writes and destructive requests return a dry-run preview using reads or a deployment what-if query.",
     "See README.md#writes for preview access and PLAN.md Section 6.13.3 for the output contract.",
     "Destructive execution needs --confirm <resource-name>.",
-    "Execution is not available yet: with --execute every passing gate still reports that.",
+    "--execute re-checks current state before sending; --if-match protects the reviewed ETag.",
+    "Async writes poll for up to --timeout seconds (default 600); --no-wait returns an op status command.",
     "Examples: az-axi api /subscriptions --api-version 2022-12-01",
   ].join("\n"),
   op: [

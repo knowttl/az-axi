@@ -3,7 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { AxiError } from "axi-sdk-js";
 import { resolveCredential } from "./auth.js";
 import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
-import { enforceGates } from "./gates.js";
+import { enforceGates, type GateOptions } from "./gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "./policy.js";
 import { assertEffectAllows } from "./registry.js";
 import { workspaceCustomerIdCommand } from "./queries.js";
@@ -12,7 +12,7 @@ import { packageInfo } from "./version.js";
 
 export type { Resource } from "./config.js";
 
-export interface RequestOptions {
+export interface RequestOptions extends GateOptions {
   method?: string;
   /** Host to talk to. Defaults to `arm`. */
   resource?: Resource;
@@ -39,6 +39,13 @@ export interface ApiResponse<T> {
   correlationId?: string;
   /** The `x-ms-client-request-id` this client sent on the final attempt. */
   clientRequestId: string;
+}
+
+/** Failure metadata for the write audit, without response bodies or headers. */
+export class ApiRequestError extends AxiError {
+  constructor(error: AxiError, readonly httpStatus: number, readonly requestId?: string, readonly correlationId?: string) {
+    super(error.message, error.code, error.suggestions);
+  }
 }
 
 const HOSTS: Record<Resource, string> = {
@@ -109,7 +116,12 @@ export async function sendRequest<T = unknown>(
   const cls = classifyRequest(shape);
   assertReadOnlyBoundary(shape, cls);
   assertEffectAllows(cls);
-  enforceGates(profile, shape, cls);
+  const execute = enforceGates(profile, shape, cls, options);
+  if ((cls === "write" || cls === "destructive") && !execute) {
+    throw new AxiError("write request requires explicit execution", "API_ERROR", [
+      "Run `az-axi api` without --execute to review the dry run",
+    ]);
+  }
 
   const credential = await resolveCredential(profile, resource, options.signal);
   const token = credential.header.replace(/^Bearer /, "");
@@ -137,7 +149,7 @@ export async function sendRequest<T = unknown>(
       response = await fetch(url, { method, headers, body, signal: options.signal });
     } catch (err) {
       options.signal?.throwIfAborted();
-      throw networkError(err, resource, clientRequestId, scrub);
+      throw new ApiRequestError(networkError(err, resource, clientRequestId, scrub), 0, clientRequestId);
     }
 
     const retryMs = retryDelayMs(response.headers.get("retry-after"));
@@ -161,7 +173,7 @@ export async function sendRequest<T = unknown>(
     const requestId = responseHeaders["x-ms-request-id"];
     const correlationId = responseHeaders["x-ms-correlation-request-id"];
     if (!response.ok) {
-      throw translateError({
+      throw new ApiRequestError(translateError({
         status: response.status,
         headers: responseHeaders,
         text: scrub(text),
@@ -169,7 +181,7 @@ export async function sendRequest<T = unknown>(
         resource,
         path: new URL(url).pathname,
         requestId: requestId ?? clientRequestId,
-      });
+      }), response.status, requestId ?? clientRequestId, correlationId);
     }
     return {
       status: response.status,
@@ -374,7 +386,7 @@ function translateError(ctx: ErrorContext): AxiError {
   }
   if (status === 412) {
     return fail(message || "precondition failed", "PRECONDITION_FAILED", [
-      "The resource changed since you read it (If-Match did not match): re-read it and retry",
+      "The resource changed since the dry run (If-Match did not match): re-run the dry run before retrying",
     ]);
   }
   if (status === 429 || status === 503) {

@@ -45,6 +45,34 @@ async function failure(promise: Promise<unknown>): Promise<AxiError> {
 const render = (error: AxiError) =>
   encode(redact({ error: error.message, code: error.code, help: error.suggestions }));
 
+describe("client execution backstop", () => {
+  const sub = "00000000-0000-0000-0000-000000000021";
+  const path = `/subscriptions/${sub}/resourceGroups/rg-demo`;
+  const writer = () => profile({ allowWrites: true, subscriptions: [sub], writeSubscriptions: [sub] });
+
+  it("blocks a write without explicit execution even on a permitted profile", async () => {
+    await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1" }))
+      .rejects.toMatchObject({ code: "API_ERROR" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("checks destructive confirmation at the transport boundary", async () => {
+    for (const confirm of [undefined, "wrong"]) {
+      await expect(sendRequest(writer(), { method: "DELETE", path, apiVersion: "1", execute: true, confirm }))
+        .rejects.toMatchObject({ code: confirm ? "CONFIRM_MISMATCH" : "CONFIRM_REQUIRED" });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends If-Match only after all gates pass", async () => {
+    fetchMock.mockImplementation(async () => json({}));
+    await sendRequest(writer(), { method: "DELETE", path, apiVersion: "1", execute: true,
+      confirm: "rg-demo", ifMatch: '"reviewed"' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "DELETE", headers: { "If-Match": '"reviewed"' } });
+  });
+});
+
 describe("buildUrl", () => {
   it("targets the host of each resource and adds api-version for arm only", () => {
     expect(buildUrl({ path: "/subscriptions", apiVersion: "2022-12-01" })).toBe(

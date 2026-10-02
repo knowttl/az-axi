@@ -51,6 +51,7 @@ const ENV_KEYS = [
   "AZ_AXI_ARM_TOKEN",
   "AZ_AXI_LOGS_TOKEN",
   "AZ_AXI_GRAPH_TOKEN",
+  "AZ_AXI_WRITE_LOG",
 ];
 let saved: Record<string, string | undefined>;
 
@@ -73,7 +74,7 @@ async function router(url: string, init?: { method?: string; body?: string }): P
     return json({ properties: { changes: [{ changeType: "Create" }, { changeType: "Modify" }, { changeType: "NoChange" }] } });
   }
   if (method === "GET") return armError(404, "ResourceNotFound", "not here");
-  return armError(400, "BadRequest", "unexpected non-GET in test router");
+  return json({});
 }
 
 beforeEach(() => {
@@ -92,6 +93,7 @@ beforeEach(() => {
   );
   process.env.AZ_AXI_CONFIG = join(dir, "config.json");
   process.env.AZ_AXI_ARM_TOKEN = "dryrun-test-token";
+  process.env.AZ_AXI_WRITE_LOG = join(dir, "writes.log");
   clearCredentialCache();
   locksMode = "some";
   fetchMock.mockReset();
@@ -430,8 +432,9 @@ describe("selected preview regressions", () => {
       expect(parseArgs(argv).flags["if-match"]).toBe(expected ?? "user-revision");
       assertOnlyPreviewReads();
       fetchMock.mockClear();
-      await expect(run(argv.slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
-      expect(fetchMock).not.toHaveBeenCalled();
+      await expect(run(argv.slice(1))).resolves.toHaveProperty("result");
+      expect(fetchMock).toHaveBeenCalled();
+      fetchMock.mockClear();
     }
   });
 
@@ -440,8 +443,8 @@ describe("selected preview regressions", () => {
     const result = await run(["DELETE", `${SUB_PATH}/resourceGroups/--prod`, "--api-version", API_VERSION, "--profile", "writer"]);
     const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
     fetchMock.mockClear();
-    await expect(run(commandArguments(command).slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
-    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(run(commandArguments(command).slice(1))).resolves.toHaveProperty("result");
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("replays a preview with a profile name beginning with --", async () => {
@@ -449,8 +452,8 @@ describe("selected preview regressions", () => {
     const result = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--profile=--writer", "--body", "{}"]);
     const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
     fetchMock.mockClear();
-    await expect(run(commandArguments(command).slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
-    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(run(commandArguments(command).slice(1))).resolves.toHaveProperty("result");
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it.each(["roleAssignments", "roleDefinitions", "locks", "policyAssignments"])(
@@ -458,25 +461,27 @@ describe("selected preview regressions", () => {
       const path = `${SUB_PATH}/providers/Microsoft.Authorization/${type}/assignment1`;
       for (const method of ["PUT", "PATCH"] as const) {
         for (const body of [undefined, "{}", '{"properties":{"enabled":true}}']) {
-          fetchMock.mockResolvedValue(json({}, 200, { etag: ETAG }));
+          fetchMock.mockImplementation(async () => json({}, 200, { etag: ETAG }));
           const result = await run([method, path, "--api-version", API_VERSION, "--profile", "writer", ...(body === undefined ? [] : ["--body", body])]);
           expect(result.class).toBe("destructive");
           const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
           const argv = commandArguments(command);
           expect(argv.slice(-2)).toEqual(["--confirm", "assignment1"]);
           fetchMock.mockClear();
-          await expect(run(argv.slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
-          expect(fetchMock).not.toHaveBeenCalled();
+          await expect(run(argv.slice(1))).resolves.toHaveProperty("result");
+          expect(fetchMock).toHaveBeenCalled();
         }
       }
-      fetchMock.mockResolvedValue(armError(404, "ResourceNotFound", "not here"));
+      fetchMock.mockImplementation(async (_url: string, init?: { method?: string }) =>
+        init?.method === "PUT" ? json({}, 201) : armError(404, "ResourceNotFound", "not here"),
+      );
       const created = await run(["PUT", path, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"]);
       expect(created.creates).toBe(true);
       const argv = commandArguments((created.help as string[])[0]!);
       expect(argv.slice(-2)).toEqual(["--confirm", "assignment1"]);
       fetchMock.mockClear();
-      await expect(run(argv.slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
-      expect(fetchMock).not.toHaveBeenCalled();
+      await expect(run(argv.slice(1))).resolves.toHaveProperty("result");
+      expect(fetchMock).toHaveBeenCalled();
     },
   );
 
@@ -540,23 +545,23 @@ describe("selected preview regressions", () => {
 });
 
 describe("write-enabled profile with --execute", () => {
-  it("reports that execution is not available yet and sends nothing", async () => {
-    await expect(patch(["--execute"])).rejects.toMatchObject({ code: "API_ERROR" });
-    await expect(patch(["--execute"])).rejects.toThrowError(/execution is not available yet/);
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("executes after the gates pass", async () => {
+    await expect(patch(["--execute"])).resolves.toMatchObject({ result: "done" });
+    expect(fetchMock.mock.calls.map((call) => call[1].method)).toEqual(["GET", "PATCH"]);
   });
 
-  it("still demands --confirm for destructive requests before the execute error", async () => {
+  it("demands matching --confirm before executing destructive requests", async () => {
     await expect(
       run(["DELETE", STORAGE, "--api-version", API_VERSION, "--profile", "writer", "--execute"]),
     ).rejects.toMatchObject({ code: "CONFIRM_REQUIRED" });
     await expect(
       run(["DELETE", STORAGE, "--api-version", API_VERSION, "--profile", "writer", "--execute", "--confirm", "wrong"]),
     ).rejects.toMatchObject({ code: "CONFIRM_MISMATCH" });
+    expect(fetchMock).not.toHaveBeenCalled();
     await expect(
       run(["DELETE", STORAGE, "--api-version", API_VERSION, "--profile", "writer", "--execute", "--confirm", "stdemo"]),
-    ).rejects.toMatchObject({ code: "API_ERROR" });
-    expect(fetchMock).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ result: "done" });
+    expect(fetchMock.mock.calls.map((call) => call[1].method)).toEqual(["GET", "DELETE"]);
   });
 
   it("blocks out-of-scope and read-only-forced writes before anything is sent", async () => {
