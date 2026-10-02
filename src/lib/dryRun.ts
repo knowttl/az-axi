@@ -133,7 +133,8 @@ async function getCurrent(request: DryRunRequest): Promise<Probed> {
     query: request.query,
     apiVersion: request.apiVersion,
   });
-  return { current: response.body, etag: response.headers["etag"] };
+  const bodyEtag = isRecord(response.body) && typeof response.body.etag === "string" ? response.body.etag : undefined;
+  return { current: response.body, etag: response.headers["etag"] ?? bodyEtag };
 }
 
 interface LockHit {

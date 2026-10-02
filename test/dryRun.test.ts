@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCredentialCache } from "../src/lib/auth.js";
 import { classifyRequest } from "../src/lib/policy.js";
 import { run } from "../src/commands/api.js";
+import { parseArgs } from "../src/lib/args.js";
 
 const SUB = "00000000-0000-0000-0000-000000000021";
 const SUB_PATH = `/subscriptions/${SUB}`;
@@ -402,6 +403,38 @@ describe("canonical request paths", () => {
 });
 
 describe("selected preview regressions", () => {
+  it.each([
+    ["PUT", "missing"], ["PUT", "noop"], ["PUT", "changed"],
+    ["PATCH", "missing"], ["PATCH", "noop"], ["PATCH", "changed"],
+    ["DELETE", "missing"],
+  ])("carries current-state ETags into %s %s previews", async (method, state) => {
+    const bodyEtag = 'W/"body-revision"';
+    for (const [etag, headers, expected] of [
+      [bodyEtag, {}, bodyEtag],
+      [bodyEtag, { etag: ETAG }, ETAG],
+      [undefined, {}, undefined],
+      [42, {}, undefined],
+    ] as const) {
+      const current = { name: "stdemo", tags: { env: "dev" }, ...(etag === undefined ? {} : { etag }) };
+      fetchMock.mockImplementation(async (url: string) =>
+        new URL(url).pathname.endsWith("/locks") ? json({ value: [] }) : json(current, 200, headers),
+      );
+      const body = state === "missing" ? undefined : JSON.stringify(state === "noop" ? current : { ...current, tags: { env: "prod" } });
+      const result = await run([method, STORAGE, "--api-version", API_VERSION, "--profile", "writer", "--if-match", "user-revision", ...(body === undefined ? [] : ["--body", body])]);
+      expect(result.etag).toBe(expected);
+      if (state === "noop") expect(result.noop).toBe(true);
+      if (state === "changed") expect(result.changes).toContainEqual({ path: "tags.env", from: "dev", to: "prod" });
+      if (method === "DELETE") expect(result.summary).toMatchObject({ name: "stdemo" });
+      const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
+      const argv = commandArguments(command);
+      expect(parseArgs(argv).flags["if-match"]).toBe(expected ?? "user-revision");
+      assertOnlyPreviewReads();
+      fetchMock.mockClear();
+      await expect(run(argv.slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  });
+
   it("replays a DELETE preview for a name beginning with --", async () => {
     fetchMock.mockImplementation(async () => json({ name: "--prod" }));
     const result = await run(["DELETE", `${SUB_PATH}/resourceGroups/--prod`, "--api-version", API_VERSION, "--profile", "writer"]);
