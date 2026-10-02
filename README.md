@@ -17,14 +17,16 @@ az-axi authenticates in one of two modes, chosen per profile.
 | `az` (default) | `az account get-access-token`, using whatever `az login` holds | Interactive users, service principals, managed identities, federated sign-in |
 | `token` | One environment variable per resource, holding a pre-acquired bearer token | CI, or any environment where a token is minted elsewhere |
 
-With no configuration at all, az-axi uses an implicit `az` profile, so it works right after `az login`.
+az-axi works right after `az login`, before any config file exists.
 Run `az-axi doctor` after any change to check the Azure CLI, sign-in, tokens, reachability and write status of every profile.
 
 ### Profiles
 
 Profiles live in `~/.az-axi/config.json`.
 The file is found in this order: `--config <path>`, `$AZ_AXI_CONFIG`, `./az-axi.config.json`, `~/.az-axi/config.json`.
-The profile is chosen in this order: `--profile`, `$AZ_AXI_PROFILE`, `defaultProfile`, the only profile in the file, the implicit `az` profile.
+The profile is chosen in this order: `--profile`, `$AZ_AXI_PROFILE`, `defaultProfile`, the only profile in the file.
+With no profiles configured, az-axi uses an implicit `az` profile.
+Several profiles and no selection is an error.
 
 ```json
 {
@@ -122,3 +124,9 @@ Point Node at your organization's root CA (a PEM file) and re-run `az-axi doctor
 ```
 export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
 ```
+
+## Writes
+
+Writes are disabled.
+Every write or destructive request is blocked with `WRITES_DISABLED`.
+A profile with an invalid write configuration is rejected before it is used.
