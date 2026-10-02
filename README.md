@@ -172,6 +172,7 @@ az-axi rg query "Resources | take 5"                     # Resource Graph query 
 az-axi rbac list --privileged                           # role assignments for privileged roles
 az-axi activity list --since 24h --status Failed        # activity log across subscriptions, newest first
 az-axi defender alerts --severity High                  # active Defender alerts
+az-axi defender alerts get /subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Security/locations/westeurope/alerts/example-alert  # details for a full alert resource ID from the list
 az-axi defender assessments --severity High             # recommendations grouped with unhealthy counts
 az-axi defender score                                   # secure score per subscription, lowest first
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
@@ -184,6 +185,7 @@ List output honours `--fields a,b`, `--limit N` and `--full`.
 
 ## Behavior
 
+Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
 Errors render as TOON with a `code` and at least one actionable `help[]` entry.
 Exit code 2 covers usage and access errors; exit code 1 covers requests that were sent but failed.
 Writes are currently blocked with `WRITES_DISABLED`; see Writes.
