@@ -8,6 +8,28 @@ This package is `@knowttl/az-axi`.
 Never install both globally on one machine: the second install overwrites the `az-axi` binary.
 `az-axi doctor` prints the package name and version it runs as.
 
+## Install
+
+Requires Node.js 22.12 or later, and the Azure CLI for the default `az` profile mode.
+
+```
+npm install -g @knowttl/az-axi
+az-axi --help
+az-axi doctor
+```
+
+`az-axi doctor` checks the Azure CLI, sign-in, tokens, reachability and write status of every profile; see [Configure](#configure).
+
+From source:
+
+```
+git clone https://github.com/knowttl/az-axi.git
+cd az-axi
+pnpm install --frozen-lockfile
+pnpm run build
+node dist/bin/az-axi.js --help
+```
+
 ## Configure
 
 az-axi authenticates in one of two modes, chosen per profile.
@@ -136,6 +158,56 @@ az-axi logs query --file hunt.kql --workspace sentinel --timespan P7D
 
 The identity needs Log Analytics Reader on the workspace.
 Use `az-axi logs --help` for workspace IDs, query input handling, time windows and output limits.
+
+## Use
+
+One example per command; every command also accepts `--help` with its full reference.
+
+```
+az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure
+az-axi doctor                                           # check az, tokens, ARM reachability and write status per profile
+az-axi config list                                      # profiles with scope, write status and description
+az-axi sub list                                         # subscriptions visible to the identity
+az-axi rg query "Resources | take 5"                     # Resource Graph query across subscriptions
+az-axi rbac list --privileged                           # role assignments for privileged roles
+az-axi activity list --since 24h --status Failed        # activity log across subscriptions, newest first
+az-axi defender alerts --severity High                  # active Defender alerts
+az-axi defender assessments --severity High             # recommendations grouped with unhealthy counts
+az-axi defender score                                   # secure score per subscription, lowest first
+az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
+az-axi logs query "SigninLogs | take 5" --workspace sentinel  # Log Analytics KQL (see Query logs)
+az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
+```
+
+Every command accepts `--profile`, `--tenant`, `--subscription a,b`, `--management-group` and `--config`.
+List output honours `--fields a,b`, `--limit N` and `--full`.
+
+## Behavior
+
+Errors render as TOON with a `code` and at least one actionable `help[]` entry.
+Exit code 2 covers usage and access errors; exit code 1 covers requests that were sent but failed.
+Writes are currently blocked with `WRITES_DISABLED`; see Writes.
+
+| Code | Exit | Meaning |
+|---|---|---|
+| `VALIDATION_ERROR` | 2 | Bad flag value, missing argument, unknown command |
+| `UNKNOWN_FLAG` | 2 | Flag not accepted by this command; the error names the closest valid flags |
+| `AUTH_REQUIRED` | 2 | Not signed in, token missing or expired |
+| `FORBIDDEN` | 2 | Signed in, but RBAC denies access; the hint names the role needed |
+| `NOT_FOUND` | 2 | Subscription, workspace or resource not found |
+| `READ_ONLY` | 2 | Request class not permitted for this resource |
+| `WRITES_DISABLED` | 2 | Write or destructive request blocked because writes are disabled |
+| `SUBSCRIPTION_NOT_WRITABLE` | 2 | Write targets a subscription outside the writable scope (write framework) |
+| `CONFIRM_REQUIRED` | 2 | Destructive request without `--confirm <resource-name>` (write framework) |
+| `CONFIRM_MISMATCH` | 2 | `--confirm` value does not match the target resource name (write framework) |
+| `PRECONDITION_FAILED` | 1 | HTTP 412: the resource changed since it was read |
+| `CONFLICT` | 1 | HTTP 409 from ARM |
+| `OPERATION_FAILED` | 1 | A long-running operation finished as Failed or Canceled (write framework) |
+| `OPERATION_TIMEOUT` | 1 | Polling exceeded `--timeout` (write framework) |
+| `TLS_ERROR` | 1 | Certificate trust failure; see TLS-inspecting proxies in Configure |
+| `RATE_LIMITED` | 1 | HTTP 429 or throttled; the hint carries the retry delay |
+| `NETWORK_ERROR` | 1 | The request could not be sent |
+| `API_ERROR` | 1 | Anything else, with the HTTP status and ARM `error.code` |
 
 ## Writes
 
