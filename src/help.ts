@@ -13,7 +13,7 @@ export const TOP_LEVEL_HELP = [
   "az-axi exposure [--check all]             # internet-exposed resources",
   "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   "az-axi api GET /subscriptions            # escape hatch for any read or query request",
-  "az-axi op status <operation-url>         # check a long-running operation (resume after --timeout)",
+  "az-axi op status <operation-url>         # check a long-running operation",
   "",
   "Selector flags on every command: --profile, --tenant, --subscription a,b, --management-group, --config.",
   "Output: TOON on stdout. --full disables truncation, --fields a,b limits list columns, --limit N caps rows.",
