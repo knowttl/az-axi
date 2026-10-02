@@ -63,6 +63,7 @@ function listProfiles(explicit: string | undefined): Record<string, unknown> {
         ? `${p.subscriptions.length} subscriptions`
         : "all",
     writes: writeStatus(p.allowWrites, p.subscriptions ?? []).label,
+    description: p.description ?? "",
   }));
   return {
     config: collapseHomeDirectory(path),

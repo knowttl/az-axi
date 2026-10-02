@@ -30,7 +30,7 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
   config: [
     "az-axi config init [--name <n>] [--auth az|token] [--tenant <t>] [--management-group <mg>]",
     "                   [--subscription a,b] [--workspace alias=<guid>,...] [--token-env arm=VAR,logs=VAR,graph=VAR] [--default]",
-    "az-axi config list                       # profiles with scope and write status",
+    "az-axi config list                       # profiles with scope, write status and description",
     "az-axi config path                       # the config file in use",
     "",
     "Config file order: --config, $AZ_AXI_CONFIG, ./az-axi.config.json, ~/.az-axi/config.json.",

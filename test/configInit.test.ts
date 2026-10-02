@@ -117,7 +117,7 @@ describe("config list and path", () => {
       JSON.stringify({
         defaultProfile: "work",
         profiles: {
-          work: { auth: "az", tenant: "contoso.example.com", managementGroup: "contoso-root" },
+          work: { auth: "az", tenant: "contoso.example.com", managementGroup: "contoso-root", description: "Daily analyst profile" },
           sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true },
           ci: { auth: "token", subscriptions: [SUB_A, "00000000-0000-0000-0000-000000000021"] },
         },
@@ -127,9 +127,9 @@ describe("config list and path", () => {
     expect(result.defaultProfile).toBe("work");
     expect(result.count).toBe("3 profiles");
     expect(result.profiles).toEqual([
-      { name: "work", auth: "az", tenant: "contoso.example.com", scope: "mg:contoso-root", writes: "disabled (default)" },
-      { name: "sandbox", auth: "az", tenant: "", scope: "1 subscriptions", writes: "ENABLED for 1 subscription" },
-      { name: "ci", auth: "token", tenant: "", scope: "2 subscriptions", writes: "disabled (default)" },
+      { name: "work", auth: "az", tenant: "contoso.example.com", scope: "mg:contoso-root", writes: "disabled (default)", description: "Daily analyst profile" },
+      { name: "sandbox", auth: "az", tenant: "", scope: "1 subscriptions", writes: "ENABLED for 1 subscription", description: "" },
+      { name: "ci", auth: "token", tenant: "", scope: "2 subscriptions", writes: "disabled (default)", description: "" },
     ]);
 
     process.env.AZ_AXI_READ_ONLY = "1";
