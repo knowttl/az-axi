@@ -75,7 +75,7 @@ function isDeploymentPut(method: string, path: string): boolean {
     s[4] === "providers" &&
     s[5] === "microsoft.resources" &&
     s[6] === "deployments";
-  return (subScope || rgScope) && s[s.length - 1] !== "whatif";
+  return subScope || rgScope;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -173,7 +173,7 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
     ...shownBody(request.body, request.full ?? false),
   };
   const help: string[] = [];
-  const command = (extra: { etag?: string; confirmName?: string }) =>
+  const command = (extra: { etag?: string }) =>
     buildExecuteCommand({
       method: request.method,
       path: request.path,
@@ -182,6 +182,7 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
       apiVersion: request.apiVersion,
       queryRaw: request.queryRaw,
       bodyRaw: request.bodyRaw,
+      confirmName: request.cls === "destructive" ? targetResourceName(request.path, request.method) : undefined,
       ...extra,
     });
 
@@ -250,22 +251,14 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
     } else if (lockCheckFailed) {
       help.push(`Could not check resource locks (${lockCheckFailed}): confirm in the portal before executing`);
     }
-    help.push(
-      command({ etag: probed.etag ?? request.ifMatch, confirmName: targetResourceName(request.path, "DELETE") }),
-    );
+    help.push(command({ etag: probed.etag ?? request.ifMatch }));
     return { ...out, help };
   }
 
   // Other writes (for example POST actions that are neither queries nor
   // destructive): no current state to preview, just the body and the command.
   // Destructive ones still name their confirm target.
-  help.push(
-    command({
-      etag: request.ifMatch,
-      confirmName:
-        request.cls === "destructive" ? targetResourceName(request.path, request.method) : undefined,
-    }),
-  );
+  help.push(command({ etag: request.ifMatch }));
   return { ...base, help };
 }
 
@@ -273,7 +266,7 @@ async function dryRunDeployment(
   request: DryRunRequest,
   base: Record<string, unknown>,
   help: string[],
-  command: (extra: { etag?: string; confirmName?: string }) => string,
+  command: (extra: { etag?: string }) => string,
 ): Promise<Record<string, unknown>> {
   if (request.body === undefined) {
     help.push("Pass --body '<json>' to preview the deployment change");
@@ -299,7 +292,11 @@ async function dryRunDeployment(
           properties: request.body.properties,
         }
       : request.body;
-  const response = await sendRequest<{ properties?: { changes?: Array<{ changeType?: string }> } }>(request.profile, {
+  const response = await sendRequest<{
+    status?: string;
+    error?: { code?: string; message?: string };
+    properties?: { changes?: Array<{ changeType?: string }> };
+  }>(request.profile, {
     method: "POST",
     resource: request.resource,
     path: whatIfPath,
@@ -307,21 +304,33 @@ async function dryRunDeployment(
     apiVersion: request.apiVersion,
     body: whatIfBody,
   });
-  const changes = response.body?.properties?.changes;
-  const counts: Record<string, number> = {};
-  if (Array.isArray(changes)) {
-    for (const change of changes) {
-      const key = String(change?.changeType ?? "unknown").toLowerCase();
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
+  const status = response.body?.status?.toLowerCase();
+  const error = response.body?.error;
+  if (status === "failed" || status === "canceled" || error) {
+    throw new AxiError(
+      `Deployment what-if ${response.body?.status ?? "failed"}${error?.code ? ` (${error.code})` : ""}${error?.message ? `: ${error.message}` : ""}`,
+      "OPERATION_FAILED",
+      [],
+    );
   }
-  const out: Record<string, unknown> = { ...base };
-  if (changes === undefined) {
-    help.push("The what-if response had no changes[] to summarize");
-    out.whatIf = counts;
-  } else {
-    out.whatIf = counts;
+  if (response.status === 202 || (status !== undefined && status !== "succeeded")) {
+    const operationUrl = response.headers["location"];
+    if (!operationUrl) {
+      throw new AxiError("Deployment what-if is pending but returned no operation URL", "API_ERROR", []);
+    }
+    const selectors = request.selectors ? ` ${request.selectors}` : "";
+    help.push(`\`az-axi op status ${quoteFlagValue(operationUrl)}${selectors}\``);
+    return { ...base, pending: true, operationUrl, help };
+  }
+  const changes = response.body?.properties?.changes;
+  if (!Array.isArray(changes)) {
+    throw new AxiError("Deployment what-if returned no changes[] to summarize", "API_ERROR", []);
+  }
+  const counts: Record<string, number> = {};
+  for (const change of changes) {
+    const key = String(change?.changeType ?? "unknown").toLowerCase();
+    counts[key] = (counts[key] ?? 0) + 1;
   }
   help.push(command({ etag: request.ifMatch }));
-  return { ...out, help };
+  return { ...base, whatIf: counts, help };
 }

@@ -4,6 +4,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCredentialCache } from "../src/lib/auth.js";
 import { classifyRequest } from "../src/lib/policy.js";
@@ -119,6 +120,11 @@ function assertOnlyPreviewReads() {
 
 const patch = (extra: string[] = [], profile = "--profile writer") =>
   run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", '{"tags":{"env":"prod","team":"a"}}', ...profile.split(" "), ...extra]);
+
+function commandArguments(command: string): string[] {
+  return execFileSync("sh", ["-c", `az-axi() { printf '%s\\0' "$@"; }; ${command.slice(1, -1)}`], { encoding: "utf8" })
+    .split("\0").slice(0, -1);
+}
 
 describe("default profile", () => {
   it.each([
@@ -346,6 +352,93 @@ describe("write-enabled profile without --execute", () => {
         expect(url.searchParams.get("keep")).toBe(flags.some((flag) => flag === "keep=query") ? "query" : "path");
         assertOnlyPreviewReads();
       }
+    },
+  );
+});
+
+describe("selected preview regressions", () => {
+  it.each(["roleAssignments", "roleDefinitions", "locks", "policyAssignments"])(
+    "includes executable confirmation in every %s preview", async (type) => {
+      const path = `${SUB_PATH}/providers/Microsoft.Authorization/${type}/assignment1`;
+      for (const method of ["PUT", "PATCH"] as const) {
+        for (const body of [undefined, "{}", '{"properties":{"enabled":true}}']) {
+          fetchMock.mockResolvedValue(json({}, 200, { etag: ETAG }));
+          const result = await run([method, path, "--api-version", API_VERSION, "--profile", "writer", ...(body === undefined ? [] : ["--body", body])]);
+          expect(result.class).toBe("destructive");
+          const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
+          const argv = commandArguments(command);
+          expect(argv.slice(-2)).toEqual(["--confirm", "assignment1"]);
+          fetchMock.mockClear();
+          await expect(run(argv.slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
+      }
+      fetchMock.mockResolvedValue(armError(404, "ResourceNotFound", "not here"));
+      const created = await run(["PUT", path, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"]);
+      expect(created.creates).toBe(true);
+      const argv = commandArguments((created.help as string[])[0]!);
+      expect(argv.slice(-2)).toEqual(["--confirm", "assignment1"]);
+      fetchMock.mockClear();
+      await expect(run(argv.slice(1))).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("execution is not available yet") });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([RG, SUB_PATH])("previews a deployment named whatIf under %s", async (scope) => {
+    const path = `${scope}/providers/Microsoft.Resources/deployments/whatIf`;
+    const result = await run(["PUT", path, "--api-version", API_VERSION, "--profile", "writer", "--body", '{"properties":{"template":{}}}']);
+    expect(result.whatIf).toEqual({ create: 1, modify: 1, nochange: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0]![0] as string).pathname).toBe(`${path}/whatIf`);
+    expect(fetchMock.mock.calls[0]![1].method).toBe("POST");
+  });
+
+  it("keeps deployment action PUTs on the ordinary preview path", async () => {
+    const result = await run(["PUT", `${DEPLOYMENT}/whatIf`, "--api-version", API_VERSION, "--profile", "writer", "--body", "{}"]);
+    expect(result.creates).toBe(true);
+    expect(result.whatIf).toBeUndefined();
+    assertOnlyPreviewReads();
+  });
+
+  it.each([DEPLOYMENT, `${SUB_PATH}/providers/Microsoft.Resources/deployments/dep1`])(
+    "handles pending, failed and successful what-if responses for %s", async (path) => {
+      const argv = ["PUT", path, "--api-version", API_VERSION, "--profile", "writer", "--body", '{"properties":{"template":{}}}'];
+      const operationUrl = `https://management.azure.com${SUB_PATH}/operations/op1?api-version=1&label=a'b`;
+      for (const [httpStatus, status] of [[202, undefined], [202, "Succeeded"], [200, "Running"]] as const) {
+        fetchMock.mockClear();
+        fetchMock.mockResolvedValue(json({ status, properties: { changes: [] } }, httpStatus, { location: operationUrl, "retry-after": "10" }));
+        const result = await run(argv);
+        expect(result).toMatchObject({ dryRun: true, pending: true, operationUrl });
+        expect(result.whatIf).toBeUndefined();
+        expect(result.help).toHaveLength(1);
+        expect(commandArguments((result.help as string[])[0]!)).toEqual(["op", "status", operationUrl, "--profile", "writer"]);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      }
+      for (const body of [
+        { status: "Failed", error: { code: "InvalidTemplate", message: "bad template" } },
+        { status: "Canceled" },
+        { status: "Succeeded", error: { code: "InvalidTemplate", message: "bad template" }, properties: { changes: [] } },
+      ]) {
+        fetchMock.mockClear();
+        fetchMock.mockResolvedValue(json(body));
+        await expect(run(argv)).rejects.toMatchObject({ code: "OPERATION_FAILED" });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      }
+      fetchMock.mockResolvedValue(json({ status: "Failed", error: { code: "InvalidTemplate", message: "bad template" } }));
+      await expect(run(argv)).rejects.toThrowError("InvalidTemplate): bad template");
+      fetchMock.mockResolvedValue(json({ status: "Succeeded" }));
+      await expect(run(argv)).rejects.toMatchObject({ code: "API_ERROR" });
+      fetchMock.mockResolvedValue(json({}, 202));
+      await expect(run(argv)).rejects.toMatchObject({ code: "API_ERROR", message: expect.stringContaining("no operation URL") });
+      fetchMock.mockResolvedValue(json({ status: "Succeeded", properties: { changes: [] } }));
+      const unchanged = await run(argv);
+      expect(unchanged.whatIf).toEqual({});
+      expect((unchanged.help as string[]).join("\n")).toContain("--execute");
+      fetchMock.mockResolvedValue(json({ status: "Succeeded", properties: { changes: [{ changeType: "Create" }, { changeType: "Create" }, { changeType: "Delete" }, { changeType: "Modify" }, { changeType: "NoChange" }] } }));
+      const changed = await run(argv);
+      expect(changed.whatIf).toEqual({ create: 2, delete: 1, modify: 1, nochange: 1 });
+      expect((changed.help as string[]).join("\n")).toContain("--execute");
+      assertOnlyPreviewReads();
     },
   );
 });
