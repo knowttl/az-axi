@@ -79,6 +79,24 @@ describe("client execution backstop", () => {
     }
   });
 
+  it.each([
+    ["", "listAccountSas", { signedServices: "b", signedResourceTypes: "o", signedPermission: "r", signedExpiry: "2026-10-03T00:00:00Z" }],
+    ["", "listServiceSas", { canonicalizedResource: "/blob/account1/container1", signedResource: "c", signedPermission: "r", signedExpiry: "2026-10-03T00:00:00Z" }],
+    ["/localUsers/user1", "regeneratePassword", undefined],
+  ] as const)("blocks Storage %s/%s at the transport boundary", async (suffix, action, body) => {
+    const root = `${path}/providers/Microsoft.Storage/storageAccounts/account1${suffix}`;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}/?api-version=1`]) {
+      const target = `${root}/${representation}`;
+      for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+        for (const execute of [false, true]) {
+          await expect(sendRequest(writer(), { method: "POST", path, apiVersion: "1", execute,
+            confirm: suffix ? "user1" : "account1", body })).rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
   it.each([201, 202, 400, 429, 503])("preserves HTTP %s metadata when reading the body fails", async (status) => {
     const response = new Response(new ReadableStream({
       start(controller) { controller.error(new Error(`connection lost ${TOKEN}`)); },

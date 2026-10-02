@@ -45,6 +45,9 @@ const CLASSIFICATION: Row[] = [
   ["arm", "POST", `${STORAGE}/listKeys/?api-version=2023-01-01`, "secret"],
   ["arm", "POST", `${RG}/providers/Microsoft.ContainerService/managedClusters/cluster1/listClusterAdminCredential`, "secret"],
   ["arm", "POST", `${RG}/providers/Microsoft.ContainerService/managedClusters/cluster1/listClusterUserCredential`, "secret"],
+  ["arm", "POST", `${STORAGE}/listAccountSas`, "secret"],
+  ["arm", "POST", `${STORAGE}/listServiceSas`, "secret"],
+  ["arm", "POST", `${STORAGE}/localUsers/user1/regeneratePassword`, "secret"],
   // destructive: DELETE, destructive POST actions, protected Microsoft.Authorization types
   ["arm", "DELETE", STORAGE, "destructive"],
   ["arm", "delete", STORAGE, "destructive"],
@@ -92,6 +95,9 @@ describe("policy rule lists", () => {
       "listPublishingCredentials",
       "listClusterAdminCredential",
       "listClusterUserCredential",
+      "listAccountSas",
+      "listServiceSas",
+      "regeneratePassword",
     ]);
     expect(DESTRUCTIVE_ACTIONS).toEqual([
       "delete",

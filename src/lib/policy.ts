@@ -25,6 +25,9 @@ export const SECRET_ACTIONS: readonly string[] = [
   "listPublishingCredentials",
   "listClusterAdminCredential",
   "listClusterUserCredential",
+  "listAccountSas",
+  "listServiceSas",
+  "regeneratePassword",
 ];
 
 /** POST actions that destroy or disrupt a resource (final path segment, case-insensitive). */

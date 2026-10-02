@@ -74,6 +74,26 @@ describe("API write execution", () => {
     }
   });
 
+  it.each([
+    ["", "listAccountSas", { signedServices: "b", signedResourceTypes: "o", signedPermission: "r", signedExpiry: "2026-10-03T00:00:00Z" }],
+    ["", "listServiceSas", { canonicalizedResource: "/blob/account1/container1", signedResource: "c", signedPermission: "r", signedExpiry: "2026-10-03T00:00:00Z" }],
+    ["/localUsers/user1", "regeneratePassword", undefined],
+  ] as const)("blocks Storage %s/%s in preview and execution", async (suffix, action, body) => {
+    const root = `${TARGET}/providers/Microsoft.Storage/storageAccounts/account1${suffix}`;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}/?api-version=1`]) {
+      const path = `${root}/${representation}`;
+      for (const target of [path, path.slice(1), `https://management.azure.com${path}`]) {
+        for (const flags of [[], ["--execute", "--confirm", suffix ? "user1" : "account1"]]) {
+          await expect(run(["POST", target, "--api-version", "1",
+            ...(body === undefined ? [] : ["--body", JSON.stringify(body)]), ...flags]))
+            .rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(send).not.toHaveBeenCalled();
+          expect(log).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
   it.each([200, 201, 204])("finishes a synchronous %s write with trace metadata and GET help", async (status) => {
     send.mockResolvedValueOnce(response({}, status));
     const result = await execute(["--if-match", '"reviewed"']);
