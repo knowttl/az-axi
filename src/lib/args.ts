@@ -67,14 +67,26 @@ export function flagList(args: ParsedArgs, name: string): string[] | undefined {
 }
 
 /** Flags accepted by every command, never reported as unknown. */
-export const GLOBAL_FLAGS = ["profile", "org", "project", "help", "full", "fields"] as const;
+export const GLOBAL_FLAGS = [
+  "profile",
+  "tenant",
+  "subscription",
+  "management-group",
+  "config",
+  "help",
+  "full",
+  "fields",
+  "limit",
+] as const;
 
 const RENAMED: Record<string, string> = {
-  organization: "org",
-  team_project: "project",
-  count: "limit",
+  sub: "subscription",
+  subscriptions: "subscription",
+  mg: "management-group",
   top: "limit",
+  count: "limit",
   max: "limit",
+  ws: "workspace",
 };
 
 export function assertKnownFlags(

@@ -9,12 +9,12 @@ Update the row of a file in the same commit that changes it.
 
 | File | Upstream path | Local changes |
 |---|---|---|
-| `src/lib/args.ts` | `src/lib/args.ts` | none |
-| `src/lib/argv.ts` | `src/lib/argv.ts` | none |
-| `src/lib/auth.ts` | `src/lib/auth.ts` | none |
-| `src/lib/client.ts` | `src/lib/client.ts` | none |
-| `src/lib/config.ts` | `src/lib/config.ts` | none |
-| `src/lib/context.ts` | `src/lib/context.ts` | none |
+| `src/lib/args.ts` | `src/lib/args.ts` | Global flags are the Azure selector set (`profile`, `tenant`, `subscription`, `management-group`, `config`, `limit`, ...); rename hints are Azure's (`sub`, `mg`, `ws`, ...) |
+| `src/lib/argv.ts` | `src/lib/argv.ts` | Leading selector flags are `profile`, `tenant`, `subscription`, `management-group`, `config` |
+| `src/lib/auth.ts` | `src/lib/auth.ts` | Generalized: per-resource tokens (`arm`, `logs`, `graph`), `token` mode replaces PAT, expiry-aware cache, hardened `az` spawn environment, Azure error mapping, `identityOf`, exported `runAz` |
+| `src/lib/client.ts` | `src/lib/client.ts` | Rewritten for ARM, Log Analytics and Graph hosts: api-version handling, ARM error translation, TLS mapping, single retry on 429 and 503, `nextLink` paging, `{status,headers,body}` responses, correlation headers, policy and gate enforcement before every request |
+| `src/lib/config.ts` | `src/lib/config.ts` | Azure profile fields, implicit `az` profile, `allowWrites` and `AZ_AXI_READ_ONLY` rules, scope overrides from flags and environment |
+| `src/lib/context.ts` | `src/lib/context.ts` | Profile flags are the Azure selector set; `subcommandOf` throws a `VALIDATION_ERROR` instead of a plain `Error` |
 | `src/lib/format.ts` | `src/lib/format.ts` | none |
 | `src/lib/paths.ts` | `src/lib/paths.ts` | none |
 | `src/lib/stdin.ts` | `src/lib/stdin.ts` | none |
@@ -35,4 +35,5 @@ Update the row of a file in the same commit that changes it.
 
 ## Patterns reimplemented, not vendored
 
-`src/bin/az-axi.ts`, `src/help.ts` and `src/commands/home.ts` follow the structure of their ado-axi counterparts and are written for az-axi.
+`src/bin/az-axi.ts`, `src/help.ts` and `src/commands/*.ts` follow the structure of their ado-axi counterparts and are written for az-axi.
+The write-framework hooks (`policy.ts`, `gates.ts`, `registry.ts`, `redact.ts`) and `version.ts` have no ado-axi counterpart.

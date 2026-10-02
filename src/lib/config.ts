@@ -3,15 +3,27 @@ import { homedir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { AxiError } from "axi-sdk-js";
 
-export type AuthMode = "az" | "pat";
+export type AuthMode = "az" | "token";
+export type Resource = "arm" | "logs" | "graph";
+
+/** Env var read for a `token` mode profile when its `tokenEnv` does not name one for a resource. */
+export const DEFAULT_TOKEN_ENV: Record<Resource, string> = {
+  arm: "AZ_AXI_ARM_TOKEN",
+  logs: "AZ_AXI_LOGS_TOKEN",
+  graph: "AZ_AXI_GRAPH_TOKEN",
+};
 
 export interface Profile {
-  org: string;
   auth: AuthMode;
   tenant?: string;
-  patEnv?: string;
-  project?: string;
+  managementGroup?: string;
+  subscriptions?: string[];
+  /** Alias -> Log Analytics workspace ID (the workspace GUID, not the ARM resource ID). */
+  workspaces?: Record<string, string>;
+  tokenEnv?: Partial<Record<Resource, string>>;
   description?: string;
+  /** Only ever set by hand-editing the config file; no az-axi command writes it. */
+  allowWrites?: boolean;
 }
 
 export interface ConfigFile {
@@ -21,16 +33,26 @@ export interface ConfigFile {
 
 export interface ResolvedProfile extends Profile {
   name: string;
-  source: "flags" | "env" | "config" | "config-default";
+  source: "flag" | "env" | "config-default" | "implicit";
   configPath?: string;
+  /**
+   * The subscriptions writes may target: copied from the config file BEFORE any
+   * --subscription / $AZ_AXI_SUBSCRIPTION override, so a flag can never widen them.
+   */
+  writeSubscriptions: string[];
+}
+
+export interface WriteStatus {
+  enabled: boolean;
+  label: string;
 }
 
 export function configPath(explicit?: string): string {
   if (explicit) return resolvePath(explicit);
-  if (process.env.ADO_AXI_CONFIG) return resolvePath(process.env.ADO_AXI_CONFIG);
-  const local = resolvePath(process.cwd(), "ado-axi.config.json");
+  if (process.env.AZ_AXI_CONFIG) return resolvePath(process.env.AZ_AXI_CONFIG);
+  const local = resolvePath(process.cwd(), "az-axi.config.json");
   if (existsSync(local)) return local;
-  return join(homedir(), ".ado-axi", "config.json");
+  return join(homedir(), ".az-axi", "config.json");
 }
 
 export function loadConfig(explicit?: string): { path: string; config?: ConfigFile } {
@@ -43,13 +65,13 @@ export function loadConfig(explicit?: string): { path: string; config?: ConfigFi
     throw new AxiError(
       `config file at ${path} is not valid JSON: ${(err as Error).message}`,
       "VALIDATION_ERROR",
-      ["Fix the JSON syntax", "Or run `ado-axi config init --org <org> --project <project>`"],
+      ["Fix the JSON syntax", "Or run `az-axi config init --name <name> --auth az` to rewrite it"],
     );
   }
-  if (!parsed || typeof parsed !== "object" || !parsed.profiles) {
+  if (!parsed || typeof parsed !== "object" || !parsed.profiles || typeof parsed.profiles !== "object") {
     throw new AxiError(`config file at ${path} is missing a 'profiles' object`, "VALIDATION_ERROR", [
-      "Expected shape: { defaultProfile, profiles: { name: { org, auth, project } } }",
-      "Run `ado-axi config init --org <org> --project <project>` to rewrite it",
+      "Expected shape: { defaultProfile, profiles: { name: { auth, tenant, subscriptions } } }",
+      "Run `az-axi config init --name <name> --auth az` to rewrite it",
     ]);
   }
   return { path, config: parsed };
@@ -64,129 +86,139 @@ export function saveConfig(config: ConfigFile, explicit?: string): string {
 
 export interface ProfileFlags {
   profile?: string;
-  org?: string;
-  project?: string;
+  tenant?: string;
+  subscriptions?: string[];
+  managementGroup?: string;
   config?: string;
 }
 
 /**
- * Resolution order: explicit --org (with --project) > --profile > $ADO_AXI_ORG >
- * config defaultProfile > the only profile in the config.
+ * Resolution order: --profile > $AZ_AXI_PROFILE > config defaultProfile > the only
+ * profile in the config > an implicit `{ auth: "az" }` profile named `az` when there
+ * is no config at all, so the tool works right after `az login`.
+ * --tenant / --subscription / --management-group (then $AZ_AXI_TENANT and
+ * $AZ_AXI_SUBSCRIPTION) override the chosen profile's read scope.
  */
 export function resolveProfile(flags: ProfileFlags = {}): ResolvedProfile {
   const { path, config } = loadConfig(flags.config);
-
-  if (flags.profile) {
-    const entry = config?.profiles?.[flags.profile];
-    if (!entry) {
-      throw new AxiError(`profile '${flags.profile}' not found`, "VALIDATION_ERROR", [
-        `Known profiles: ${Object.keys(config?.profiles ?? {}).join(", ") || "(none)"}`,
-        "Run `ado-axi config list` to see configured profiles",
-      ]);
-    }
-    return applyOverrides({ ...entry, name: flags.profile, source: "config", configPath: path }, flags);
-  }
-
-  if (flags.org) {
-    const matched = matchProfileByOrg(config, flags.org);
-    if (matched) {
-      return applyOverrides(
-        { ...matched.profile, name: matched.name, source: "flags", configPath: path },
-        flags,
-      );
-    }
-    const patEnv = envPatVarFor(flags.org);
-    return {
-      name: flags.org,
-      org: flags.org,
-      auth: patEnv ? "pat" : "az",
-      patEnv,
-      project: flags.project ?? process.env.ADO_AXI_PROJECT,
-      source: "flags",
-    };
-  }
-
-  const envOrg = process.env.ADO_AXI_ORG;
-  if (envOrg) {
-    const matched = matchProfileByOrg(config, envOrg);
-    if (matched) {
-      return applyOverrides(
-        { ...matched.profile, name: matched.name, source: "env", configPath: path },
-        flags,
-      );
-    }
-    const patEnv = envPatVarFor(envOrg);
-    return {
-      name: envOrg,
-      org: envOrg,
-      auth: patEnv ? "pat" : "az",
-      patEnv,
-      project: flags.project ?? process.env.ADO_AXI_PROJECT,
-      source: "env",
-    };
-  }
-
   const profiles = config?.profiles ?? {};
   const names = Object.keys(profiles);
-  const target = config?.defaultProfile ?? (names.length === 1 ? names[0] : undefined);
-  if (target) {
-    const entry = profiles[target];
-    if (!entry) {
-      throw new AxiError(`defaultProfile '${target}' is not defined in profiles`, "VALIDATION_ERROR", [
-        `Known profiles: ${names.join(", ") || "(none)"}`,
-        "Fix 'defaultProfile' in the config file",
-      ]);
-    }
-    return applyOverrides(
-      { ...entry, name: target, source: "config-default", configPath: path },
-      flags,
-    );
-  }
 
-  throw new AxiError("no Azure DevOps organization configured", "AUTH_REQUIRED", [
-    "Run `ado-axi config init --org <org> --project <project>` to create ~/.ado-axi/config.json",
-    "Or pass --org <org> [--project <project>] on any command",
-    "Or set $ADO_AXI_ORG (and optionally $ADO_AXI_PROJECT)",
-    names.length > 0 ? `Known profiles: ${names.join(", ")} (set 'defaultProfile')` : "",
-  ].filter(Boolean));
+  if (flags.profile) return fromEntry(profiles, flags.profile, "flag", path, flags);
+  if (process.env.AZ_AXI_PROFILE) {
+    return fromEntry(profiles, process.env.AZ_AXI_PROFILE, "env", path, flags);
+  }
+  if (config?.defaultProfile) {
+    return fromEntry(profiles, config.defaultProfile, "config-default", path, flags, true);
+  }
+  if (names.length === 1) {
+    return fromEntry(profiles, names[0] as string, "config-default", path, flags);
+  }
+  if (names.length > 1) {
+    throw new AxiError("several profiles are configured and none is selected", "VALIDATION_ERROR", [
+      `Known profiles: ${names.join(", ")}`,
+      "Pass --profile <name> or set $AZ_AXI_PROFILE",
+      "Or set 'defaultProfile' in the config file",
+    ]);
+  }
+  return applyOverrides(
+    { name: "az", source: "implicit", auth: "az", writeSubscriptions: [] },
+    flags,
+  );
 }
 
-/** An --org / $ADO_AXI_ORG value that names a configured org inherits that profile's auth. */
-function matchProfileByOrg(
-  config: ConfigFile | undefined,
-  org: string,
-): { name: string; profile: Profile } | undefined {
-  const profiles = config?.profiles ?? {};
-  const name = Object.keys(profiles).find(
-    (key) => (profiles[key] as Profile).org.toLowerCase() === org.toLowerCase(),
+function fromEntry(
+  profiles: Record<string, Profile>,
+  name: string,
+  source: ResolvedProfile["source"],
+  path: string,
+  flags: ProfileFlags,
+  isDefault = false,
+): ResolvedProfile {
+  const entry = profiles[name];
+  if (!entry) {
+    throw new AxiError(
+      isDefault ? `defaultProfile '${name}' is not defined in profiles` : `profile '${name}' not found`,
+      "VALIDATION_ERROR",
+      [
+        `Known profiles: ${Object.keys(profiles).join(", ") || "(none)"}`,
+        isDefault
+          ? "Fix 'defaultProfile' in the config file"
+          : "Run `az-axi config list` to see configured profiles",
+      ],
+    );
+  }
+  validateProfile(name, entry);
+  return applyOverrides(
+    { ...entry, name, source, configPath: path, writeSubscriptions: [...(entry.subscriptions ?? [])] },
+    flags,
   );
-  if (!name) return undefined;
-  return { name, profile: profiles[name] as Profile };
+}
+
+/** Throws VALIDATION_ERROR for a profile that cannot be used safely. */
+export function validateProfile(name: string, profile: Profile): void {
+  const fail = (message: string, hint: string): never => {
+    throw new AxiError(`profile '${name}': ${message}`, "VALIDATION_ERROR", [hint]);
+  };
+  if (profile.auth !== "az" && profile.auth !== "token") {
+    fail(`'auth' must be "az" or "token"`, 'Set "auth": "az" in the config file');
+  }
+  if (profile.subscriptions !== undefined && !isStringArray(profile.subscriptions)) {
+    fail("'subscriptions' must be an array of subscription IDs", "Fix 'subscriptions' in the config file");
+  }
+  if (profile.allowWrites !== undefined && typeof profile.allowWrites !== "boolean") {
+    fail("'allowWrites' must be true or false", "Fix 'allowWrites' in the config file");
+  }
+  if (profile.allowWrites === true && !profile.subscriptions?.length) {
+    fail(
+      "'allowWrites' needs a non-empty 'subscriptions' list naming the subscriptions writes may target",
+      "Edit the profile in the config file; see README.md#writes",
+    );
+  }
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function applyOverrides(profile: ResolvedProfile, flags: ProfileFlags): ResolvedProfile {
+  const envSubscriptions = splitList(process.env.AZ_AXI_SUBSCRIPTION);
+  const subscriptions = flags.subscriptions ?? (envSubscriptions.length > 0 ? envSubscriptions : undefined);
   return {
     ...profile,
-    org: flags.org ?? profile.org,
-    project: flags.project ?? process.env.ADO_AXI_PROJECT ?? profile.project,
+    tenant: flags.tenant ?? process.env.AZ_AXI_TENANT ?? profile.tenant,
+    managementGroup: flags.managementGroup ?? profile.managementGroup,
+    subscriptions: subscriptions ?? profile.subscriptions,
   };
 }
 
-/** `ADO_<ORG>_PAT` — the conventional per-org PAT env var. */
-export function envPatVarFor(org: string): string | undefined {
-  const candidates = [
-    `ADO_${org.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_PAT`,
-    "ADO_AXI_PAT",
-    "AZURE_DEVOPS_EXT_PAT",
-  ];
-  return candidates.find((name) => Boolean(process.env[name]));
+function splitList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
-export function requireProject(profile: ResolvedProfile, command: string): string {
-  if (profile.project) return profile.project;
-  throw new AxiError(`no project configured for org '${profile.org}'`, "VALIDATION_ERROR", [
-    `Pass --project <project> to \`${command}\``,
-    "Or set 'project' on the profile in the config file",
-    "Run `ado-axi project list` to see available projects",
-  ]);
+/** True when `$AZ_AXI_READ_ONLY` forces the whole process read-only. */
+export function readOnlyForced(): boolean {
+  return /^(1|true)$/i.test(process.env.AZ_AXI_READ_ONLY ?? "");
+}
+
+/**
+ * Effective write status. Pass the subscriptions from the config file itself
+ * (`writeSubscriptions` on a resolved profile), never an overridden read scope.
+ */
+export function writeStatus(
+  allowWrites: boolean | undefined,
+  writeSubscriptions: readonly string[],
+): WriteStatus {
+  if (readOnlyForced()) return { enabled: false, label: "disabled (AZ_AXI_READ_ONLY)" };
+  if (allowWrites !== true) return { enabled: false, label: "disabled (default)" };
+  const count = writeSubscriptions.length;
+  if (count === 0) return { enabled: false, label: "disabled (invalid: no subscriptions)" };
+  return { enabled: true, label: `ENABLED for ${count} ${count === 1 ? "subscription" : "subscriptions"}` };
+}
+
+export function tokenEnvFor(profile: Profile, resource: Resource): string {
+  return profile.tokenEnv?.[resource] ?? DEFAULT_TOKEN_ENV[resource];
 }

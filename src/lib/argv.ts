@@ -1,8 +1,14 @@
-const VALUE_FLAGS = new Set(["profile", "org", "project", "config"]);
+const VALUE_FLAGS = new Set([
+  "profile",
+  "tenant",
+  "subscription",
+  "management-group",
+  "config",
+]);
 
 /**
  * The SDK requires `<bin> <command> ...flags`. Agents naturally write
- * `ado-axi --profile acme pr list`, so leading selector flags are moved behind
+ * `az-axi --profile work rg query ...`, so leading selector flags are moved behind
  * the command instead of being rejected. With no command they stay put and the
  * home view receives them.
  */
