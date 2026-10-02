@@ -226,11 +226,11 @@ az-axi op status 'https://management.azure.com/<operation-path>?api-version=<v>'
 
 This checks the current state once; re-run the suggested command if the operation is still running.
 The suggested command retains the selected config file, profile and tenant.
-Output includes `operation` (the URL), `state` and `status` (the HTTP status).
-The response body's string `status` is reported as the state; Succeeded, Failed and Canceled are terminal, matched case-insensitively, and other states are still running.
-Without a body status, HTTP 202 means InProgress and other successful HTTP responses mean Succeeded.
+Output preserves the response payload, including `status` and completed results such as `properties.changes`.
+A string `status` in the response body identifies the operation state; Succeeded, Failed and Canceled are terminal, matched case-insensitively, and other states are still running.
+Without a string body status, output adds `operation` (the URL), `state` and `status` (the HTTP status); HTTP 202 means InProgress and other successful HTTP responses mean Succeeded.
 Failed and Canceled are reported as operation states with any returned error details; a successful status lookup still exits 0.
-Returned error details appear as `code` and `error`; request failures use the normal [error categories](#behavior).
+Returned error details remain in the response payload as `error.code` and `error.message`; request failures use the normal [error categories](#behavior).
 This command checks operations started elsewhere; automatic polling and `--timeout` are not exposed by the CLI yet.
 
 ## Writes
