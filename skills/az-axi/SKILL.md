@@ -31,6 +31,7 @@ call. A failed section degrades to a hint; the rest still render.
 
 ```sh
 az-axi                      # dashboard
+az-axi home                 # same dashboard
 az-axi config list          # configured profiles
 az-axi doctor               # auth, reachability and write status per profile
 az-axi sub list             # subscriptions visible to the identity
@@ -45,7 +46,7 @@ flags:
   written before the command (`az-axi --profile work rg query ...`), including
   on the bare dashboard
 - `--subscription a,b` - one-off subscription scope; `--management-group <mg>`
-  for Resource Graph commands
+  for management-group scope
 - `--tenant <id>` - passed through to `az` for token acquisition
 - `--config <path>` - one-off config file
 - `$AZ_AXI_PROFILE` / `$AZ_AXI_SUBSCRIPTION` / `$AZ_AXI_TENANT` /
@@ -69,7 +70,8 @@ az-axi rg query --file query.kql
 ```
 
 `rg query` trims surrounding query whitespace, then POSTs the KQL to Resource Graph across the scope in `--subscription` / `--management-group` flags, then the profile `managementGroup`, then the profile `subscriptions`.
-`--limit` maps to `$top` (default 50, maximum 1000).
+Without `--full`, `--limit` maps to `$top` (default 50, maximum 1000).
+`--full` ignores `--limit` and requests up to 1000 rows per page.
 Output is `total`, `count`, `rows`; nested objects render as compact JSON truncated at 200 characters unless `--full`.
 When a skip token is returned, `help[]` carries the exact command for the next page.
 
@@ -184,7 +186,8 @@ The human owns write access; this skill does not describe how to enable it.
 ## Conventions
 
 - Output is TOON on stdout; errors are TOON too, with a `help` list of exact,
-  runnable next steps. Follow hints literally.
+  runnable next steps.
+  Apply the [safe shell input](#safe-shell-input) rule to hints too.
 - Exit codes: 0 success (including no-ops), 1 runtime error, 2 usage error.
 - Unknown flags are rejected by name - read the `help` line and retry once.
 - Lists take `--limit` and `--fields a,b`; detail views truncate and take

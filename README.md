@@ -152,11 +152,11 @@ export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
 Run KQL against a workspace configured in the selected profile:
 
 ```
-az-axi logs query "SigninLogs | take 5" --workspace sentinel
 az-axi logs query --file hunt.kql --workspace sentinel --timespan P7D
 ```
 
 The identity needs Log Analytics Reader on the workspace.
+See the agent guide's [safe shell input rule](skills/az-axi/SKILL.md#safe-shell-input) for query input across shells.
 Use `az-axi logs --help` for workspace IDs, query input handling, time windows and output limits.
 
 ## Use
