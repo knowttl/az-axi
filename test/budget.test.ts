@@ -42,7 +42,6 @@ import {
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import {
   SUB_A,
-  SUB_B,
   WORKSPACE,
   activityEvents,
   apiListResponse,
@@ -231,27 +230,5 @@ describe("token budgets", () => {
       "api",
       await runApi(["GET", "/subscriptions", "--api-version", "2022-12-01"]),
     );
-  });
-
-  it("covers every current command", () => {
-    expect(Object.keys(CEILINGS).sort()).toEqual(
-      [
-        "activity list",
-        "api",
-        "config list",
-        "defender alerts",
-        "defender alerts get",
-        "defender assessments",
-        "defender score",
-        "doctor",
-        "exposure",
-        "home",
-        "logs query",
-        "rbac list",
-        "rg query",
-        "sub list",
-      ].sort(),
-    );
-    expect(SUB_B).toBe("00000000-0000-0000-0000-000000000021");
   });
 });

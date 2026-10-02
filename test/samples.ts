@@ -265,14 +265,6 @@ export const apiListResponse = {
   ],
 };
 
-// source: resources/subscriptions/get response shape (identifiers replaced)
-export const apiObjectResponse = {
-  id: `/subscriptions/${SUB_A}`,
-  subscriptionId: SUB_A,
-  displayName: "Sandbox",
-  state: "Enabled",
-};
-
 // Dashboard alert-count rows for the home command (Resource Graph shape).
 export const homeAlertCounts = [
   { severity: "High", alerts: 2 },
