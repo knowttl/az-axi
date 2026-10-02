@@ -17,3 +17,4 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Write framework groundwork (still disabled): pure field-level diff for dry-run change previews.
 - Token budgets: `test/samples.ts` holds a synthetic payload per command and `test/budget.test.ts` asserts each rendered TOON output stays under its measured-plus-20-percent ceiling.
 - Write log (`src/lib/writeLog.ts`): append-only record of executed writes at `~/.az-axi/writes.log`; not yet wired into any command.
+- `skills/az-axi/SKILL.md`: agent usage guide with every command, safe shell input, the naming notice, and the writes policy.
