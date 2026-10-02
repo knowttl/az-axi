@@ -170,7 +170,7 @@ az-axi home                                             # the same dashboard
 az-axi doctor                                           # check az, tokens, ARM reachability and write status per profile
 az-axi config list                                      # profiles with scope, write status and description
 az-axi sub list                                         # subscriptions visible to the identity
-az-axi rg query "Resources | take 5"                     # Resource Graph query across subscriptions
+az-axi rg query --file query.kql                        # Resource Graph query across subscriptions
 az-axi rbac list --privileged                           # role assignments for privileged roles
 az-axi activity list --since 24h --status Failed        # activity log across subscriptions, newest first
 az-axi defender alerts --severity High                  # active Defender alerts
@@ -178,7 +178,7 @@ az-axi defender alerts get /subscriptions/00000000-0000-0000-0000-000000000001/p
 az-axi defender assessments --severity High             # recommendations grouped with unhealthy counts
 az-axi defender score                                   # secure score per subscription, lowest first
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
-az-axi logs query "SigninLogs | take 5" --workspace sentinel  # Log Analytics KQL (see Query logs)
+az-axi logs query --file hunt.kql --workspace sentinel   # Log Analytics KQL (see Query logs)
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
 ```
 

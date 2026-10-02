@@ -185,12 +185,10 @@ The human owns write access; this skill does not describe how to enable it.
 
 ## Conventions
 
-- Output is TOON on stdout; errors are TOON too, with a `help` list of exact,
-  runnable next steps.
+- Output is TOON on stdout; errors are TOON too.
+  When present, `help` lists next steps.
   Apply the [safe shell input](#safe-shell-input) rule to hints too.
-- Exit codes: 0 success (including no-ops), 1 runtime error, 2 usage error.
+- See [README.md#behavior](../../README.md#behavior) for exit codes, error categories, and output controls.
 - Unknown flags are rejected by name - read the `help` line and retry once.
-- Lists take `--limit` and `--fields a,b`; detail views truncate and take
-  `--full`.
 - Read-only commands never change Azure state. `config init` writes a local
   file only.
