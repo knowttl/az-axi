@@ -41,6 +41,21 @@ export function flagString(args: ParsedArgs, name: string): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
+/**
+ * A value flag. Absent is `undefined`. Present without a value, or blank, is a
+ * VALIDATION_ERROR so an agent cannot silently drop a filter.
+ */
+export function flagText(args: ParsedArgs, name: string): string | undefined {
+  if (!(name in args.flags)) return undefined;
+  const value = args.flags[name];
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new AxiError(`flag --${name} needs a non-empty value`, "VALIDATION_ERROR", [
+      `Example: --${name} <value>`,
+    ]);
+  }
+  return value.trim();
+}
+
 export function flagBool(args: ParsedArgs, name: string): boolean {
   return args.flags[name] === true || args.flags[name] === "true";
 }

@@ -40,7 +40,11 @@ describe("resolvePrincipalId", () => {
     await expect(resolvePrincipalId(profile(), "analyst@contoso.com")).resolves.toBe(SYN(40));
     expect(sendMock).toHaveBeenCalledWith(
       expect.objectContaining({ name: "test" }),
-      expect.objectContaining({ resource: "graph", method: "GET" }),
+      expect.objectContaining({
+        resource: "graph",
+        method: "GET",
+        path: `/v1.0/users/${encodeURIComponent("analyst@contoso.com")}`,
+      }),
     );
   });
 
@@ -71,6 +75,19 @@ describe("resolvePrincipalNames", () => {
     expect(names.get(SYN(41))).toBe("owner@contoso.com");
     expect(sendMock).toHaveBeenCalledTimes(1);
     expect(sendMock.mock.calls[0]?.[1].body).toEqual({ ids: [SYN(40), SYN(41)] });
+    expect(sendMock.mock.calls[0]?.[1].path).toBe("/v1.0/directoryObjects/getByIds");
+  });
+
+  it("reports unresolved when Graph returns no names", async () => {
+    sendMock.mockResolvedValue({
+      status: 200,
+      headers: {},
+      body: { value: [{ id: SYN(40) }] },
+      clientRequestId: "r",
+    });
+    const { names, resolved } = await resolvePrincipalNames(profile(), [SYN(40)]);
+    expect(resolved).toBe(false);
+    expect(names.size).toBe(0);
   });
 
   it("never throws on Graph failure", async () => {

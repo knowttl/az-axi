@@ -99,7 +99,14 @@ describe("rbac list", () => {
     expect(options.path).toBe("/providers/Microsoft.ResourceGraph/resources");
     expect(options.apiVersion).toBe("2024-04-01");
     expect(options.method).toBe("POST");
-    expect(armBody()).toMatchObject({ query: RBAC_ASSIGNMENTS, options: { $top: 1000, resultFormat: "objectArray" } });
+    expect(armBody()).toMatchObject({
+      query: RBAC_ASSIGNMENTS,
+      options: {
+        $top: 1000,
+        resultFormat: "objectArray",
+        authorizationScopeFilter: "AtScopeAboveAndBelow",
+      },
+    });
     expect(result.total).toBe(3);
     expect(result.count).toBe("3 assignments");
     expect(result.byRole).toEqual({ Owner: 1, Reader: 1, Contributor: 1 });
@@ -112,6 +119,8 @@ describe("rbac list", () => {
     const result = await run(["list", "--privileged"]);
     expect(result.total).toBe(2);
     expect(result.byRole).toEqual({ Owner: 1, Contributor: 1 });
+    expect(String(armBody().query)).toContain(OWNER_ROLE_ID.toLowerCase());
+    expect(String(armBody().query)).toContain("in (");
   });
 
   it("filters by principal object ID, role name and scope", async () => {
@@ -185,7 +194,74 @@ describe("rbac list", () => {
     sendMock.mockClear();
     const result = await run(["list", "--show-query"]);
     expect(result.query).toBe(RBAC_ASSIGNMENTS);
+    expect(result.authorizationScopeFilter).toBe("AtScopeAboveAndBelow");
     expect(sendMock).not.toHaveBeenCalled();
+
+    const filtered = await run(["list", "--show-query", "--privileged"]);
+    expect(String(filtered.query)).toContain(OWNER_ROLE_ID.toLowerCase());
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a longer resource name as the same scope", async () => {
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      if (options["resource"] === "graph") {
+        return { status: 200, headers: {}, body: { value: [{ id: P2, displayName: "App" }] }, clientRequestId: "g" } as never;
+      }
+      return {
+        status: 200,
+        headers: {},
+        body: {
+          data: [
+            row({ scope: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, roleName: "Reader", principalId: P2 }),
+            row({
+              scope: `/subscriptions/${SUB_A}/resourceGroups/rg-demo-extra`,
+              roleName: "Reader",
+              principalId: P2,
+              id: "ra-extra",
+            }),
+          ],
+        },
+        clientRequestId: "r",
+      } as never;
+    });
+    const result = await run(["list", "--scope", `/subscriptions/${SUB_A}/resourceGroups/rg-demo`]);
+    expect(result.total).toBe(1);
+  });
+
+  it("escapes role text in the query and shows the full id for --fields id", async () => {
+    await run(["list", "--role", "own'er"]);
+    const query = String(armBody().query);
+    expect(query).toContain("own''er");
+    expect(query.includes("own'er")).toBe(false);
+
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      if (options["resource"] === "graph") {
+        return { status: 200, headers: {}, body: { value: [{ id: P1, displayName: "Analyst" }] }, clientRequestId: "g" } as never;
+      }
+      return { status: 200, headers: {}, body: { data: [row()] }, clientRequestId: "r" } as never;
+    });
+    const picked = (await run(["list", "--fields", "id"])).rows as Array<Record<string, unknown>>;
+    expect(picked[0]?.["id"]).toBe(row().id);
+  });
+
+  it("stops when Resource Graph repeats a skip token", async () => {
+    let armCalls = 0;
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      if (options["resource"] === "graph") {
+        return { status: 200, headers: {}, body: { value: [{ id: P1, displayName: "Analyst" }] }, clientRequestId: "g" } as never;
+      }
+      armCalls++;
+      return {
+        status: 200,
+        headers: {},
+        body: { totalRecords: 5, data: [row()], $skipToken: "again" },
+        clientRequestId: "r",
+      } as never;
+    });
+    const result = await run(["list"]);
+    expect(armCalls).toBe(2);
+    expect(result.total).toBe(5);
+    expect((result.help as string[]).join("\n")).toMatch(/more assignments/i);
   });
 
   it("prefers flags, then profile management group, then profile subscriptions", async () => {

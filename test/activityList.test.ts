@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AxiError } from "axi-sdk-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn(), requestAll: vi.fn() }));
@@ -80,7 +81,8 @@ describe("activity list", () => {
     expect(q.apiVersion).toBe("2015-04-01");
     expect(q.query?.["$filter"]).toContain("eventTimestamp ge");
     expect(q.query?.["$filter"]).toContain("eventTimestamp le");
-    expect(q.query?.["$select"]).toContain("eventTimestamp");
+    // caller is not in the 2015-04-01 $select allow-list, so selecting it would drop the field.
+    expect(q.query?.["$select"]).toBeUndefined();
     expect(result.total).toBe(1);
     expect(result.count).toBe("1 events");
     expect(result.topCallers).toEqual({ "analyst@contoso.com": 1 });
@@ -162,6 +164,112 @@ describe("activity list", () => {
     const result = await run(["list", "--subscription", SUB_A, "--limit", "2"]);
     expect(result.total).toBe(2);
     expect(calls).toBe(2);
+    const continuation = sendMock.mock.calls[1]?.[1] as { apiVersion?: string; path?: string; query?: unknown };
+    expect(continuation.path).toBe("https://management.azure.com/next-page");
+    expect(continuation.apiVersion).toBe("2015-04-01");
+    expect(continuation.query).toBeUndefined();
+  });
+
+  it("keeps paging until a client-side filter has enough matches", async () => {
+    let calls = 0;
+    sendMock.mockImplementation(async () => {
+      calls++;
+      if (calls === 1) {
+        return {
+          status: 200,
+          headers: {},
+          body: {
+            value: [evt({ status: { value: "Succeeded" }, caller: "ok@contoso.com" })],
+            nextLink: "https://management.azure.com/page-2",
+          },
+          clientRequestId: "r",
+        } as never;
+      }
+      return {
+        status: 200,
+        headers: {},
+        body: { value: [evt({ status: { value: "Failed" }, caller: "bad@contoso.com" })] },
+        clientRequestId: "r",
+      } as never;
+    });
+    const result = await run(["list", "--subscription", SUB_A, "--status", "Failed", "--limit", "1"]);
+    expect(calls).toBe(2);
+    expect(result.total).toBe(1);
+    expect((result.rows as Array<Record<string, unknown>>)[0]?.["caller"]).toBe("bad@contoso.com");
+    expect((sendMock.mock.calls[1]?.[1] as { apiVersion?: string }).apiVersion).toBe("2015-04-01");
+  });
+
+  it("queries only subscriptions in the management group", async () => {
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      if (options["method"] === "POST") {
+        expect((options["body"] as { managementGroups?: string[] }).managementGroups).toEqual(["mg-demo"]);
+        return { status: 200, headers: {}, body: { data: [{ subscriptionId: SUB_B }] }, clientRequestId: "r" } as never;
+      }
+      const path = String(options["path"] ?? "");
+      expect(path).toContain(`/subscriptions/${SUB_B}/`);
+      expect(options["apiVersion"]).toBe("2015-04-01");
+      return { status: 200, headers: {}, body: { value: [evt({ caller: "mg@contoso.com" })] }, clientRequestId: "r" } as never;
+    });
+    const result = await run(["list", "--management-group", "mg-demo", "--since", "24h"]);
+    expect(result.total).toBe(1);
+    expect(sendMock.mock.calls.some(([, options]) => String((options as { path?: string }).path).includes(SUB_A))).toBe(
+      false,
+    );
+  });
+
+  it("uses the profile management group when no subscription flag is set", async () => {
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ profiles: { work: { auth: "az", managementGroup: "mg-profile" } } }),
+    );
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      if (options["method"] === "POST") {
+        return {
+          status: 200,
+          headers: {},
+          body: { data: [{ subscriptionId: SUB_A }], managementGroupsSeen: (options["body"] as { managementGroups?: string[] }).managementGroups },
+          clientRequestId: "r",
+        } as never;
+      }
+      return { status: 200, headers: {}, body: { value: [] }, clientRequestId: "r" } as never;
+    });
+    await run(["list", "--profile", "work", "--since", "1h"]);
+    const post = sendMock.mock.calls.find(([, options]) => (options as { method?: string }).method === "POST");
+    expect((post?.[1] as { body: { managementGroups: string[] } }).body.managementGroups).toEqual(["mg-profile"]);
+  });
+
+  it("does not widen an empty management group to every subscription", async () => {
+    sendMock.mockImplementation(async () => {
+      return { status: 200, headers: {}, body: { data: [] }, clientRequestId: "r" } as never;
+    });
+    const result = await run(["list", "--management-group", "mg-empty"]);
+    expect(result.total).toBe(0);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(allMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the other subscriptions when one query fails", async () => {
+    sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
+      const path = String(options["path"] ?? "");
+      if (path.includes(SUB_B)) throw new AxiError("access denied", "FORBIDDEN", ["no"]);
+      return { status: 200, headers: {}, body: { value: [evt()] }, clientRequestId: "r" } as never;
+    });
+    const result = await run(["list", "--subscription", `${SUB_A},${SUB_B}`, "--since", "24h"]);
+    expect(result.total).toBe(1);
+    expect((result.help as string[]).join("\n")).toMatch(/could not query/i);
+    expect((result.help as string[]).join("\n")).toContain(SUB_B);
+  });
+
+  it("fails when every subscription query fails", async () => {
+    sendMock.mockRejectedValue(new AxiError("access denied", "FORBIDDEN", ["no"]));
+    await expect(run(["list", "--subscription", SUB_A])).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects an empty caller instead of matching every event", async () => {
+    await expect(run(["list", "--subscription", SUB_A, "--caller", ""])).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("returns an explicit empty state", async () => {

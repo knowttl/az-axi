@@ -30,8 +30,21 @@ export function isObjectId(value: string): boolean {
  * anything else is treated as a UPN and looked up via Graph.
  * Throws VALIDATION_ERROR asking for the object ID when Graph cannot resolve it.
  */
+function unresolved(principal: string, detail: string): AxiError {
+  return new AxiError(`could not resolve principal '${principal}': pass the object ID instead`, "VALIDATION_ERROR", [
+    detail,
+    "Find the object ID with `az ad user show --id <upn> --query id`",
+    "Or pass --principal <objectId> directly",
+  ]);
+}
+
 export async function resolvePrincipalId(profile: ResolvedProfile, principal: string): Promise<string> {
   const text = principal.trim();
+  if (!text) {
+    throw new AxiError("flag --principal needs a non-empty value", "VALIDATION_ERROR", [
+      "Pass --principal <upn> or --principal <objectId>",
+    ]);
+  }
   if (isObjectId(text)) return text;
   try {
     const body = await sendRequest<{ id?: string }>(profile, {
@@ -39,21 +52,12 @@ export async function resolvePrincipalId(profile: ResolvedProfile, principal: st
       method: "GET",
       path: `/${GRAPH_GET_BY_IDS}/users/${encodeURIComponent(text)}`,
     }).then((response) => response.body);
-    if (body?.id) return body.id;
+    if (body?.id && isObjectId(body.id)) return body.id;
   } catch (err) {
-    throw new AxiError(
-      `could not resolve principal '${text}': pass the object ID instead`,
-      "VALIDATION_ERROR",
-      [
-        "Find the object ID with `az ad user show --id <upn> --query id`",
-        "Or pass --principal <objectId> directly",
-      ],
-    );
+    const detail = err instanceof Error && err.message ? err.message : "Graph request failed";
+    throw unresolved(text, detail);
   }
-  throw new AxiError(`could not resolve principal '${text}': pass the object ID instead`, "VALIDATION_ERROR", [
-    "Find the object ID with `az ad user show --id <upn> --query id`",
-    "Or pass --principal <objectId> directly",
-  ]);
+  throw unresolved(text, "Graph did not return an object ID");
 }
 
 /**
@@ -76,6 +80,8 @@ export async function resolvePrincipalNames(
       const response = await sendRequest<GetByIdsResponse>(profile, {
         resource: "graph",
         method: "POST",
+        // `types` is omitted on purpose: the default searches every directory
+        // object, including service principals and managed identities.
         path: `/${GRAPH_GET_BY_IDS}/directoryObjects/getByIds`,
         body: { ids: batch },
       });
@@ -89,5 +95,6 @@ export async function resolvePrincipalNames(
       }
     }
   }
-  return { names, resolved: true };
+  // A 200 with no names is not success: the caller must say names are unresolved.
+  return { names, resolved: names.size > 0 };
 }
