@@ -17,12 +17,17 @@ describe("diffResource", () => {
     expect(diff.changes).toEqual([
       { path: "tags.env", from: "prod", to: "dev" },
       { path: "location", from: "westeurope", to: "northeurope" },
+      { path: "tags.team", from: "billing", to: undefined },
     ]);
   });
 
   it("reports a PATCH addition with an undefined from", () => {
     const diff = diffResource(CURRENT, { tags: { owner: "data" } }, "PATCH");
-    expect(diff.changes).toEqual([{ path: "tags.owner", from: undefined, to: "data" }]);
+    expect(diff.changes).toEqual([
+      { path: "tags.owner", from: undefined, to: "data" },
+      { path: "tags.env", from: "prod", to: undefined },
+      { path: "tags.team", from: "billing", to: undefined },
+    ]);
   });
 
   it("lists PUT removals with an undefined to", () => {
@@ -51,7 +56,7 @@ describe("diffResource", () => {
         remaining: 0,
         noop: false,
       });
-      expect(diffResource({ tags }, { tags: {} }, "PATCH").noop).toBe(true);
+      expect(diffResource({ tags }, { tags: {} }, "PATCH")).toEqual(diffResource({ tags }, { tags: {} }, "PUT"));
     }
   });
 
@@ -98,6 +103,18 @@ describe("diffResource", () => {
 
   it("detects a no-op PATCH for an empty body", () => {
     expect(diffResource(CURRENT, {}, "PATCH").noop).toBe(true);
+  });
+
+  it.each(["PUT", "PATCH"])("includes omitted tags in %s replacements", (method) => {
+    for (const tags of [{ env: "prod" }, {}]) {
+      const diff = diffResource(CURRENT, { ...CURRENT, tags }, method);
+      expect(diff.noop).toBe(false);
+      expect(diff.changes).toEqual([
+        ...(Object.hasOwn(tags, "env") ? [] : [{ path: "tags.env", from: "prod", to: undefined }]),
+        { path: "tags.team", from: "billing", to: undefined },
+      ]);
+    }
+    expect(diffResource(CURRENT, { properties: { accessTier: "Hot" } }, "PATCH").noop).toBe(true);
   });
 
   it("reports an empty PUT body as removing every leaf", () => {

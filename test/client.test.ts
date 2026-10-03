@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
 import { clearCredentialCache } from "../src/lib/auth.js";
-import { buildUrl, request, requestAll, sendRequest } from "../src/lib/client.js";
+import { ApiRequestError, buildUrl, request, requestAll, sendRequest } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { redact } from "../src/lib/redact.js";
 
@@ -44,6 +44,216 @@ async function failure(promise: Promise<unknown>): Promise<AxiError> {
 
 const render = (error: AxiError) =>
   encode(redact({ error: error.message, code: error.code, help: error.suggestions }));
+
+describe("client execution backstop", () => {
+  const sub = "00000000-0000-0000-0000-000000000021";
+  const path = `/subscriptions/${sub}/resourceGroups/rg-demo`;
+  const writer = () => profile({ allowWrites: true, subscriptions: [sub], writeSubscriptions: [sub] });
+
+  it.each([
+    ["Microsoft.ContainerRegistry/registries/registry1", "regenerateCredential", { name: "password" }],
+    ["Microsoft.ContainerRegistry/registries/registry1", "generateCredentials", { tokenId: "token1" }],
+    ["Microsoft.OperationalInsights/workspaces/workspace1", "sharedKeys", undefined],
+    ["Microsoft.OperationalInsights/workspaces/workspace1", "regenerateSharedKey", { keyType: "primary" }],
+    ["Microsoft.DocumentDB/databaseAccounts/account1", "readonlykeys", undefined],
+    ["Microsoft.Logic/workflows/workflow1/triggers/manual", "listCallbackUrl", undefined],
+    ["Microsoft.Compute/virtualMachines/vm1", "retrieveBootDiagnosticsData", undefined],
+    ["Microsoft.Compute/virtualMachineScaleSets/scale1/virtualMachines/0", "retrieveBootDiagnosticsData", undefined],
+  ] as const)("blocks %s/%s before credential acquisition or transport", async (resource, action, body) => {
+    delete process.env.AZ_AXI_ARM_TOKEN;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
+        const target = `${path}/providers/${resource}/${representation}${suffix}`;
+        for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+          for (const execute of [false, true]) {
+            await expect(sendRequest(writer(), { method: "POST", path, apiVersion: "1", execute,
+              confirm: resource.split("/").at(-1)!, body })).rejects.toMatchObject({ code: "READ_ONLY" });
+            expect(fetchMock).not.toHaveBeenCalled();
+          }
+        }
+      }
+    }
+  });
+
+  it.each([
+    ["virtualMachines/vm1", "redeploy"],
+    ["virtualMachineScaleSets/scale1", "redeploy"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "redeploy"],
+    ["virtualMachineScaleSets/scale1", "reimageall"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "reimageall"],
+    ["virtualMachines/vm1", "simulateEviction"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "simulateEviction"],
+  ])("gates Compute %s/%s at the transport boundary", async (resource, action) => {
+    const name = resource.split("/").at(-1)!;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
+        const target = `${path}/providers/Microsoft.Compute/${resource}/${representation}${suffix}`;
+        for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+          fetchMock.mockReset().mockResolvedValueOnce(new Response(null, { status: 204 }));
+          const options = { method: "POST", path, apiVersion: "1", execute: true, body: {} };
+          for (const confirm of [undefined, "wrong", action]) {
+            await expect(sendRequest(writer(), { ...options, confirm })).rejects.toMatchObject({
+              code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH",
+            });
+          }
+          await expect(sendRequest(writer(), { ...options, execute: false, confirm: name }))
+            .rejects.toMatchObject({ code: "API_ERROR" });
+          expect(fetchMock).not.toHaveBeenCalled();
+          expect(await sendRequest(writer(), { ...options, confirm: name })).toMatchObject({ status: 204 });
+          expect(fetchMock).toHaveBeenCalledOnce();
+          expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST", body: "{}" });
+        }
+      }
+    }
+  });
+
+  it.each(["", "/slots/slot1"])("blocks App Service publishxml%s at the transport boundary", async (suffix) => {
+    for (const action of ["publishxml", "PUBLISHXML", "%70ublishxml/?api-version=1"]) {
+      const target = `${path}/providers/Microsoft.Web/sites/app1${suffix}/${action}`;
+      for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+        for (const execute of [false, true]) {
+          await expect(sendRequest(writer(), { method: "POST", path, apiVersion: "1", execute,
+            confirm: suffix ? "slot1" : "app1" })).rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
+  it.each(["subscriptions/client1", "tenant/access", "tenant/gitAccess"])("gates API Management %s key rotation at the transport boundary", async (suffix) => {
+    const name = suffix.split("/").at(-1)!;
+    for (const action of ["regeneratePrimaryKey", "regenerateSecondaryKey"]) {
+      for (const representation of [action, action.toUpperCase(), `%72${action.slice(1)}/?api-version=1`]) {
+        const target = `${path}/providers/Microsoft.ApiManagement/service/apim1/${suffix}/${representation}`;
+        for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+          fetchMock.mockReset().mockResolvedValueOnce(new Response(null, { status: 204 }));
+          const options = { method: "POST", path, apiVersion: "1", execute: true };
+          for (const confirm of [undefined, "wrong", action]) {
+            await expect(sendRequest(writer(), { ...options, confirm })).rejects.toMatchObject({
+              code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH",
+            });
+          }
+          await expect(sendRequest(writer(), { ...options, execute: false, confirm: name }))
+            .rejects.toMatchObject({ code: "API_ERROR" });
+          expect(fetchMock).not.toHaveBeenCalled();
+          expect(await sendRequest(writer(), { ...options, confirm: name })).toMatchObject({ status: 204 });
+          expect(fetchMock).toHaveBeenCalledOnce();
+          expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST" });
+        }
+      }
+    }
+  });
+
+  it.each(["delete", "DELETE", "%64elete/?api-version=1"])("gates VMSS POST %s at the transport boundary", async (action) => {
+    const target = `${path}/providers/Microsoft.Compute/virtualMachineScaleSets/scale1/${action}`;
+    const options = { method: "POST", path: target, apiVersion: "1", execute: true, body: { instanceIds: ["0"] } };
+    for (const confirm of [undefined, "wrong", "delete"]) {
+      await expect(sendRequest(writer(), { ...options, confirm })).rejects.toMatchObject({
+        code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+    await expect(sendRequest(writer(), { ...options, execute: false, confirm: "scale1" }))
+      .rejects.toMatchObject({ code: "API_ERROR" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(json({}));
+    await sendRequest(writer(), { ...options, confirm: "scale1" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST", body: '{"instanceIds":["0"]}' });
+  });
+
+  it.each([
+    ["", "listClusterAdminCredential"], ["", "listClusterUserCredential"],
+    ["", "listClusterMonitoringUserCredential"], ["/accessProfiles/clusterUser", "listCredential"],
+    ["/accessProfiles/clusterAdmin", "listCredential"],
+  ])("blocks AKS %s/%s at the transport boundary", async (suffix, action) => {
+    for (const representation of [action, action.toUpperCase(), `%6C${action.slice(1)}/?api-version=1`]) {
+      const target = `${path}/providers/Microsoft.ContainerService/managedClusters/cluster1${suffix}/${representation}`;
+      for (const execute of [false, true]) {
+        await expect(sendRequest(writer(), { method: "POST", path: target, apiVersion: "1", execute, confirm: "cluster1" }))
+          .rejects.toMatchObject({ code: "READ_ONLY" });
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  it.each([
+    ["listAdminKeys", ""], ["listQueryKeys", ""], ["createQueryKey", "/key1"],
+    ["regenerateAdminKey", "/primary"], ["regenerateAdminKey", "/secondary"],
+  ])("blocks Search %s%s at the transport boundary", async (action, parameter) => {
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      const target = `${path}/providers/Microsoft.Search/searchServices/search1/${representation}${parameter}/?api-version=1`;
+      for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+        for (const execute of [false, true]) {
+          await expect(sendRequest(writer(), { method: "POST", path, execute, confirm: "search1" }))
+            .rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
+  it.each([
+    ["", "listAccountSas", { signedServices: "b", signedResourceTypes: "o", signedPermission: "r", signedExpiry: "2026-10-03T00:00:00Z" }],
+    ["", "listServiceSas", { canonicalizedResource: "/blob/account1/container1", signedResource: "c", signedPermission: "r", signedExpiry: "2026-10-03T00:00:00Z" }],
+    ["/localUsers/user1", "regeneratePassword", undefined],
+  ] as const)("blocks Storage %s/%s at the transport boundary", async (suffix, action, body) => {
+    const root = `${path}/providers/Microsoft.Storage/storageAccounts/account1${suffix}`;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}/?api-version=1`]) {
+      const target = `${root}/${representation}`;
+      for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+        for (const execute of [false, true]) {
+          await expect(sendRequest(writer(), { method: "POST", path, apiVersion: "1", execute,
+            confirm: suffix ? "user1" : "account1", body })).rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
+  it.each([201, 202, 400, 429, 503])("preserves HTTP %s metadata when reading the body fails", async (status) => {
+    const response = new Response(new ReadableStream({
+      start(controller) { controller.error(new Error(`connection lost ${TOKEN}`)); },
+    }), { status, headers: { "x-ms-request-id": "req-body", "x-ms-correlation-request-id": "corr-body", "retry-after": "0" } });
+    fetchMock.mockResolvedValueOnce(response);
+    const error = await failure(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }));
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({ code: "NETWORK_ERROR", httpStatus: status, requestId: "req-body", correlationId: "corr-body" });
+    expect(render(error)).not.toContain(TOKEN);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("uses the client request ID when interrupted response headers omit the server ID", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(new ReadableStream({
+      start(controller) { controller.error(new Error("connection lost")); },
+    }), { status: 202 }));
+    const error = await failure(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }));
+    expect(error).toMatchObject({ httpStatus: 202,
+      requestId: fetchMock.mock.calls[0]![1].headers["x-ms-client-request-id"] });
+  });
+
+  it("blocks a write without explicit execution even on a permitted profile", async () => {
+    await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1" }))
+      .rejects.toMatchObject({ code: "API_ERROR" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("checks destructive confirmation at the transport boundary", async () => {
+    for (const confirm of [undefined, "wrong"]) {
+      await expect(sendRequest(writer(), { method: "DELETE", path, apiVersion: "1", execute: true, confirm }))
+        .rejects.toMatchObject({ code: confirm ? "CONFIRM_MISMATCH" : "CONFIRM_REQUIRED" });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends If-Match only after all gates pass", async () => {
+    fetchMock.mockImplementation(async () => json({}));
+    await sendRequest(writer(), { method: "DELETE", path, apiVersion: "1", execute: true,
+      confirm: "rg-demo", ifMatch: '"reviewed"' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "DELETE", headers: { "If-Match": '"reviewed"' } });
+  });
+});
 
 describe("buildUrl", () => {
   it("targets the host of each resource and adds api-version for arm only", () => {

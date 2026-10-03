@@ -7,12 +7,12 @@ export interface FieldChange {
   /** Dot path, for example `tags.env`; arrays are compared as whole values. */
   path: string;
   from: unknown;
-  /** `undefined` when a PUT body removes the field. */
+  /** `undefined` when the body removes the field. */
   to: unknown;
 }
 
 export interface ResourceDiff {
-  /** First `MAX_CHANGES` rows, in body order then current-state order for PUT removals. */
+  /** First `MAX_CHANGES` rows, in body order then current-state order for removals. */
   changes: FieldChange[];
   /** Changes beyond the cap. */
   remaining: number;
@@ -70,7 +70,7 @@ function changedPaths(
   if (!valuesEqual(current, body)) out.push({ path: base, from: shownCurrent, to: shownBody });
 }
 
-/** Leaf paths in `current` that `body` drops. PUT only; PATCH leaves them alone. */
+/** Leaf paths in `current` that `body` drops. */
 function removedPaths(current: unknown, body: unknown, shownCurrent: unknown, base: string, out: FieldChange[]): void {
   if (isRecord(current) && isRecord(body)) {
     for (const key of Object.keys(current)) {
@@ -96,14 +96,16 @@ function removedLeaves(value: unknown, shownValue: unknown, base: string, out: F
 
 /**
  * Compares a PUT or PATCH body against current resource state.
- * PATCH compares only paths present in the body; PUT also lists fields the
- * body would remove. Inputs are never mutated; displayed values are redacted.
+ * Inputs are never mutated; displayed values are redacted.
  */
 export function diffResource(current: unknown, body: unknown, method: "PUT" | "PATCH"): ResourceDiff {
   const all: FieldChange[] = [];
   const shownCurrent = redact(current);
   changedPaths(current, body, shownCurrent, redact(body), "", all);
   if (method === "PUT") removedPaths(current, body, shownCurrent, "", all);
+  else if (isRecord(current) && isRecord(body) && Object.hasOwn(body, "tags")) {
+    removedPaths(current.tags, body.tags, (shownCurrent as Record<string, unknown>).tags, "tags", all);
+  }
   const changes = all.slice(0, MAX_CHANGES);
   return { changes, remaining: all.length - changes.length, noop: all.length === 0 };
 }

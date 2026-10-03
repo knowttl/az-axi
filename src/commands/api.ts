@@ -1,8 +1,10 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs } from "../lib/args.js";
+import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
 import { buildUrl, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { dryRun } from "../lib/dryRun.js";
+import { executeWrite } from "../lib/execute.js";
+import { parseTimeoutFlag } from "../lib/lro.js";
 import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
@@ -13,13 +15,13 @@ import type { Resource } from "../lib/config.js";
 /**
  * Escape hatch for any read or query request (PLAN.md Section 6.11). Reads and
  * queries are served directly; writes and destructive requests go through the
- * gate order (Section 6.13.2) and, without --execute, return the dry run
- * (Section 6.13.3). Execution itself is not available yet.
+ * gate order (Section 6.13.2) and return the dry run (Section 6.13.3) or,
+ * with --execute, the execute flow (Section 6.13.4).
  */
 export const meta: CommandMeta = { name: "api", effect: "dynamic" };
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
-const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all", "execute", "confirm", "if-match"] as const;
+const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all", "execute", "confirm", "if-match", "timeout", "no-wait"] as const;
 const STRING_TRUNCATE = 4000;
 const MAX_PAGES = 10;
 
@@ -133,7 +135,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const profile = profileFromArgs(args);
   const execute = flagBool(args, "execute");
   const confirm = flagString(args, "confirm") || undefined;
-  const ifMatch = flagString(args, "if-match") || undefined;
+  const ifMatch = flagText(args, "if-match");
+  const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
+  const noWait = flagBool(args, "no-wait");
   const selectors = ["profile", "tenant", "subscription", "management-group", "config"]
     .map((name) => {
       const value = flagString(args, name);
@@ -148,9 +152,10 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const cls = classifyRequest(shape);
   assertReadOnlyBoundary(shape, cls);
   if (cls === "write" || cls === "destructive") {
-    // Gate order in gates.ts; without --execute this returns the dry run, and
-    // with --execute it reports that execution is not available yet.
-    enforceGates(profile, shape, cls, { execute, confirm });
+    if (enforceGates(profile, shape, cls, { execute, confirm })) {
+      return executeWrite({ profile, method, path: url.toString(), cls, body, ifMatch, confirm,
+        selectors, timeoutMs, noWait });
+    }
     return dryRun({
       profile,
       resource,

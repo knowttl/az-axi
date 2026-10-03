@@ -50,6 +50,7 @@ import {
   WORKSPACE,
   activityEvents,
   apiListResponse,
+  apiWriteState,
   configListProfiles,
   defenderAlertDetail,
   defenderAlerts,
@@ -92,6 +93,7 @@ const CEILINGS: Record<string, number> = {
   exposure: 298,
   "logs query": 184,
   api: 135,
+  "api execute": 140,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -112,7 +114,7 @@ async function expectUnderBudget(key: string, result: Record<string, unknown>): 
 }
 
 let dir: string;
-const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_TENANT", "AZ_AXI_READ_ONLY"];
+const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_TENANT", "AZ_AXI_READ_ONLY", "AZ_AXI_WRITE_LOG"];
 let saved: Record<string, string | undefined>;
 
 const subItems = () =>
@@ -123,6 +125,7 @@ beforeEach(() => {
   saved = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
   for (const key of ENV_KEYS) delete process.env[key];
   process.env.AZ_AXI_CONFIG = join(dir, "config.json");
+  process.env.AZ_AXI_WRITE_LOG = join(dir, "writes.log");
   clearSubscriptionCache();
   sendMock.mockReset();
   allMock.mockReset();
@@ -243,5 +246,15 @@ describe("token budgets", () => {
       "api",
       await runApi(["GET", "/subscriptions", "--api-version", "2022-12-01"]),
     );
+  });
+
+  it("api execute stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify(configListProfiles));
+    sendMock.mockResolvedValueOnce(ok(apiWriteState)).mockResolvedValueOnce({
+      ...ok({}), requestId: "req-write", correlationId: "corr-write",
+    });
+    const result = await runApi(["PATCH", `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, "--api-version", "2021-04-01",
+      "--profile", "sandbox", "--body", '{"tags":{"env":"prod"}}', "--execute"]);
+    await expectUnderBudget("api execute", { ...result, durationSec: 1 });
   });
 });

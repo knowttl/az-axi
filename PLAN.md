@@ -732,8 +732,8 @@ Every request, from every command, is classified before it is sent:
 |---|---|---|
 | `read` | GET or HEAD | Always |
 | `query` | POST to exactly these paths: Resource Graph `/providers/Microsoft.ResourceGraph/resources` (arm); deployment `.../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group and subscription scope (arm, used by dry runs, **VERIFY** paths); `/v1/workspaces/{id}/query` (logs); `/v1.0/directoryObjects/getByIds` (graph) | Always |
-| `secret` | POST actions that return credentials: final segment matching `listKeys`, `listKey`, `listCredentials`, `listConnectionStrings`, `listSecrets`, `listAdminCredentials`, `listPublishingCredentials` (keep the list in `policy.ts`) | **Never** in v1, in any mode (`READ_ONLY`) |
-| `destructive` | DELETE; POST actions whose final segment is in the destructive list (`purge`, `regenerateKey`, `regenerateKeys`, `revoke`, `deallocate`, `powerOff`, `stop`, `restart`, `failover`, `reimage`); any PUT, PATCH or DELETE on `Microsoft.Authorization/roleAssignments`, `roleDefinitions`, `locks` or `policyAssignments` | Gates pass, plus `--confirm` |
+| `secret` | Credential-returning POST actions recognized by the authoritative lists and path rules in [policy.ts](src/lib/policy.ts) | **Never** in v1, in any mode (`READ_ONLY`) |
+| `destructive` | DELETE; POST actions and protected Microsoft.Authorization types recognized by [policy.ts](src/lib/policy.ts) | Gates pass, plus `--confirm` |
 | `write` | Any other PUT, PATCH or POST on arm | Gates pass |
 
 Any non-read, non-query request to `graph` or `logs` is `READ_ONLY`: az-axi writes only to ARM. Anything the rules do not recognize falls through to `write`, never to `read`. Security-sensitive resource types are always `destructive`, even when creating, so a new role assignment needs the stronger gate.
@@ -758,7 +758,7 @@ Without `--execute`, nothing is sent except reads and deployment what-if queries
 Output:
 
 - `dryRun: true`, `class`, `method`, shortened `target`, `subscription`, the request body (redacted, truncated unless `--full`).
-- PUT or PATCH on an existing resource: GET the current state and show `changes[]{path,from,to}` (capped at 20 rows, count of the rest). PATCH compares only paths present in the body; PUT also lists fields that would be removed. No changes -> `noop: true` and a hint that executing would do nothing.
+- PUT or PATCH on an existing resource: see [README.md#writes](README.md#writes) for the current diff contract, including tag replacement and no-op behavior.
 - PUT on a resource that does not exist: `creates: true` with the body summary.
 - DELETE: current resource summary (name, type, location, tag count) and a warning if a resource lock exists on it or its resource group (GET `.../providers/Microsoft.Authorization/locks`). Reference: Lock your resources (https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources).
 - Deployment PUT: call `whatIf` and summarize completed results as `whatIf` counts keyed by lower-cased change type.

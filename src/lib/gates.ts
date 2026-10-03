@@ -4,7 +4,7 @@ import { DESTRUCTIVE_ACTIONS, type RequestClass, type RequestShape } from "./pol
 import { formatFlagValue } from "./shell.js";
 
 export interface GateOptions {
-  /** `--execute`: only the api command supplies this; the client backstop never does. */
+  /** `--execute`: required by both the command and the client backstop. */
   execute?: boolean;
   /** `--confirm <resource-name>` for destructive requests. */
   confirm?: string;
@@ -62,16 +62,16 @@ export function subscriptionOfPath(path: string): string | undefined {
  * `write` and `destructive` requests in order, stopping at the first failure:
  * READ_ONLY env, profile allowWrites, subscription scope, then (when the caller
  * passes `execute`) the destructive confirm and the execute step. Without
- * `execute` the caller runs the dry run (Section 6.13.3); the client backstop
- * calls without options and enforces gates 1-3 only.
+ * `execute` the caller runs the dry run (Section 6.13.3). Returns true only
+ * when execution is permitted; the client refuses writes otherwise.
  */
 export function enforceGates(
   profile: ResolvedProfile,
   request: RequestShape,
   cls: RequestClass,
   options: GateOptions = {},
-): void {
-  if (cls !== "write" && cls !== "destructive") return;
+): boolean {
+  if (cls !== "write" && cls !== "destructive") return false;
   const method = request.method.toUpperCase();
 
   // Gate 1: $AZ_AXI_READ_ONLY=1 overrides every profile.
@@ -109,7 +109,7 @@ export function enforceGates(
   }
 
   // Gate 4: no --execute means the caller shows the dry run instead.
-  if (!options.execute) return;
+  if (!options.execute) return false;
 
   // Gate 5: destructive requests need the target resource name back.
   if (cls === "destructive") {
@@ -130,11 +130,6 @@ export function enforceGates(
     }
   }
 
-  // Gate 6: execution itself arrives in a later piece; this build previews only
-  // and never sends a write (stable code API_ERROR per Section 6.12).
-  throw new AxiError(
-    `blocked: execution is not available yet for ${method} ${barePath(request.path)} (profile '${profile.name}'): re-run without --execute for the dry run`,
-    "API_ERROR",
-    ["This build previews writes only and never sends them", "Re-run without --execute to see the dry run"],
-  );
+  // Gate 6: the caller may execute only after every preceding gate passes.
+  return true;
 }

@@ -5,7 +5,7 @@ import { formatFlagValue, quoteFlagValue } from "./shell.js";
 
 /**
  * Long-running operation polling (PLAN.md Section 6.13.5).
- * Intended for the future `api` execute flow after a 201/202 write response
+ * Used by the `api` execute flow after a 201/202 write response
  * carries an `Azure-AsyncOperation` or `Location` header; `op status` reuses
  * the response reading for its single read-only GET. Every poll is a GET through `client.ts`,
  * so policy, gates and correlation apply unchanged.

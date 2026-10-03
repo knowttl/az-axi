@@ -182,7 +182,7 @@ If another request requires a JSON body, stop and report the missing file or std
 
 Writes are disabled by default.
 See [README.md#writes](../../README.md#writes) for current write support.
-For a future write-capable version, a write always needs `--execute`.
+Write execution needs `--execute`; see the README reference above for `--if-match`, `--confirm`, `--timeout` and `--no-wait`.
 Show a dry run first (what would change, with the exact command to execute), and obtain human approval on every invocation - never batch, chain, or pre-approve writes.
 The human owns write access; this skill does not describe how to enable it.
 

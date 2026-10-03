@@ -23,13 +23,35 @@ export const SECRET_ACTIONS: readonly string[] = [
   "listSecrets",
   "listAdminCredentials",
   "listPublishingCredentials",
+  "publishxml",
+  "listClusterAdminCredential",
+  "listClusterUserCredential",
+  "listClusterMonitoringUserCredential",
+  "listCredential",
+  "listAdminKeys",
+  "listQueryKeys",
+  "listAccountSas",
+  "listServiceSas",
+  "regeneratePassword",
+  "regenerateCredential",
+  "generateCredentials",
+  "sharedKeys",
+  "regenerateSharedKey",
+  "readonlykeys",
+  "listCallbackUrl",
+  "retrieveBootDiagnosticsData",
 ];
+
+export const SECRET_PARAMETER_ACTIONS: readonly string[] = ["createQueryKey", "regenerateAdminKey"];
 
 /** POST actions that destroy or disrupt a resource (final path segment, case-insensitive). */
 export const DESTRUCTIVE_ACTIONS: readonly string[] = [
+  "delete",
   "purge",
   "regenerateKey",
   "regenerateKeys",
+  "regeneratePrimaryKey",
+  "regenerateSecondaryKey",
   "revoke",
   "deallocate",
   "powerOff",
@@ -37,6 +59,9 @@ export const DESTRUCTIVE_ACTIONS: readonly string[] = [
   "restart",
   "failover",
   "reimage",
+  "redeploy",
+  "reimageall",
+  "simulateEviction",
 ];
 
 /**
@@ -52,6 +77,7 @@ export const PROTECTED_AUTHORIZATION_TYPES: readonly string[] = [
 
 const lower = (values: readonly string[]) => new Set(values.map((v) => v.toLowerCase()));
 const SECRET_SET = lower(SECRET_ACTIONS);
+const SECRET_PARAMETER_SET = lower(SECRET_PARAMETER_ACTIONS);
 const DESTRUCTIVE_SET = lower(DESTRUCTIVE_ACTIONS);
 const PROTECTED_SET = lower(PROTECTED_AUTHORIZATION_TYPES);
 
@@ -105,6 +131,8 @@ export function classifyRequest({ resource, method, path }: RequestShape): Reque
   if (verb === "POST") {
     if (isQueryPost(resource, s)) return "query";
     if (SECRET_SET.has(last)) return "secret";
+    if (s[s.length - 6] === "providers" && s[s.length - 5] === "microsoft.search" &&
+        s[s.length - 4] === "searchservices" && SECRET_PARAMETER_SET.has(s[s.length - 2] ?? "")) return "secret";
     if (DESTRUCTIVE_SET.has(last)) return "destructive";
     return "write";
   }
