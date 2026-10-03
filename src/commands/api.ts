@@ -126,7 +126,12 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   let body: unknown;
   let bodyRaw = flagString(args, "body");
-  const bodyFile = flagText(args, "body-file");
+  const bodyFile = flagString(args, "body-file");
+  if ("body-file" in args.flags && (bodyFile === undefined || bodyFile.trim() === "")) {
+    throw new AxiError("flag --body-file needs a non-empty value", "VALIDATION_ERROR", [
+      "Example: --body-file <value>",
+    ]);
+  }
   if ("body" in args.flags && bodyRaw === undefined) {
     throw new AxiError("flag --body needs a JSON value", "VALIDATION_ERROR", ["Use --body-file body.json"]);
   }

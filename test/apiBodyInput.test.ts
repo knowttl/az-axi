@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { decode } from "@toon-format/toon";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SUB = "00000000-0000-0000-0000-000000000021";
@@ -40,6 +41,26 @@ function source(form: string): { flags: string[]; input: string } {
 }
 
 describe("built API body inputs, offline only", () => {
+  it.each([" ", "\t"])("preserves body-file paths ending in %j through preview and execution", (suffix) => {
+    const file = join(dir, `body.json${suffix}`);
+    writeFileSync(join(dir, "body.json"), '{"tags":{"env":"wrong"}}');
+    writeFileSync(file, '{"tags":{"env":"selected"}}');
+    const preview = cli(["--body-file", file]);
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    const output = decode(preview.stdout) as { help: string[] };
+    expect(output.help.join("\n")).toContain(`--body-file '${file}'`);
+    const executed = cli(["--body-file", file, "--execute"]);
+    expect(executed.status, executed.stdout + executed.stderr).toBe(0);
+    expect(requests().at(-1)?.body).toEqual({ tags: { env: "selected" } });
+  });
+
+  it("rejects a whitespace-only body-file value before requests", () => {
+    const result = cli(["--body-file", " \t "]);
+    expect(result.status, result.stdout + result.stderr).toBe(2);
+    expect(result.stdout).toContain("VALIDATION_ERROR");
+    expect(requests()).toEqual([]);
+  });
+
   it.each(["file", "stdin"])("preserves multiline %s bodies through query, preview and ETag execution", (form) => {
     const { flags, input } = source(form);
     const preview = cli(flags, input);
