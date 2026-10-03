@@ -33,7 +33,7 @@ node dist/bin/az-axi.js --help
 ### Releases
 
 Conventional commits on `main` produce a release-please PR with the version and `CHANGELOG.md` changes.
-The initial release is `0.1.0`; merging a release PR creates its tag and GitHub release, then builds, checks and publishes that tag to npm with OIDC provenance.
+The initial release is `0.1.0`; merging a release PR creates its tag and GitHub release, then builds and checks that tag and publishes it to npm with OIDC provenance unless the version is already published.
 `release-please` owns the changelog and GitHub release notes; `scripts/release-notes.mjs` remains available to extract a version's changelog section locally.
 The previous tag-driven release workflow is replaced by `.github/workflows/release-please.yml`.
 The `typecheck` script runs this repository's TypeScript no-emit check; no separate style linter is configured.
@@ -51,7 +51,7 @@ For the first publish, the owner must bootstrap the npm package before merging t
 3. On npmjs.com, open `@knowttl/az-axi` → Settings → Trusted publishing → Add trusted publisher → GitHub Actions.
    Set organization/user to `knowttl`, repository to `az-axi`, workflow filename to `release-please.yml` (filename only), and leave environment blank.
    Enable direct `npm publish` in Allowed actions and save.
-4. After the history privacy audit permits making `knowttl/az-axi` public, merge the approved release PR.
+4. After a privacy audit confirms no secrets or private data anywhere in the git history, make `knowttl/az-axi` public, then merge the approved release PR.
    The workflow skips the already published `0.1.0`; later versions publish with provenance from the public repository.
 
 See npm's [trusted publisher setup](https://docs.npmjs.com/trusted-publishers/) for the configuration fields and provenance requirements.

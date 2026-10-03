@@ -28,10 +28,11 @@ Update the row of a file in the same commit that changes it.
 | `pnpm-workspace.yaml` | `pnpm-workspace.yaml` | none |
 | `.gitignore` | `.gitignore` | ado-axi names replaced with az-axi names, Azure benchmark comments |
 | `.github/workflows/ci.yml` | `.github/workflows/ci.yml` | smoke test runs `dist/bin/az-axi.js` |
-| `.github/workflows/release.yml` | `.github/workflows/release.yml` | none |
-| `scripts/release-notes.mjs` | `scripts/release-notes.mjs` | none |
-| `test/release-notes.test.ts` | `test/release-notes.test.ts` | none |
-| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`; benchmark scripts adapted for Azure (see [BENCHMARK.md](BENCHMARK.md)) |
+| `scripts/release-notes.mjs` | `scripts/release-notes.mjs` | Also recognizes unlinked release-please version headings |
+| `test/release-notes.test.ts` | `test/release-notes.test.ts` | Coverage for unlinked release-please version headings |
+| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`; no-emit `typecheck` script; benchmark scripts adapted for Azure (see [BENCHMARK.md](BENCHMARK.md)) |
+
+The copied `.github/workflows/release.yml` was replaced by the local release workflow described in [README.md#releases](README.md#releases).
 
 ## Patterns reimplemented, not vendored
 
