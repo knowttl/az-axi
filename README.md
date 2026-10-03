@@ -443,6 +443,7 @@ Prefer PIM-eligible roles with temporary activation over standing Owner or Contr
 Use the [agent approval hook](#agent-integration) when an agent performs writes, and review the preview before approving execution.
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
+The following preview details apply to `api`; native alert previews are described above.
 For example, `az-axi api PATCH <resource-path> --api-version <version> --body-file body.json --profile <profile>` previews a field-level diff.
 PUT and PATCH previews show `changes[]{path,from,to}`, capped at 20 rows with `remaining` for additional changes, and `noop: true` when nothing would change.
 PUT also lists omitted fields as removals; PATCH normally compares supplied fields, but supplying `tags` replaces the tag set, so omitted tags appear as removals.

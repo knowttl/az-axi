@@ -12,7 +12,8 @@ The profile must already be usable locally; this harness does not sign in or con
 Only the owner runs `pnpm bench:capture`, which makes read-only Azure requests.
 Agents and CI must never run capture or live smoke commands.
 
-The scenario inventory and command arguments are defined in [benchmark/scenarios.mjs](benchmark/scenarios.mjs).
+The owner capture/replay inventory and command arguments are defined by the `scenarios` export in [benchmark/scenarios.mjs](benchmark/scenarios.mjs).
+The separate `offlineWritePreviews` export is measured only by [test/budget.test.ts](test/budget.test.ts), outside owner capture/replay.
 Scenario argv contains no profile or subscription flags; capture injects the owner's selectors.
 The logs workspace is supplied by targets rather than relying on an owner's workspace alias.
 Every child forces `AZ_AXI_READ_ONLY=1`.
