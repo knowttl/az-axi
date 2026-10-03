@@ -43,8 +43,8 @@ function needsApproval(command) {
 
   // Substitutions and incomplete quoting are ambiguous: scan the entire text,
   // including nested commands, rather than trusting the simple word grouping.
-  if (quote || /\$|`|[<>]\(/.test(command)) {
-    const normalized = command.replace(/\\\n/g, "").replace(/["'`\\]/g, "");
+  if (quote || /\$|`|[<>]\(|(?<!\|)\|(?!\|)/.test(command)) {
+    const normalized = command.replace(/\\\n/g, "").replace(/\$(["'])/g, "$1").replace(/["'`\\]/g, "");
     return invocation.test(normalized) && execute.test(normalized);
   }
   return groups.some((words) => {
