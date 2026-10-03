@@ -709,19 +709,8 @@ az-axi api DELETE <path> --api-version <v> --execute --confirm <resource-name>
 
 ### 6.11a `az group show` reviewed passthrough
 
-`az-axi az group show --name <name> --subscription <uuid>` is an explicit child-process read, validated solely against `src/lib/azReadCatalogue.ts`.
-Unlike native commands it does not use `client.ts`; no mutations can cross this transport.
-Fixed version/cloud/account probes validate the pinned runtime and configured az-auth tenant/subscription before the requested read.
-Before every child starts, user/system extension directories are redirected to a fresh empty temporary directory and dev sources are cleared without changing the signed-in Azure config directory.
-The directory is removed after success, failure or cancellation; the approved extension set describes this effective isolated runtime.
-Unsupported commands, credentials and flags never spawn; runtime/context mismatches never execute the requested command.
-JSON transport becomes compact TOON resource-group metadata, with local `--fields` and `--full` controls.
-Each child has a 30-second deadline and a combined 1 MiB output cap, closed stdin, disabled prompts/dynamic extension install and cancellation including Windows tree termination.
-The fake executable suite verifies exact argv, zero-execution refusals and errors without live Azure.
-The synthetic `azResourceGroup` sample and `az group show` token ceiling cover the output budget.
-The fetch-based benchmark capture/replay harness cannot capture this child transport; `offlinePassthroughReads` in `benchmark/scenarios.mjs` exercises the synthetic token budget separately from live capture scenarios.
-
-**Reference:** Pinned source/operation provenance in `src/lib/azReadCatalogue.ts`; Azure CLI 2.77.0 `util.custom.show_version`, core `util.get_az_version_json`, `cloud.custom.show_cloud` and `profile.custom.show_account`.
+Slice 7 introduced an explicit reviewed child-process read alongside native REST commands.
+See [README.md#pinned-azure-cli-read-catalogue](README.md#pinned-azure-cli-read-catalogue) for its behavior contract and catalogue provenance, and [BENCHMARK.md](BENCHMARK.md#owner-capture) for measurement scope.
 
 ### 6.12 Error codes and exit codes
 

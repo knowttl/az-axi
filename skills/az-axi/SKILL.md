@@ -59,14 +59,6 @@ See [README.md#use](../../README.md#use) for az-shaped aliases, their native sco
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
 See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
-The only passthrough is `az-axi az group show -n <name> --subscription <uuid>` on trusted official Azure CLI 2.77.0, AzureCloud/latest with no extensions in the isolated child runtime.
-Every probe/read has fresh empty user/system extension directories and cleared dev sources, cleaned up after completion; the signed-in Azure configuration directory is preserved.
-It requires a configured az-auth profile, an explicit tenant and exactly one matching subscription; token and implicit profiles never use ambient login.
-Fixed version/cloud/account JSON probes may run; a mismatch never executes the requested read.
-Mutations, credentials, unknown commands and unsupported flags fail before all probes.
-Only catalogue name/subscription arguments plus wrapper `--profile`, `--config`, `--fields`, `--full` and help are accepted.
-Default TOON is compact resource-group metadata; `--full` adds tags locally and never returns a raw properties blob.
-All child-process writes and data-plane commands are refused, including when `--execute` is supplied.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
