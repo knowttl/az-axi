@@ -227,9 +227,9 @@ For Resource Graph and Log Analytics queries, use the file or stdin inputs of `r
 ## Writes
 
 Writes are disabled by default.
-`security alert update --location <location> --name <alert-name> --status dismiss|resolve|activate` updates one Defender alert through the shared write gates.
+`security alert update --subscription <id> --location <location> --name <alert-name> --status dismiss|resolve|activate` updates one Defender alert through the shared write gates.
 `defender alerts update` is its legacy alias with the same flags.
-Select a single subscription ID or exact name with `--subscription`; otherwise the env/profile scope must contain exactly one subscription.
+Select a single explicit subscription ID with `--subscription`; names and implicit env/profile scope are not accepted.
 Add `--resource-group <name>` for a resource-group alert; omission selects subscription scope.
 The default preview shows the current and desired status and the exact native command to execute.
 Already matching status is a no-op without a POST or audit entry.

@@ -416,8 +416,7 @@ Writes are limited to ARM; Graph and Log Analytics accept only reads and support
 
 `security alert update` (legacy alias `defender alerts update`) supports exactly one named Defender alert and one of `--status dismiss|resolve|activate`.
 It requires `--location / -l` and `--name / -n`, with optional `--resource-group / -g`; omission selects subscription scope.
-`--subscription / -s` accepts a single ID or exact accessible name; without it, the env/profile scope must contain exactly one subscription.
-Name resolution is read-only and cannot widen the configured write-ID allowlist.
+`--subscription / -s` requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.
 The preview reads the alert and shows its current and desired status, plus the exact native execute command.
 Execution reads again, skips matching status without a POST or log entry, and otherwise sends one bodyless `POST .../Microsoft.Security/locations/<location>/alerts/<name>/<action>?api-version=2022-01-01` through the shared pipeline.
 These Defender actions do not document ETag/If-Match support.

@@ -19,11 +19,11 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-function cli(extra: string[] = [], options: { route?: string; scenario?: string; status?: string; profile?: string; readOnly?: string; action?: string; name?: string } = {}) {
+function cli(extra: string[] = [], options: { route?: string; scenario?: string; status?: string; profile?: string; readOnly?: string; action?: string; name?: string; subscription?: string | null } = {}) {
   return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
     "dist/bin/az-axi.js", ...(options.route ?? "security alert update").split(" "),
     "-l", "westeurope", "-n", options.name ?? "example-alert", "--status", options.action ?? "dismiss",
-    "--profile", options.profile ?? "writer", ...extra], {
+    "--profile", options.profile ?? "writer", ...(options.subscription === null ? [] : ["-s", options.subscription ?? SUB]), ...extra], {
     encoding: "utf8", env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"),
       AZ_AXI_ARM_TOKEN: "offline-alert-token", AZ_AXI_PROFILE: "", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "",
       AZ_AXI_READ_ONLY: options.readOnly ?? "", AZ_AXI_WRITE_LOG: join(dir, "writes.log"),
@@ -39,7 +39,7 @@ function records(file: string): Array<Record<string, unknown>> {
 
 describe("built Defender alert update, offline only", () => {
   it.each(["security alert update", "defender alerts update"])("previews %s with an exact native execute hint", (route) => {
-    const result = cli(["-s", SUB, "--timeout", "30", "--no-wait"], { route });
+    const result = cli(["--timeout", "30", "--no-wait"], { route });
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain("dryRun: true");
     expect(result.stdout).toContain("properties.status,Active,Dismissed");
@@ -68,18 +68,25 @@ describe("built Defender alert update, offline only", () => {
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toMatch(/offline-alert-token|"body"|"headers"|"properties"/);
   });
 
-  it("targets the selected resource group and resolves an allowed subscription name", () => {
-    const result = cli(["-s", "Example", "-g", "example-rg", "--execute"]);
+  it("targets the selected resource group with an explicit subscription ID", () => {
+    const result = cli(["-g", "example-rg", "--execute"]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(records("requests.jsonl").at(-1)?.url).toBe(`https://management.azure.com/subscriptions/${SUB}/resourceGroups/example-rg/providers/Microsoft.Security/locations/westeurope/alerts/example-alert/dismiss?api-version=2022-01-01`);
   });
 
-  it("refuses a resolved subscription name outside the configured write allowlist", () => {
-    const result = cli(["-s", "Other", "--execute"]);
-    expect(result.status).toBe(2);
-    expect(result.stdout).toContain("SUBSCRIPTION_NOT_WRITABLE");
-    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: "https://management.azure.com/subscriptions?api-version=2022-12-01" }]);
-    expect(records("writes.log")).toEqual([]);
+  describe.each([
+    { route: "security alert update", flags: [] },
+    { route: "security alert update", flags: ["--execute"] },
+    { route: "defender alerts update", flags: [] },
+    { route: "defender alerts update", flags: ["--execute"] },
+  ])("subscription validation for $route $flags", ({ route, flags }) => {
+    it.each(["Example", "Other", "not-a-guid", null])("refuses subscription %s before transport or audit", (subscription) => {
+      const result = cli(flags, { route, subscription });
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("VALIDATION_ERROR");
+      expect(records("requests.jsonl")).toEqual([]);
+      expect(records("writes.log")).toEqual([]);
+    });
   });
 
   it.each([
@@ -103,7 +110,7 @@ describe("built Defender alert update, offline only", () => {
     ["writer", "", ["--confirm", "example-alert"], "UNKNOWN_FLAG"],
     ["writer", "", ["--management-group", "example-mg"], "VALIDATION_ERROR"],
   ])("refuses %s %s %j before transport or audit", (profile, readOnly, extra, code) => {
-    const result = cli(["--execute", ...extra], { profile, readOnly });
+    const result = cli(["--execute", ...extra], { profile, readOnly, subscription: extra.includes("-s") ? null : SUB });
     expect(result.status).toBe(2);
     expect(result.stdout).toContain(`code: ${code}`);
     expect(records("requests.jsonl")).toEqual([]);

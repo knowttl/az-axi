@@ -168,9 +168,9 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
 }
 
 export const ALERT_UPDATE_HELP = [
-  "az-axi security alert update --location <location> --name <alert-name> --status dismiss|resolve|activate [--resource-group <name>]",
+  "az-axi security alert update --subscription <id> --location <location> --name <alert-name> --status dismiss|resolve|activate [--resource-group <name>]",
   "Legacy alias: az-axi defender alerts update (same flags). One alert and one subscription only; no positional IDs or batches.",
-  "--subscription / -s accepts a single ID or exact name; otherwise use the sole subscription in env/profile scope.",
+  "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
   "--location / -l and --name / -n are required; --resource-group / -g is optional (default subscription scope).",
   "Writes require the existing profile permission and subscription allowlist. Default: dry run with current/desired status; --execute sends one bodyless ARM POST.",
   "Already in the desired status: no-op. --if-match is forwarded if supplied, but this API does not document ETag/If-Match protection; it is not a concurrency guarantee.",

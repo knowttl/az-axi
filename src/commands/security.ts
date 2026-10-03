@@ -1,7 +1,7 @@
 import { AxiError } from "axi-sdk-js";
-import { DEFENDER_ALERTS, SUBSCRIPTIONS_LIST } from "../lib/apiVersions.js";
-import { assertKnownFlags, flagBool, flagText, parseArgs } from "../lib/args.js";
-import { buildUrl, requestAll } from "../lib/client.js";
+import { DEFENDER_ALERTS } from "../lib/apiVersions.js";
+import { assertKnownFlags, flagBool, flagList, flagText, parseArgs } from "../lib/args.js";
+import { buildUrl } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { dryRun } from "../lib/dryRun.js";
 import { executeWrite } from "../lib/execute.js";
@@ -51,25 +51,14 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
   const ifMatch = flagText(args, "if-match");
   const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
-  const profile = profileFromArgs(args);
-  if (profile.subscriptions?.length !== 1) {
-    throw new AxiError("alert updates require exactly one subscription", "VALIDATION_ERROR", [
-      "Pass --subscription <id-or-name>; batches are not supported",
+  const subscriptions = flagList(args, "subscription");
+  if (subscriptions?.length !== 1 || !GUID.test(subscriptions[0]!)) {
+    throw new AxiError("alert updates require exactly one explicit subscription ID", "VALIDATION_ERROR", [
+      "Pass --subscription <id> from `az-axi sub list`; names and batches are not supported",
     ]);
   }
-  let subscription = profile.subscriptions[0]!;
-  if (!GUID.test(subscription)) {
-    const { items } = await requestAll<{ subscriptionId: string; displayName: string }>(profile, {
-      path: "/subscriptions", apiVersion: SUBSCRIPTIONS_LIST,
-    });
-    const matches = items.filter((item) => item.displayName.toLowerCase() === subscription.toLowerCase());
-    if (matches.length !== 1 || !GUID.test(matches[0]!.subscriptionId)) {
-      throw new AxiError("subscription name must match exactly one accessible subscription", "VALIDATION_ERROR", [
-        "Pass a subscription ID from `az-axi sub list`",
-      ]);
-    }
-    subscription = matches[0]!.subscriptionId;
-  }
+  const subscription = subscriptions[0]!;
+  const profile = profileFromArgs(args);
   const path = `/subscriptions/${subscription}${rgPath}/providers/Microsoft.Security/locations/${location}/alerts/${name}/${action}`;
   const shape = { resource: "arm" as const, method: "POST", path };
   const cls = classifyRequest(shape);

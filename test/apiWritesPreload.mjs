@@ -21,10 +21,6 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (method === "GET") {
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
-    if (new URL(url).pathname === "/subscriptions") return json({ value: [
-      { subscriptionId: "00000000-0000-0000-0000-000000000021", displayName: "Example" },
-      { subscriptionId: "00000000-0000-0000-0000-000000000022", displayName: "Other" },
-    ] });
     if (new URL(url).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
     return json({ tags: { env: scenario === "noop" ? "prod" : "dev" } }, 200, { etag: '"fresh"' });
   }
