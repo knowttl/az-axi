@@ -232,12 +232,12 @@ export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
 Run KQL against a workspace configured in the selected profile:
 
 ```
-az-axi logs query --file hunt.kql --workspace sentinel --timespan P7D
+az-axi monitor log-analytics query --file hunt.kql --workspace sentinel --timespan P7D
 ```
 
 The identity needs Log Analytics Reader on the workspace.
 See the agent guide's [safe shell input rule](skills/az-axi/SKILL.md#safe-shell-input) for query input across shells.
-Use `az-axi logs --help` for workspace IDs, query input handling, time windows and output limits.
+Use `az-axi monitor log-analytics query --help` for workspace IDs, query input handling, time windows and output limits.
 
 ## Use
 
@@ -290,14 +290,18 @@ Global selector and display flags may precede the command, with one token per va
 Account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
 
-`graph query` and `monitor log-analytics query` are the canonical query paths; `rg query` and `logs query` remain aliases with their existing flags, output keys and pagination hints.
-On canonical query paths, supply KQL with `--graph-query` / `-q`, `--analytics-query`, `--file`, or piped stdin, choosing one source.
-Graph accepts `--subscriptions a b` (also `-s a b`), `--management-groups a b`, `--first` as an alias for `--limit`, and `--skip-token`.
+`graph query` and `monitor log-analytics query` are the canonical query paths; `rg query` and `logs query` remain aliases with their existing flags and output keys.
+For inline KQL, use `--graph-query` / `-q` on `graph query` or `--analytics-query` on `monitor log-analytics query`.
+Both canonical paths also accept `--file` or piped stdin; choose one query source, with no positional KQL.
+Graph accepts `--subscriptions a b` (also `--subscription` / `-s a b`), `--management-groups a b`, `--first` as an alias for `--limit` (maximum 1000), and `--skip-token`.
 Explicit subscription and management-group scope families are mutually exclusive on the canonical Graph path.
+The singular `--management-group` selector remains accepted, but cannot be combined with `--management-groups`.
 Without explicit scope, the profile management group takes precedence over profile subscriptions; without either, all accessible subscriptions are queried.
 Azure CLI's Graph default is all accessible subscriptions, while az-axi honors profile scope and defaults to a 50-row page.
 `--full` retains the existing 1000-row Graph page cap; `--skip` and `--allow-partial-scopes` are rejected.
+Graph pagination hints retain the legacy `rg query` path, except queries using `--management-groups` receive a `graph query` hint that preserves the plural scope.
 Log Analytics accepts `--workspace` / `-w` and `--timespan` / `-t`; workspace aliases and the P1D default remain, while Azure CLI defaults to all available data.
+The selected timespan is included in TOON output as `timespan`.
 Additional workspaces are unsupported.
 
 Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.

@@ -102,12 +102,7 @@ az-axi graph query --file query.kql
 ```
 
 `rg query` trims surrounding query whitespace, then POSTs the KQL to Resource Graph across the scope in `--subscription` / `--management-group` flags, then the profile `managementGroup`, then the profile `subscriptions`.
-`graph query` is canonical; `rg query` remains an alias with unchanged flags and TOON output.
-Use `--graph-query` / `-q`, `--file` or stdin on the canonical path.
-`--subscriptions` / `-s` and `--management-groups` accept comma-separated, space-separated or repeated values; explicit scope families are mutually exclusive.
-`--first` aliases `--limit` (default 50, maximum 1000); `--full` retains the 1000-row page cap, and `--skip-token` pages results.
-Profile scope still applies, unlike Azure CLI's default of all accessible subscriptions.
-`--skip`, `--allow-partial-scopes` and output `--query` are rejected.
+See [README.md#use](../../README.md#use) for the canonical `graph query` path, query input flags, plural scope selectors, Azure CLI differences and pagination hint paths.
 Without `--full`, `--limit` maps to `$top` (default 50, maximum 1000).
 `--full` ignores `--limit` and requests up to 1000 rows per page.
 Output is `total`, `count`, `rows`; nested objects render as compact JSON truncated at 200 characters unless `--full`.
@@ -178,10 +173,7 @@ GUID. `--timespan` defaults to `P1D` and accepts `30m`, `24h`, `7d`, ISO 8601
 durations, ISO dates, and start/end intervals; it intersects any time filter in
 the query.
 Surrounding query whitespace is trimmed; no row limits or time filters are added.
-`monitor log-analytics query` is canonical; `logs query` remains an alias with unchanged flags and TOON output.
-Use `--analytics-query`, `--file` or stdin on the canonical path; `-w` and `-t` select workspace and timespan.
-The default P1D timespan differs from Azure CLI's all-available default and is reported in output.
-Additional workspaces are unsupported.
+See [README.md#use](../../README.md#use) for the canonical `monitor log-analytics query` path, query input flags, timespan default and workspace coverage.
 `--limit` caps displayed rows client-side (default 50). Output is
 `total`, `count`, `rows` from the first table; extra tables appear by name and
 row count only. Partial errors return a `warning` instead of failing.
