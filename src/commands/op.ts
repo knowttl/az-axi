@@ -3,14 +3,14 @@ import { assertKnownFlags, parseArgs } from "../lib/args.js";
 import { sendRequest } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { assertOperationUrl, describeOperation, opStatusCommand } from "../lib/lro.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 
 /**
  * Long-running operation status (PLAN.md Section 6.13.5).
  * A single read-only GET of the operation URL: it reports the current state
  * but never polls, so it is safe to re-run while waiting out a timeout.
  */
-export const meta: CommandMeta = { name: "op", effect: "read" };
+export const meta = commandMeta("op");
 
 const SUBCOMMANDS = ["status"] as const;
 

@@ -14,11 +14,11 @@ import {
 import { subcommandOf } from "../lib/context.js";
 import { countLine, emptyState } from "../lib/format.js";
 import { collapseHomeDirectory } from "../lib/paths.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 import { existsSync } from "node:fs";
 
 /** `config init` writes a local file only; it never touches Azure. */
-export const meta: CommandMeta = { name: "config", effect: "read" };
+export const meta = commandMeta("config");
 
 const SUBCOMMANDS = ["init", "list", "path"] as const;
 const INIT_FLAGS = ["name", "auth", "workspace", "token-env", "default"];

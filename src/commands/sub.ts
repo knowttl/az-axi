@@ -4,9 +4,9 @@ import { assertKnownFlags, flagBool, flagList, flagNumber, parseArgs } from "../
 import { requestAll } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields } from "../lib/format.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 
-export const meta: CommandMeta = { name: "sub", effect: "read" };
+export const meta = commandMeta("sub");
 
 const DEFAULT_LIMIT = 50;
 const SUBCOMMANDS = ["list"] as const;

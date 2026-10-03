@@ -5,11 +5,11 @@ import { identityOf, resolveCredential, runAz, type Identity } from "../lib/auth
 import { requestAll } from "../lib/client.js";
 import { loadConfig, readOnlyForced, resolveProfile, writeStatus, type ResolvedProfile } from "../lib/config.js";
 import { collapseHomeDirectory } from "../lib/paths.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 import { packageInfo } from "../lib/version.js";
 import { resolveWriteLogPath } from "../lib/writeLog.js";
 
-export const meta: CommandMeta = { name: "doctor", effect: "read" };
+export const meta = commandMeta("doctor");
 
 interface Problem {
   check: string;

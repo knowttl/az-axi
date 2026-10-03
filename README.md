@@ -232,6 +232,13 @@ Use `az-axi logs --help` for workspace IDs, query input handling, time windows a
 One example per inspection command; see [Profiles](#profiles) for `config init` and `config path` examples.
 Every command also accepts `--help` with its full reference.
 
+The machine-readable exact leaf registry in [src/lib/registry.ts](src/lib/registry.ts) records 17 native leaves across 12 top-level handlers.
+It owns dispatch metadata, Azure effects and the existing grouped help, and generates the [agent skill command list](skills/az-axi/SKILL.md#orientation).
+Capability labels distinguish `native` implementations, `api-only` reviewed raw API operations, `blocked` policy exclusions and `unsupported` operations.
+Only existing native leaves are catalogued here; this registry does not claim coverage for other Azure commands or add command paths.
+`api` retains its request-classified dynamic effect and all write safeguards; `config init` has no Azure effect.
+Offline tests fail when help or the committed skill command list diverges from the registry.
+
 ```
 az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes
 az-axi home                                             # the same dashboard

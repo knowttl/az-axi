@@ -9,9 +9,9 @@ import { convertKustoTables, partialErrorText, type KustoResponse } from "../lib
 import { workspaceCustomerIdCommand } from "../lib/queries.js";
 import { readStdinIfPiped } from "../lib/stdin.js";
 import { normalizeTimespan } from "../lib/time.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 
-export const meta: CommandMeta = { name: "logs", effect: "read" };
+export const meta = commandMeta("logs");
 
 const SUBCOMMANDS = ["query"] as const;
 const KNOWN_FLAGS = ["workspace", "timespan", "file"] as const;

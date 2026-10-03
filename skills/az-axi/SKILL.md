@@ -24,6 +24,34 @@ version it runs as, so a clash is visible.
 
 ## Orientation
 
+The exact current leaf registry is `src/lib/registry.ts`.
+Its capability labels are `native` (implemented handler), `api-only` (reviewed raw API operation only), `blocked` (policy refusal), and `unsupported` (no supported implementation or reviewed API coverage).
+The list below records current native leaves only; it makes no coverage claim for other Azure commands.
+`api` has a dynamic Azure effect determined by request policy, and `config init` only writes locally.
+The offline test suite checks this list against the registry.
+
+<!-- command-registry:start -->
+| Command | Capability | Azure effect |
+|---|---|---|
+| `az-axi home` | native | read |
+| `az-axi doctor` | native | read |
+| `az-axi config init` | native | read |
+| `az-axi config list` | native | read |
+| `az-axi config path` | native | read |
+| `az-axi sub list` | native | read |
+| `az-axi rg query` | native | read |
+| `az-axi rbac list` | native | read |
+| `az-axi activity list` | native | read |
+| `az-axi defender alerts` | native | read |
+| `az-axi defender alerts get` | native | read |
+| `az-axi defender assessments` | native | read |
+| `az-axi defender score` | native | read |
+| `az-axi exposure` | native | read |
+| `az-axi logs query` | native | read |
+| `az-axi api` | native | dynamic |
+| `az-axi op status` | native | read |
+<!-- command-registry:end -->
+
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
 secure score, exposure counts, and write status - enough to act without a second

@@ -8,10 +8,10 @@ import { graphScope, profileFromArgs, scopeFlags } from "../lib/context.js";
 import { DESCRIPTION } from "../help.js";
 import { collapseHomeDirectory, homeHeader } from "../lib/paths.js";
 import { DEFENDER_ACTIVE_ALERT_COUNTS, DEFENDER_SECURE_SCORES, exposureQuery } from "../lib/queries.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 import { resolveWriteLogPath } from "../lib/writeLog.js";
 
-export const meta: CommandMeta = { name: "home", effect: "read" };
+export const meta = commandMeta("home");
 
 interface CountBody {
   totalRecords?: number;
