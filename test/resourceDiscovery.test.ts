@@ -5,6 +5,26 @@ import { run } from "../src/commands/resource.js";
 import { discoveryResource, SUB_A } from "./samples.js";
 
 describe("resource show resolution", () => {
+  describe.each(["name", "ids"])("%s selectors", (selector) => {
+    it.each([
+      ["CPU High", "rg-demo", "Microsoft.Insights/metricAlerts"],
+      ["警告", "開発", "Microsoft.Insights/metricAlerts"],
+      ["CPU High", "開発", "Microsoft.Insights/metricAlerts"],
+      ["vm one/拡張", "rg-demo", "Microsoft.Compute/virtualMachines/extensions"],
+    ])("encodes raw segments once for %s in %s", async (name, group, type) => {
+      vi.mocked(request).mockReset();
+      vi.mocked(requestAll).mockClear();
+      const [namespace, ...types] = type.split("/");
+      const names = name.split("/");
+      const id = `/subscriptions/${SUB_A}/resourceGroups/${group}/providers/${namespace}/${types.map((t, i) => `${t}/${names[i]}`).join("/")}`;
+      const item = { ...discoveryResource, id, name, type };
+      vi.mocked(request).mockResolvedValueOnce({ resourceTypes: [{ resourceType: types.join("/"), apiVersions: ["2025-01-01"] }] }).mockResolvedValueOnce(item);
+      const flags = selector === "ids" ? ["--ids", id] : ["--name", name, "--resource-group", group, "--resource-type", type];
+      expect((await run(["show", "--subscription", SUB_A, ...flags])).resource).toMatchObject({ id, name });
+      expect(request).toHaveBeenLastCalledWith(expect.anything(), { method: "GET", path: id.split("/").map(encodeURIComponent).join("/"), apiVersion: "2025-01-01" });
+      expect(requestAll).not.toHaveBeenCalled();
+    });
+  });
   it("resolves a name to an ID and selects the newest stable provider version", async () => {
     vi.mocked(requestAll).mockClear();
     vi.mocked(requestAll).mockResolvedValue({ items: [discoveryResource] });
@@ -18,6 +38,9 @@ describe("resource show resolution", () => {
     ["--ids", "https://example.com/secret"],
     ["--ids", discoveryResource.id + "/listKeys"],
     ["--ids", discoveryResource.id + "?x=y"],
+    ["--ids", discoveryResource.id + "%20"],
+    ["--name", "CPU%20High", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Insights/metricAlerts"],
+    ["--name", "vm1/..", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines/extensions"],
     ["--ids", discoveryResource.id + "/secrets/password"],
     ["--ids", discoveryResource.id + "/config/appsettings", "--fields", "id"],
     ["--ids", `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Automation/automationAccounts/demo/variables/password`, "--api-version", "2024-10-23"],

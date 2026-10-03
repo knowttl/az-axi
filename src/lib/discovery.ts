@@ -61,7 +61,7 @@ function resourceId(value: string): { id: string; subscription: string; namespac
   if (automationValues || types.some((s) => unsafe.has(s.toLowerCase())) || tail.some((s) => SECRET_ACTIONS.some((action) => action.toLowerCase() === s.toLowerCase()))) {
     throw new AxiError("blocked: resource show does not retrieve credential-bearing child resources or actions", "READ_ONLY", ["Use `az-axi resource list` for inventory metadata"]);
   }
-  return { id: value, subscription: match[1]!, namespace: match[3]!, type: types.join("/") };
+  return { id: value.split("/").map(encodeURIComponent).join("/"), subscription: match[1]!, namespace: match[3]!, type: types.join("/") };
 }
 
 function compact(item: ArmItem, kind: "group" | "resource"): Record<string, unknown> {
@@ -96,7 +96,7 @@ export async function runDiscovery(kind: "group" | "resource", argv: string[]): 
       const types = type!.split("/");
       const names = name!.split("/");
       if (types.length < 2 || names.length !== types.length - 1) invalid("--name needs one name segment per resource type segment");
-      namedResourcePath = `/resourceGroups/${segment(group!)}/providers/${segment(types[0]!)}/${names.map((n, i) => `${segment(types[i + 1]!)}/${segment(n)}`).join("/")}`;
+      namedResourcePath = `/resourceGroups/${group!}/providers/${types[0]!}/${names.map((n, i) => `${types[i + 1]!}/${n}`).join("/")}`;
       // Validate the type before any subscription-name lookup or provider GET.
       resourceId(`/subscriptions/00000000-0000-0000-0000-000000000000${namedResourcePath}`);
     }
