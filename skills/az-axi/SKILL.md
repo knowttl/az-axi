@@ -19,8 +19,8 @@ version it runs as.
 ## Orientation
 
 The exact current leaf registry is `src/lib/registry.ts`.
-Its capability labels are `native` (implemented handler), `api-only` (reviewed raw API operation only), `blocked` (policy refusal), and `unsupported` (no supported implementation or reviewed API coverage).
-The list below records current native leaves only; it makes no coverage claim for other Azure commands.
+Its capability labels are `native` (implemented handler), `passthrough` (pinned reviewed Azure CLI read), `api-only` (reviewed raw API operation only), `blocked` (policy refusal), and `unsupported` (no supported implementation or reviewed API coverage).
+The list below records current executable leaves and their capabilities; it makes no coverage claim for other Azure commands.
 `api` has a dynamic Azure effect determined by request policy, and `config init` only writes locally.
 The offline test suite checks this list against the registry.
 
@@ -52,12 +52,21 @@ The offline test suite checks this list against the registry.
 | `az-axi logs query` | native | read |
 | `az-axi api` | native | dynamic |
 | `az-axi op status` | native | read |
+| `az-axi az group show` | passthrough | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
-See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for its data-only status, refusal policy, credential exclusions and maintenance workflow.
+See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
+The only passthrough is `az-axi az group show -n <name> --subscription <uuid>` on trusted official Azure CLI 2.77.0, AzureCloud/latest with no extensions in the isolated child runtime.
+Every probe/read has fresh empty user/system extension directories and cleared dev sources, cleaned up after completion; the signed-in Azure configuration directory is preserved.
+It requires a configured az-auth profile, an explicit tenant and exactly one matching subscription; token and implicit profiles never use ambient login.
+Fixed version/cloud/account JSON probes may run; a mismatch never executes the requested read.
+Mutations, credentials, unknown commands and unsupported flags fail before all probes.
+Only catalogue name/subscription arguments plus wrapper `--profile`, `--config`, `--fields`, `--full` and help are accepted.
+Default TOON is compact resource-group metadata; `--full` adds tags locally and never returns a raw properties blob.
+All child-process writes and data-plane commands are refused, including when `--execute` is supplied.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
@@ -75,7 +84,7 @@ az-axi sub list             # subscriptions visible to the identity
 
 ## Selecting profile, scope, and tenant
 
-Every command accepts these selector flags, and they never count as unknown
+Native commands accept these selector flags, and they never count as unknown
 flags:
 
 - `--profile <name>` - a configured profile (`az-axi config list`); may also be

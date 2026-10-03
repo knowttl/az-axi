@@ -268,6 +268,7 @@ az-axi defender score                                   # secure score per subsc
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
 az-axi logs query --file hunt.kql --workspace sentinel   # Log Analytics KQL (see Query logs)
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
+az-axi az group show -n rg-demo --subscription <uuid>   # pinned, reviewed Azure CLI read
 az-axi op status '<operation-url>' --profile work       # read the current result of a pending operation
 ```
 
@@ -319,16 +320,42 @@ Unknown flags, short clusters or abbreviations, and missing values fail with exi
 
 ### Pinned Azure CLI read catalogue
 
-[src/lib/azReadCatalogue.ts](src/lib/azReadCatalogue.ts) is a data-only seed for future reviewed read passthrough.
-It does not add an `az-axi az` command or change native commands, aliases, TOON output or write safeguards.
+[src/lib/azReadCatalogue.ts](src/lib/azReadCatalogue.ts) is the sole allowlist for `az-axi az ...` read passthrough.
+The generated artifact's catalogue-only status describes its maintenance workflow; execution lives in the separately validated consumer.
 The generated catalogue owns the exact allowlist, handler and operation mappings, runtime and SDK version pins, profiles, clouds, platforms and approved extension set.
 This is a source audit, not a live runtime certification; no Azure CLI handler is imported or executed to build it.
 `group list` is deliberately excluded because its official registration uses a custom handler.
 
 Each entry records argument constraints, authentication and permission needs, exact operations, an output schema identifier and immutable source commits, line ranges and excerpt hashes.
-Consult its `arguments` and `argumentPolicy` fields for accepted flags, value constraints and refusals; these are recorded policy for a future consumer, not executable CLI validation.
-A future consumer must require matching az-auth tenant/subscription context, force JSON transport, disable prompts and dynamic extension installation, then normalize output to TOON.
+The consumer validates its `arguments` and `argumentPolicy`, requires matching az-auth tenant/subscription context, forces JSON transport, disables prompts and dynamic extension installation, then normalizes output to TOON.
 Token profiles do not authorize ambient az identity use.
+
+Only `az-axi az group show --name <name> --subscription <uuid>` can run, using trusted official Azure CLI **2.77.0**, AzureCloud/latest and **no extensions in the isolated child runtime**.
+The configured profile must use `auth: "az"`, an explicit tenant UUID and exactly one subscription matching the flag.
+Implicit profiles, management groups and environment tenant/subscription overrides are refused.
+`--profile` and `--config` select the wrapper profile; name aliases `-n`, `-g` and `--resource-group` come from the catalogue.
+Default TOON reports `resourceGroup` with id, name, location and state; `--fields` selects these columns and `--full` adds tags.
+Raw resource properties are never returned, including with `--full`.
+
+Unknown commands, mutations, credential commands, unsupported flags, duplicate aliases and invalid arguments produce **zero child executions**, including preflight probes.
+Approved arguments permit only fixed `az version --output json`, `az cloud show --output json` and `az account show --output json` probes, in that order.
+These validate CLI/core versions, extension set, cloud/API profile, ARM endpoint and an enabled account with a named user/service principal matching the profile tenant/subscription.
+Profiles do not pin a principal name; identity matching means the selected az-auth account in that tenant/subscription.
+Any preflight mismatch produces **zero executions of the requested read**, although earlier fixed probes have run.
+Probe argv never contains caller arguments.
+The read receives only canonical catalogue flags plus forced JSON output.
+`--query`, `--output`, `--debug`, `--ids`, `--execute`, credential retrieval, local destinations, data-plane reads and all child-process writes are unavailable.
+
+Every process has closed stdin, a 30-second deadline and a combined stdout/stderr ceiling of 1 MiB.
+Cancellation terminates the process, including the Windows shim tree.
+The child inherits only platform/path, selected Azure config directory, locale and proxy/CA environment settings; token and logging overrides are stripped.
+Before every probe and read, `AZURE_EXTENSION_DIR` and `AZURE_EXTENSION_SYS_DIR` point to a fresh empty temporary directory and `AZURE_EXTENSION_DEV_SOURCES` is cleared.
+This prevents installed user, system or development extensions from loading before the version probe; catalogue `extensions: []` describes this effective isolated runtime.
+All temporary extension directories are removed after success, failure or cancellation.
+`AZURE_CONFIG_DIR` and the signed-in identity/context are preserved.
+Failures become structured AXI errors without raw child diagnostics.
+This assumes a trusted Azure CLI installation and local login/configuration; probes cannot certify a tampered executable.
+Native commands, aliases and every existing write gate remain unchanged.
 
 Unknown command, version, extension, handler or operation means **write/refusal**, including custom handlers and transitive operations.
 Keys, connection strings, SAS, secret values, credentials and similar actions never become reads based on a `list` verb, GET method or output filter.

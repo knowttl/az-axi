@@ -4,6 +4,14 @@ import { COMMAND_LEAVES, COMMAND_HELP, leafHelp, type CommandLeaf } from "./regi
 
 /** Resolve only registered full paths. Prefixes never select an operation. */
 export function routeArgv(argv: readonly string[]): { argv: string[]; help?: string } {
+  // Passthrough owns exact catalogue argument validation; do not normalize or
+  // coalesce aliases before its duplicate and unsupported-global checks.
+  if (argv[0] === "az") {
+    if (argv.length === 2 && /^(--help|-h)$/.test(argv[1]!) || argv.slice(1, 3).join(" ") === "group show" && argv.some((arg) => /^(--help|-h)$/.test(arg))) {
+      return { argv: [...argv], help: COMMAND_HELP.az };
+    }
+    return { argv: [...argv] };
+  }
   if (!argv.length || argv.length === 1 && /^(--help|-h|-v|-V|--version)$/.test(argv[0]!)) {
     return { argv: argv[0] === "-h" ? ["--help"] : [...argv] };
   }

@@ -2,11 +2,11 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 62,
-    "body": 2969,
-    "total": 3030
+    "body": 3205,
+    "total": 3266
   },
   "help": {
-    "topLevel": 435,
+    "topLevel": 458,
     "home": 244,
     "doctor": 231,
     "config": 171,
@@ -19,7 +19,8 @@
     "exposure": 311,
     "logs": 296,
     "api": 533,
-    "op": 98
+    "op": 98,
+    "az": 303
   },
-  "helpTotal": 3471
+  "helpTotal": 3797
 }

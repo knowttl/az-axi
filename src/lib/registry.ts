@@ -2,6 +2,7 @@ import { AxiError } from "axi-sdk-js";
 import { redact } from "./redact.js";
 import type { RequestClass } from "./policy.js";
 import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
+import { AZ_HELP } from "./azHelp.js";
 
 /**
  * What a command may do to Azure (PLAN.md Section 6.13.9). `config init` writes a
@@ -12,6 +13,7 @@ export type Effect = "read" | "write" | "destructive" | "dynamic";
 /** Coverage describes an exact leaf, never a promise about an entire Azure service. */
 export const CAPABILITIES = {
   native: "Implemented by an az-axi handler",
+  passthrough: "Reviewed read through the pinned Azure CLI runtime",
   "api-only": "Available only through a reviewed raw API operation, without a native leaf",
   blocked: "Intentionally refused by safety policy",
   unsupported: "No supported implementation or reviewed API coverage",
@@ -52,6 +54,7 @@ export const COMMAND_LEAVES = [
   { path: "monitor log-analytics query", handlerPath: "logs query", aliases: ["logs query"], effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" }, canonicalFlags: { "analytics-query": "value" } },
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "op status", effect: "read", capability: "native", positionalInput: true },
+  { path: "az group show", effect: "read", capability: "passthrough", flags: { name: "value", "resource-group": "value" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -95,6 +98,7 @@ const LOADERS = {
   logs: () => import("../commands/logs.js"),
   api: () => import("../commands/api.js"),
   op: () => import("../commands/op.js"),
+  az: () => import("../commands/az.js"),
 } satisfies Record<CommandName, () => Promise<CommandModule>>;
 
 let activeEffect: Effect | undefined;
@@ -146,10 +150,12 @@ const HELP_OVERVIEWS = {
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
   op: "az-axi op status <operation-url>         # check a long-running operation",
+  az: "az-axi az group show -n <name> --subscription <uuid>  # reviewed Azure CLI read",
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
 export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
+  if (leaf.capability === "passthrough") return AZ_HELP;
   const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
   const canonical = path === leaf.path && leaf.handlerPath !== undefined;
   const flags = Object.keys({ ...GLOBAL_FLAG_SCHEMA, ...leaf.flags, ...(canonical ? leaf.canonicalFlags : {}) });
@@ -200,6 +206,7 @@ const HELP_FOOTER = [
 ];
 
 const HELP_TEXT = {
+  az: AZ_HELP,
   home: [
     "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
     "az-axi home                              # same as above",

@@ -707,6 +707,22 @@ az-axi api DELETE <path> --api-version <v> --execute --confirm <resource-name>
 - All output passes through `redact.ts`.
 - **Reference:** Azure REST API reference landing page (https://learn.microsoft.com/en-us/rest/api/azure/); upstream pattern in ado-axi `src/commands/api.ts`.
 
+### 6.11a `az group show` reviewed passthrough
+
+`az-axi az group show --name <name> --subscription <uuid>` is an explicit child-process read, validated solely against `src/lib/azReadCatalogue.ts`.
+Unlike native commands it does not use `client.ts`; no mutations can cross this transport.
+Fixed version/cloud/account probes validate the pinned runtime and configured az-auth tenant/subscription before the requested read.
+Before every child starts, user/system extension directories are redirected to a fresh empty temporary directory and dev sources are cleared without changing the signed-in Azure config directory.
+The directory is removed after success, failure or cancellation; the approved extension set describes this effective isolated runtime.
+Unsupported commands, credentials and flags never spawn; runtime/context mismatches never execute the requested command.
+JSON transport becomes compact TOON resource-group metadata, with local `--fields` and `--full` controls.
+Each child has a 30-second deadline and a combined 1 MiB output cap, closed stdin, disabled prompts/dynamic extension install and cancellation including Windows tree termination.
+The fake executable suite verifies exact argv, zero-execution refusals and errors without live Azure.
+The synthetic `azResourceGroup` sample and `az group show` token ceiling cover the output budget.
+The fetch-based benchmark capture/replay harness cannot capture this child transport; use the offline fake-executable journey and token budget rather than adding a live scenario to that harness.
+
+**Reference:** Pinned source/operation provenance in `src/lib/azReadCatalogue.ts`; Azure CLI 2.77.0 `util.custom.show_version`, core `util.get_az_version_json`, `cloud.custom.show_cloud` and `profile.custom.show_account`.
+
 ### 6.12 Error codes and exit codes
 
 Keep upstream's `formatError`. Codes:
@@ -1349,6 +1365,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 |---|---|
 | `doctor` (identity) | `az account show --query "{name:user.name,type:user.type,tenant:tenantId}"` |
 | `sub list` | `az account list --query "length(@)"` |
+| `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
 | `rg query "<kql>"` | Same query in the portal's Resource Graph Explorer, or `az graph query -q "<kql>"` (resource-graph extension) |
 | `rbac list --privileged` | `az role assignment list --all --query "[?roleDefinitionName=='Owner'] \| length(@)"` and the same for the other privileged roles |
 | `activity list --since 24h --status Failed` | `az monitor activity-log list --offset 24h --status Failed --query "length(@)"` |

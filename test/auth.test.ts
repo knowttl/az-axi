@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { existsSync, readdirSync } from "node:fs";
 import { spawn as spawnChild } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -247,6 +248,79 @@ describe("runAz cancellation", () => {
     });
   }
 
+  it("hardens reviewed reads and never inherits token, logging or extension overrides", async () => {
+    vi.stubEnv("AZURE_EXTENSION_USE_DYNAMIC_INSTALL", "yes_without_prompt");
+    vi.stubEnv("AZURE_CORE_LOG_LEVEL", "debug");
+    vi.stubEnv("AZURE_EXTENSION_DIR", "untrusted");
+    vi.stubEnv("AZ_AXI_ARM_TOKEN", TOKEN);
+    fakeAz({ stdout: "{}" });
+    await runAz(["version", "--output", "json"], undefined, true);
+    const options = spawnMock.mock.calls[0]![2];
+    expect(options).toMatchObject({ shell: false, stdio: ["ignore", "pipe", "pipe"], env: {
+      AZURE_EXTENSION_USE_DYNAMIC_INSTALL: "no", AZURE_CORE_OUTPUT: "json", AZURE_CORE_DISABLE_CONFIRM_PROMPT: "1",
+    } });
+    expect(options.env.AZURE_CORE_LOG_LEVEL).toBeUndefined();
+    expect(options.env.AZURE_EXTENSION_SYS_DIR).toBe(options.env.AZURE_EXTENSION_DIR);
+    expect(options.env.AZURE_EXTENSION_DEV_SOURCES).toBe("");
+    expect(existsSync(options.env.AZURE_EXTENSION_DIR)).toBe(false);
+    expect(options.env.AZ_AXI_ARM_TOKEN).toBeUndefined();
+    expect(options.env).toEqual({
+      ...Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+        /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|TEMP|TMP|LANG|LC_ALL|AZURE_CONFIG_DIR|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|REQUESTS_CA_BUNDLE|SSL_CERT_FILE)$/i.test(key),
+      )),
+      AZURE_CORE_COLLECT_TELEMETRY: "no", AZURE_CORE_ONLY_SHOW_ERRORS: "true", AZURE_CORE_DISABLE_CONFIRM_PROMPT: "1",
+      AZURE_EXTENSION_DIR: options.env.AZURE_EXTENSION_DIR, AZURE_EXTENSION_SYS_DIR: options.env.AZURE_EXTENSION_DIR,
+      AZURE_EXTENSION_DEV_SOURCES: "", AZURE_EXTENSION_USE_DYNAMIC_INSTALL: "no", AZURE_CORE_OUTPUT: "json",
+      AZURE_CORE_ENABLE_BROKER_ON_WINDOWS: "false",
+    });
+    vi.unstubAllEnvs();
+  });
+
+  it("applies a 30-second deadline before launching a reviewed read", async () => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    const deadline = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+    spawnMock.mockReturnValueOnce(childProcess()).mockReturnValueOnce(childProcess(5678));
+    const pending = runAz(["version", "--output", "json"], undefined, true);
+    const extensionDir = spawnMock.mock.calls[0]![2].env.AZURE_EXTENSION_DIR;
+    expect(readdirSync(extensionDir)).toEqual([]);
+    const assertion = expect(pending).rejects.toThrow("deadline");
+    deadline.abort(new Error("deadline"));
+    await assertion;
+    expect(timeout).toHaveBeenCalledWith(30_000);
+    expect(spawnMock.mock.calls.map(([command]) => command)).toEqual(["az", "taskkill"]);
+    expect(existsSync(extensionDir)).toBe(false);
+    timeout.mockRestore();
+  });
+
+  it("rejects a reviewed read before spawning when already cancelled", async () => {
+    await expect(runAz(["version"], AbortSignal.abort(new Error("cancelled")), true)).rejects.toThrow("cancelled");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["stdout", "stderr"] as const)("kills the Windows process tree when reviewed %s exceeds its byte limit", async (stream) => {
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    const child = childProcess();
+    spawnMock.mockReturnValueOnce(child).mockReturnValueOnce(childProcess(5678));
+    const pending = runAz(["version"], undefined, true);
+    const assertion = expect(pending).rejects.toThrow("maximum buffer size");
+    child[stream].write(Buffer.alloc(1024 * 1024 + 1));
+    await assertion;
+    expect(spawnMock.mock.calls[1]?.[0]).toBe("taskkill");
+    expect(child.stdout.destroyed).toBe(true);
+  });
+
+  it("preserves UTF-8 characters split across child output chunks", async () => {
+    const child = childProcess();
+    spawnMock.mockReturnValueOnce(child);
+    const pending = runAz(["version"], undefined, true);
+    const bytes = Buffer.from('"é"');
+    child.stdout.write(bytes.subarray(0, 2));
+    child.stdout.write(bytes.subarray(2));
+    child.emit("close", 0);
+    expect(await pending).toBe('"é"');
+  });
+
   it("kills the Windows tree and settles without waiting for inherited pipes or taskkill", async () => {
     vi.stubGlobal("process", { ...process, platform: "win32" });
     const child = childProcess();
@@ -254,7 +328,7 @@ describe("runAz cancellation", () => {
     spawnMock.mockReturnValueOnce(child).mockReturnValueOnce(killer);
     const controller = new AbortController();
     const reason = new Error("credential deadline");
-    const pending = runAz(["account", "get-access-token"], controller.signal);
+    const pending = runAz(["group", "show"], controller.signal, true);
     let rejected: unknown;
     const settled = pending.catch((error) => { rejected = error; });
     controller.abort(reason);
@@ -265,9 +339,8 @@ describe("runAz cancellation", () => {
       stdio: "ignore",
     }]);
     expect(spawnMock.mock.calls[0]?.[2].signal).toBeUndefined();
-    await Promise.resolve();
-    expect(rejected).toBe(reason);
     await settled;
+    expect(rejected).toBe(reason);
     expect(child.kill).not.toHaveBeenCalled();
     expect(child.stdin.destroyed).toBe(true);
     expect(child.stdout.destroyed).toBe(true);
@@ -298,7 +371,7 @@ describe("runAz cancellation", () => {
     const killer = childProcess(5678);
     spawnMock.mockReturnValueOnce(child).mockReturnValueOnce(killer);
     const controller = new AbortController();
-    const pending = runAz([], controller.signal);
+    const pending = runAz([], controller.signal, true);
     const reason = new Error("credential deadline");
     const assertion = expect(pending).rejects.toBe(reason);
     controller.abort(reason);

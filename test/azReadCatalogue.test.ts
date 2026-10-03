@@ -122,12 +122,12 @@ describe("offline catalogue maintenance and CLI boundary", () => {
     expect(built).toEqual(AZ_READ_CATALOGUE);
   });
 
-  it("does not enable passthrough execution through the built CLI", () => {
+  it("never enables passthrough writes through the built CLI", () => {
     const result = spawnSync(process.execPath, [...guardedArgs, "dist/bin/az-axi.js", "az", "group", "show", "--name", "demo", "--execute"], {
       encoding: "utf8", env: { ...process.env, AZ_AXI_READ_ONLY: "1" },
     });
     expect(result.status).toBe(2);
     expect(result.stderr).toBe("");
-    expect(decode(result.stdout)).toMatchObject({ code: "VALIDATION_ERROR", error: expect.stringContaining("az") });
+    expect(decode(result.stdout)).toMatchObject({ code: "VALIDATION_ERROR", error: expect.stringContaining("--execute") });
   });
 });

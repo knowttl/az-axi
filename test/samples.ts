@@ -20,6 +20,12 @@ export const SUB_B = SYN(21);
 export const SUB_C = SYN(22);
 export const WORKSPACE = SYN(10);
 
+// source: azure-mgmt-resource 23.3.0 ResourceGroup (catalogue-pinned GET)
+export const azResourceGroup = {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, name: "rg-demo", location: "westeurope",
+  properties: { provisioningState: "Succeeded" }, tags: { owner: "ops" },
+};
+
 // source: resources/resource-manager/Microsoft.Resources/subscriptions/stable/2022-12-01/examples/GetSubscriptions.json
 export const subscriptionList = [
   { id: `/subscriptions/${SUB_A}`, subscriptionId: SUB_A, displayName: "Sandbox", state: "Enabled" },
