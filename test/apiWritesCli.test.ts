@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 function cli(scenario: string, extra: string[] = [], profile = "writer", readOnly = "", method = "PATCH") {
-  return spawnSync(process.execPath, ["--import", join(ROOT, "test/apiWritesPreload.mjs"),
+  return spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.mjs")).href,
     join(ROOT, "dist/bin/az-axi.js"), "api", method, TARGET, "--api-version", "1",
     "--body", '{"tags":{"env":"prod"}}', "--profile", profile, "--execute", ...extra], {
     cwd: ROOT, encoding: "utf8", env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"),

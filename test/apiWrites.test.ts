@@ -63,13 +63,33 @@ describe("API write execution", () => {
     expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ class: "destructive", method: "POST" }));
   });
 
-  it.each(["listClusterAdminCredential", "listClusterUserCredential"])("never previews or executes AKS %s", async (action) => {
+  it.each([
+    ["", "listClusterAdminCredential"], ["", "listClusterUserCredential"],
+    ["", "listClusterMonitoringUserCredential"], ["/accessProfiles/clusterUser", "listCredential"],
+    ["/accessProfiles/clusterAdmin", "listCredential"],
+  ])("never previews or executes AKS %s/%s", async (suffix, action) => {
     for (const representation of [action, action.toUpperCase(), `%6C${action.slice(1)}/?api-version=1`]) {
-      const path = `${TARGET}/providers/Microsoft.ContainerService/managedClusters/cluster1/${representation}`;
+      const path = `${TARGET}/providers/Microsoft.ContainerService/managedClusters/cluster1${suffix}/${representation}`;
       for (const flags of [[], ["--execute", "--confirm", "cluster1"]]) {
         await expect(run(["POST", path, "--api-version", "1", ...flags])).rejects.toMatchObject({ code: "READ_ONLY" });
         expect(send).not.toHaveBeenCalled();
         expect(log).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  it.each([
+    ["listAdminKeys", ""], ["listQueryKeys", ""], ["createQueryKey", "/key1"],
+    ["regenerateAdminKey", "/primary"], ["regenerateAdminKey", "/secondary"],
+  ])("never previews or executes Search %s%s", async (action, parameter) => {
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      const path = `${TARGET}/providers/Microsoft.Search/searchServices/search1/${representation}${parameter}/?api-version=1`;
+      for (const target of [path, path.slice(1), `https://management.azure.com${path}`]) {
+        for (const flags of [[], ["--execute", "--confirm", "search1"]]) {
+          await expect(run(["POST", target, ...flags])).rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(send).not.toHaveBeenCalled();
+          expect(log).not.toHaveBeenCalled();
+        }
       }
     }
   });

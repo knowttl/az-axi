@@ -68,13 +68,33 @@ describe("client execution backstop", () => {
     expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST", body: '{"instanceIds":["0"]}' });
   });
 
-  it.each(["listClusterAdminCredential", "listClusterUserCredential"])("blocks AKS %s at the transport boundary", async (action) => {
+  it.each([
+    ["", "listClusterAdminCredential"], ["", "listClusterUserCredential"],
+    ["", "listClusterMonitoringUserCredential"], ["/accessProfiles/clusterUser", "listCredential"],
+    ["/accessProfiles/clusterAdmin", "listCredential"],
+  ])("blocks AKS %s/%s at the transport boundary", async (suffix, action) => {
     for (const representation of [action, action.toUpperCase(), `%6C${action.slice(1)}/?api-version=1`]) {
-      const target = `${path}/providers/Microsoft.ContainerService/managedClusters/cluster1/${representation}`;
+      const target = `${path}/providers/Microsoft.ContainerService/managedClusters/cluster1${suffix}/${representation}`;
       for (const execute of [false, true]) {
         await expect(sendRequest(writer(), { method: "POST", path: target, apiVersion: "1", execute, confirm: "cluster1" }))
           .rejects.toMatchObject({ code: "READ_ONLY" });
         expect(fetchMock).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  it.each([
+    ["listAdminKeys", ""], ["listQueryKeys", ""], ["createQueryKey", "/key1"],
+    ["regenerateAdminKey", "/primary"], ["regenerateAdminKey", "/secondary"],
+  ])("blocks Search %s%s at the transport boundary", async (action, parameter) => {
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      const target = `${path}/providers/Microsoft.Search/searchServices/search1/${representation}${parameter}/?api-version=1`;
+      for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+        for (const execute of [false, true]) {
+          await expect(sendRequest(writer(), { method: "POST", path, execute, confirm: "search1" }))
+            .rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
       }
     }
   });
