@@ -25,6 +25,17 @@ export const azResourceGroup = {
   id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, name: "rg-demo", location: "westeurope",
   properties: { provisioningState: "Succeeded" }, tags: { owner: "ops" },
 };
+// source: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/examples/ListResourceGroups.json
+export const discoveryGroup = {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, name: "rg-demo", location: "westus",
+  properties: { provisioningState: "Succeeded" }, tags: { env: "test" },
+};
+// source: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/examples/ListResources.json
+export const discoveryResource = {
+  id: `${discoveryGroup.id}/providers/Microsoft.Compute/virtualMachines/vm1`,
+  name: "vm1", type: "Microsoft.Compute/virtualMachines", location: "westus", tags: { env: "test" },
+  properties: { provisioningState: "Succeeded" },
+};
 
 // source: resources/resource-manager/Microsoft.Resources/subscriptions/stable/2022-12-01/examples/GetSubscriptions.json
 export const subscriptionList = [

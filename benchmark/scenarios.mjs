@@ -1,4 +1,8 @@
 export const scenarios = [
+  { name: "group-list", argv: ["group", "list"] },
+  { name: "group-show", argv: ["group", "show", "--name", "rg-demo"] },
+  { name: "resource-list", argv: ["resource", "list"] },
+  { name: "resource-show", argv: ["resource", "show", "--name", "vm1", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines", "--api-version", "2024-07-01"] },
   ...[1, 10, 50].map((rows) => ({
     name: `rg-${rows}`,
     argv: ["rg", "query", `Resources | take ${rows}`, "--limit", String(rows)],

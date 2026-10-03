@@ -42,6 +42,10 @@ export const COMMAND_LEAVES = [
   { path: "config list", effect: "read", capability: "native" },
   { path: "config path", effect: "read", capability: "native" },
   { path: "sub list", effect: "read", capability: "native" },
+  { path: "group list", effect: "read", capability: "native" },
+  { path: "group show", effect: "read", capability: "native", flags: { name: "value" } },
+  { path: "resource list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", "resource-type": "value" } },
+  { path: "resource show", effect: "read", capability: "native", flags: { ids: "value", name: "value", "resource-group": "value", "resource-type": "value", "api-version": "value" } },
   { path: "graph query", handlerPath: "rg query", aliases: ["rg query"], effect: "read", capability: "native", positionalInput: true, flags: { "skip-token": "value", file: "value" }, canonicalFlags: { "graph-query": "value", subscriptions: "list", "management-groups": "list" }, canonicalFlagAliases: { first: "limit" }, handlerFlags: { "management-groups": "list" } },
   { path: "rbac list", effect: "read", capability: "native", aliases: ["role assignment list"], aliasFlags: { assignee: "principal" }, flags: { principal: "value", role: "value", scope: "value", privileged: "boolean", "show-query": "boolean" } },
   { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
@@ -89,6 +93,8 @@ const LOADERS = {
   doctor: () => import("../commands/doctor.js"),
   config: () => import("../commands/config.js"),
   sub: () => import("../commands/sub.js"),
+  group: () => import("../commands/group.js"),
+  resource: () => import("../commands/resource.js"),
   rg: () => import("../commands/rg.js"),
   rbac: () => import("../commands/rbac.js"),
   activity: () => import("../commands/activity.js"),
@@ -141,6 +147,8 @@ const HELP_OVERVIEWS = {
   doctor: "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
   config: "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
   sub: "az-axi sub list                          # subscriptions visible to the identity",
+  group: "az-axi group list|show                    # resource groups in selected subscriptions",
+  resource: "az-axi resource list|show                 # ARM resource inventory and detail",
   rg: "az-axi rg query \"<kql>\"                  # Resource Graph query across subscriptions",
   rbac: "az-axi rbac list [--privileged]           # role assignments with principal names",
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
@@ -186,6 +194,10 @@ export const ALERT_UPDATE_HELP = [
 ].join("\n");
 
 const LEAF_HELP: Record<string, string> = {
+  "group list": "Lists live ARM resource groups in selected subscriptions (flags, environment, profile, else all accessible). Subscription names resolve to IDs. Management-group scope is unsupported.\n--limit defaults to 50; --full shows complete metadata and all fetched rows; --fields selects metadata fields. Lists follow up to 100 pages per subscription and disclose incomplete counts.\nExamples: az-axi group list; az-axi group list -s <subscription> --full",
+  "group show": "Requires --name / -n and exactly one selected subscription (ID or unambiguous name).\nDefault: name, id, location, state; --full returns the complete ARM resource group.\nExamples: az-axi group show -n <group> -s <subscription>; az-axi group show -n <group> --full",
+  "resource list": "Lists live ARM resources in selected subscriptions (flags, environment, profile, else all accessible). Subscription names resolve to IDs. Management-group scope is unsupported.\n--resource-group / -g scopes the list; --name / -n and --resource-type filter exact matches.\n--limit defaults to 50; --full shows complete metadata and all fetched rows; --fields selects metadata fields. Lists follow up to 100 pages per subscription and disclose incomplete counts.\nExamples: az-axi resource list -g <group>; az-axi resource list --resource-type Microsoft.Compute/virtualMachines",
+  "resource show": "Requires exactly one --ids <ARM-id>, or --name / -n plus --resource-group / -g and --resource-type <namespace/type> in exactly one selected subscription.\n--api-version overrides provider metadata version discovery (newest stable version). --ids cannot be combined with name/group/type selectors.\nDefault: name, id, type, location; --full returns complete resource details. Credential-bearing configuration, secret/key child resources and actions are refused before fetching.\nExamples: az-axi resource show --ids <ARM-id>; az-axi resource show -n <name> -g <group> --resource-type Microsoft.Compute/virtualMachines --full",
   "graph query": 'az-axi graph query --graph-query <kql> | -q <kql> | --file <path> | piped stdin\n--subscriptions a b (or -s a b) selects subscriptions; --management-groups a b selects management groups. Explicit scope families are mutually exclusive.\n--first aliases --limit (default 50, maximum 1000); --full requests a 1000-row page, as on rg query. --skip-token continues a page.\nScope: explicit flags, then profile managementGroup, then profile subscriptions, else all accessible subscriptions. Azure CLI defaults to all accessible subscriptions.\n--skip and --allow-partial-scopes are unsupported and rejected; use --skip-token for paging. --query (JMESPath) is unsupported.\nOutput: unchanged rg query TOON, including legacy pagination hints.\nExamples: az-axi graph query -q Resources --first 5; az-axi graph query --file query.kql --subscriptions <id>',
   "monitor log-analytics query": 'az-axi monitor log-analytics query --analytics-query <kql> | --file <path> | piped stdin\n--workspace / -w <alias|guid> is required; aliases come from the profile. ARM workspace resource IDs are rejected.\n--timespan / -t defaults to P1D and intersects KQL time filters; Azure CLI defaults to all available data.\n--limit defaults to 50 displayed rows; --full expands cells and still honors --limit. Additional workspaces are unsupported.\nOutput: unchanged logs query TOON, including workspace, workspaceId, timespan, total, count, rows.\nExamples: az-axi monitor log-analytics query --analytics-query Heartbeat -w <guid>; az-axi monitor log-analytics query --file hunt.kql -w sentinel -t P7D',
   "config init": "az-axi config init --name <name> --auth az|token [--default]\n--workspace alias=<guid>,... and --token-env arm=VAR,logs=VAR,graph=VAR configure auth.\nWrites a local profile only. No Azure writes.\nExamples: az-axi config init --name work --auth az; az-axi config init --name ci --auth token --default",
@@ -207,6 +219,8 @@ const HELP_FOOTER = [
 
 const HELP_TEXT = {
   az: AZ_HELP,
+  group: ["az-axi group list", "az-axi group show --name <group> --subscription <id>", LEAF_HELP["group list"], LEAF_HELP["group show"]].join("\n"),
+  resource: ["az-axi resource list", "az-axi resource show --ids <ARM-id>", LEAF_HELP["resource list"], LEAF_HELP["resource show"]].join("\n"),
   home: [
     "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
     "az-axi home                              # same as above",

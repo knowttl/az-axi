@@ -1,0 +1,46 @@
+import { describe, expect, it, vi } from "vitest";
+vi.mock("../src/lib/client.js", () => ({ request: vi.fn(), requestAll: vi.fn() }));
+import { request, requestAll } from "../src/lib/client.js";
+import { run } from "../src/commands/resource.js";
+import { discoveryResource, SUB_A } from "./samples.js";
+
+describe("resource show resolution", () => {
+  it("resolves a name to an ID and selects the newest stable provider version", async () => {
+    vi.mocked(requestAll).mockClear();
+    vi.mocked(requestAll).mockResolvedValue({ items: [discoveryResource] });
+    vi.mocked(request).mockResolvedValueOnce({ resourceTypes: [{ resourceType: "virtualMachines", apiVersions: ["2026-01-01-preview", "2025-01-01", "2024-01-01"] }] }).mockResolvedValueOnce(discoveryResource);
+    const result = await run(["show", "--subscription", SUB_A, "--name", "vm1", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines"]);
+    expect(result.resource).toMatchObject({ id: discoveryResource.id });
+    expect(request).toHaveBeenLastCalledWith(expect.anything(), { method: "GET", path: discoveryResource.id, apiVersion: "2025-01-01" });
+    expect(requestAll).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["--ids", "https://example.com/secret"],
+    ["--ids", discoveryResource.id + "/listKeys"],
+    ["--ids", discoveryResource.id + "?x=y"],
+    ["--ids", discoveryResource.id + "/secrets/password"],
+    ["--ids", discoveryResource.id + "/config/appsettings", "--fields", "id"],
+    ["--ids", `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Automation/automationAccounts/demo/variables/password`, "--api-version", "2024-10-23"],
+    ["--ids", `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.AppConfiguration/configurationStores/demo/keyValues/password`, "--full"],
+    ["--name", "demo/password", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Automation/automationAccounts/connections"],
+    ["--ids", `/subscriptions/${SUB_A}/resourceGroups/../providers/Microsoft.Compute/virtualMachines/vm1`, "--api-version", "2024-07-01"],
+    ["--ids", discoveryResource.id, "--name", "vm1"],
+    ["--name", "vm1", "--resource-group", "rg-demo"],
+  ])("refuses unsafe or conflicting selectors %j before transport", async (flags) => {
+    vi.mocked(request).mockClear(); vi.mocked(requestAll).mockClear();
+    await expect(run(["show", ...flags])).rejects.toBeDefined();
+    expect(request).not.toHaveBeenCalled(); expect(requestAll).not.toHaveBeenCalled();
+  });
+  it("refuses provider metadata without a stable version before resource retrieval", async () => {
+    vi.mocked(request).mockReset();
+    vi.mocked(request).mockResolvedValue({ resourceTypes: [{ resourceType: "virtualMachines", apiVersions: ["2026-01-01-preview"] }] });
+    await expect(run(["show", "--ids", discoveryResource.id, "--subscription", SUB_A])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it.each(["Microsoft.Compute", "Microsoft.Compute/virtualMachines/extensions"])("refuses incomplete resource type/name pairs %s", async (type) => {
+    vi.mocked(request).mockClear(); vi.mocked(requestAll).mockClear();
+    await expect(run(["show", "--subscription", SUB_A, "--name", "vm1", "--resource-group", "rg-demo", "--resource-type", type])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(request).not.toHaveBeenCalled();
+    expect(requestAll).not.toHaveBeenCalled();
+  });
+});

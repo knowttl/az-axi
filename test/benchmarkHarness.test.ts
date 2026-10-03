@@ -143,7 +143,15 @@ describe("benchmark surface", () => {
     const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" }] });
     for (const scenario of scenarios) {
       let responses;
-      if (scenario.name.startsWith("rg-") || scenario.name === "graph-query") {
+      if (scenario.name === "group-list") {
+        responses = [response("GET", { value: [] })];
+      } else if (scenario.name === "group-show") {
+        responses = [response("GET", { id: `/subscriptions/${sub}/resourceGroups/rg-demo`, name: "rg-demo", location: "westus" })];
+      } else if (scenario.name === "resource-list") {
+        responses = [response("GET", { value: [] })];
+      } else if (scenario.name === "resource-show") {
+        responses = [response("GET", { id, name: "vm1", type: "Microsoft.Compute/virtualMachines", location: "westus" })];
+      } else if (scenario.name.startsWith("rg-") || scenario.name === "graph-query") {
         const count = scenario.name === "graph-query" ? 50 : Number(scenario.name.slice(3));
         responses = [response("POST", { totalRecords: count, data: Array.from({ length: count }, (_, index) => ({
           id, name: `contoso-vm-${index}`, type: "Microsoft.Compute/virtualMachines", location: "contoso-region",
@@ -173,7 +181,7 @@ describe("benchmark surface", () => {
     }
     const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
-    expect(child.stdout).toContain("rows[13]");
+    expect(child.stdout).toContain("rows[17]");
     expect(child.stdout).toContain("rbac-privileged");
     expect(child.stdout).toContain("logs-query");
     expect(child.stdout).not.toContain("benchmark-dummy");
@@ -195,6 +203,7 @@ describe("benchmark surface", () => {
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
+      "group-list", "group-show", "resource-list", "resource-show",
       "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {

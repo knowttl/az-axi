@@ -24,7 +24,10 @@
 export const SUBSCRIPTIONS_LIST = "2022-12-01";
 
 /**
- * Resource groups - Get and Update, owner-only smoke tag round trip.
+ * Resource groups - List, Get and Update; generic resource List and provider Get.
+ * Discovery GET paths rechecked 2026-10-03 against resources.json and the REST
+ * references for resource groups, resources and providers (2021-04-01).
+ * https://learn.microsoft.com/en-us/rest/api/resources/resources/list?view=rest-resources-2021-04-01
  * Value: 2021-04-01. Newer stable: 2025-04-01 has the same GET/PATCH shape.
  * Spec: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/resources.json
  * Docs: https://learn.microsoft.com/en-us/rest/api/resources/resource-groups/update?view=rest-resources-2021-04-01

@@ -244,6 +244,24 @@ Use `az-axi monitor log-analytics query --help` for workspace IDs, query input h
 
 ## Use
 
+```sh
+az-axi group list
+az-axi group show -n rg-demo -s <subscription>
+az-axi resource list -g rg-demo
+az-axi resource show --ids <ARM-id> --full
+```
+
+Discovery uses live ARM GETs, with subscription flags, environment or profile scope, otherwise all accessible subscriptions.
+Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
+Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
+`--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
+Paging stops at 100 pages per subscription and marks incomplete counts as lower bounds.
+Show by name requires one subscription; resource show also requires `--resource-group` and `--resource-type`, or exactly one `--ids` instead.
+Resource show selects the newest stable provider API version unless `--api-version` is supplied.
+Credential-bearing child resources and actions are refused before retrieval.
+Management-group discovery is unsupported; select subscriptions explicitly.
+Existing command scope, defaults and aliases are unchanged.
+
 One example per inspection command; see [Profiles](#profiles) for `config init` and `config path` examples.
 Every command also accepts `--help` with its full reference.
 
