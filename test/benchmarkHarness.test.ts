@@ -118,6 +118,8 @@ describe("benchmark surface", () => {
         responses = [subscriptions(), ...Array.from({ length: 3 }, () => response("POST", {
           totalRecords: 1, data: [{ resource: "contoso-vm", resourceGroup: "contoso-team", subscriptionId: sub, detail: "contoso-detail" }],
         }))];
+      } else if (scenario.name === "api-subscriptions") {
+        responses = [subscriptions()];
       } else {
         responses = [response("POST", { tables: [{ name: "PrimaryResult", columns: [{ name: "UserPrincipalName", type: "string" }], rows: [["analyst@contoso.com"]] }] }, "api.loganalytics.io")];
       }
@@ -125,7 +127,7 @@ describe("benchmark surface", () => {
     }
     const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
-    expect(child.stdout).toContain("rows[7]");
+    expect(child.stdout).toContain("rows[8]");
     expect(child.stdout).toContain("rbac-privileged");
     expect(child.stdout).toContain("logs-query");
     expect(child.stdout).not.toContain("benchmark-dummy");
@@ -147,7 +149,7 @@ describe("benchmark surface", () => {
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "defender-alerts", "exposure", "logs-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "defender-alerts", "exposure", "logs-query", "api-subscriptions",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");

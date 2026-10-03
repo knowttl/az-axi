@@ -9,7 +9,12 @@ const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(b
 
 globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
-  appendFileSync(process.env.AZ_AXI_TEST_REQUESTS, JSON.stringify({ method, ifMatch: init.headers?.["If-Match"] }) + "\n");
+  let body;
+  if (process.env.AZ_AXI_TEST_CAPTURE_BODY === "1" && init.body !== undefined) {
+    try { body = JSON.parse(init.body); } catch { body = init.body; }
+  }
+  appendFileSync(process.env.AZ_AXI_TEST_REQUESTS, JSON.stringify({ method, ifMatch: init.headers?.["If-Match"],
+    ...(body !== undefined ? { body } : {}) }) + "\n");
   if (new URL(url).pathname === "/operations/test") {
     return json({ status: scenario === "failure" ? "Failed" : "Succeeded", error: { code: "SyntheticFailure", message: "test failure" } });
   }

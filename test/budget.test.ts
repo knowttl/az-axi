@@ -51,6 +51,7 @@ import {
   activityEvents,
   apiListResponse,
   apiWriteState,
+  apiWriteBody,
   configListProfiles,
   defenderAlertDetail,
   defenderAlerts,
@@ -256,6 +257,18 @@ describe("token budgets", () => {
     });
     const result = await runApi(["PATCH", `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, "--api-version", "2021-04-01",
       "--profile", "sandbox", "--body", '{"tags":{"env":"prod"}}', "--execute"]);
+    await expectUnderBudget("api execute", { ...result, durationSec: 1 });
+  });
+
+  it("api execute with a multiline body file stays under the existing ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify(configListProfiles));
+    const bodyFile = join(dir, "body.json");
+    writeFileSync(bodyFile, JSON.stringify(apiWriteBody, null, 2));
+    sendMock.mockResolvedValueOnce(ok(apiWriteState)).mockResolvedValueOnce({
+      ...ok({}), requestId: "req-write", correlationId: "corr-write",
+    });
+    const result = await runApi(["PATCH", `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, "--api-version", "2021-04-01",
+      "--profile", "sandbox", "--body-file", bodyFile, "--execute"]);
     await expectUnderBudget("api execute", { ...result, durationSec: 1 });
   });
 });

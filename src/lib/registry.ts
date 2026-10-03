@@ -248,11 +248,12 @@ const HELP_TEXT = {
   ].join("\n"),
   api: [
     "az-axi api [GET|POST|PUT|PATCH|DELETE] <path> [--resource arm|logs|graph] [--api-version <v>]",
-    "         [--query 'k=v&k2=v2'] [--body '<json>'] [--raw] [--all] [--execute] [--confirm <name>] [--if-match <etag>] [--timeout <seconds>] [--no-wait]",
+    "         [--query 'k=v&k2=v2'] [--body '<json>' | --body-file <path>] [--raw] [--all] [--execute] [--confirm <name>] [--if-match <etag>] [--timeout <seconds>] [--no-wait]",
     "az-axi api /subscriptions --api-version 2022-12-01",
     "",
     "Escape hatch for any read or query request. Paths are relative to the host root.",
     "--api-version is required for arm when the path has no api-version query parameter.",
+    "JSON body: use --body, --body-file, or piped stdin (exactly one source). Empty stdin means no body; invalid JSON is refused before requests.",
     "Lists with a value[] array return count plus value; --all follows ARM nextLink (up to 10 pages).",
     "Strings truncate at 4,000 chars unless --full.",
     "Writes and destructive requests return a dry-run preview using reads or a deployment what-if query.",
@@ -261,6 +262,8 @@ const HELP_TEXT = {
     "--execute re-checks current state before sending; --if-match protects the reviewed ETag.",
     "Async writes poll for up to --timeout seconds (default 600); --no-wait returns an op status command.",
     "Examples: az-axi api /subscriptions --api-version 2022-12-01",
+    "az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json",
+    "az-axi api PATCH <resource-path> --api-version <v> < body.json",
   ].join("\n"),
   op: [
     "az-axi op status <operation-url>",

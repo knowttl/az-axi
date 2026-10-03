@@ -20,6 +20,9 @@ function bash(command: string) {
 describe("Claude Code Bash write guard", () => {
   it.each([
     "az-axi api PATCH /target --execute",
+    "az-axi api PATCH /target --body-file 'body file.json' --execute",
+    "az-axi api PATCH /target --execute < body.json",
+    "cat body.json | az-axi api PATCH /target --execute",
     "'az-axi' api DELETE /target '--execute' --confirm demo",
     'az-"axi" api PATCH /target --ex"ecute"',
     "az\\-axi api PATCH /target --exec\\ute",
