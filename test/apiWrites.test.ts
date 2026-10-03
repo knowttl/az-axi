@@ -1,5 +1,6 @@
 import { AxiError } from "axi-sdk-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn().mockResolvedValue(undefined) }));
 import { run } from "../src/commands/api.js";
 import { ApiRequestError, sendRequest, type ApiResponse } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";

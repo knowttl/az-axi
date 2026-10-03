@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
 import { buildUrl, sendRequest } from "../lib/client.js";
@@ -6,6 +7,7 @@ import { dryRun } from "../lib/dryRun.js";
 import { executeWrite } from "../lib/execute.js";
 import { parseTimeoutFlag } from "../lib/lro.js";
 import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
+import { readStdinIfPiped } from "../lib/stdin.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
@@ -21,7 +23,7 @@ import type { Resource } from "../lib/config.js";
 export const meta = commandMeta("api");
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
-const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all", "execute", "confirm", "if-match", "timeout", "no-wait"] as const;
+const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "body-file", "raw", "all", "execute", "confirm", "if-match", "timeout", "no-wait"] as const;
 const STRING_TRUNCATE = 4000;
 const MAX_PAGES = 10;
 
@@ -32,6 +34,7 @@ function morePagesHint(options: {
   apiVersion?: string;
   query?: string;
   body?: string;
+  bodyFile?: string;
 }): string {
   const parts = ["az-axi api"];
   if (options.method !== "GET") parts.push(options.method);
@@ -39,7 +42,8 @@ function morePagesHint(options: {
   if (options.resource !== "arm") parts.push(formatFlagValue("resource", options.resource));
   if (options.apiVersion) parts.push(formatFlagValue("api-version", options.apiVersion));
   if (options.query) parts.push(formatFlagValue("query", options.query));
-  if (options.body) parts.push(formatFlagValue("body", options.body));
+  if (options.bodyFile) parts.push(formatFlagValue("body-file", options.bodyFile));
+  else if (options.body) parts.push(formatFlagValue("body", options.body));
   parts.push("--all");
   return `More pages exist: re-run with --all (up to ${MAX_PAGES} pages): \`${parts.join(" ")}\``;
 }
@@ -121,13 +125,41 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
 
   let body: unknown;
-  const bodyRaw = flagString(args, "body");
+  let bodyRaw = flagString(args, "body");
+  const bodyFile = flagString(args, "body-file");
+  if ("body-file" in args.flags && (bodyFile === undefined || bodyFile.trim() === "")) {
+    throw new AxiError("flag --body-file needs a non-empty value", "VALIDATION_ERROR", [
+      "Example: --body-file <value>",
+    ]);
+  }
+  if ("body" in args.flags && bodyRaw === undefined) {
+    throw new AxiError("flag --body needs a JSON value", "VALIDATION_ERROR", ["Use --body-file body.json"]);
+  }
+  if (bodyRaw !== undefined && bodyFile !== undefined) {
+    throw new AxiError("pass either --body or --body-file, not both", "VALIDATION_ERROR", ["Use --body-file body.json"]);
+  }
+  const piped = await readStdinIfPiped();
+  if (piped !== undefined && (bodyRaw !== undefined || bodyFile !== undefined)) {
+    throw new AxiError("pass exactly one JSON body source: --body, --body-file or stdin", "VALIDATION_ERROR", [
+      "Use --body-file body.json without piped stdin",
+    ]);
+  }
+  if (bodyFile !== undefined) {
+    try {
+      bodyRaw = readFileSync(bodyFile, "utf8");
+    } catch {
+      throw new AxiError("could not read --body-file", "VALIDATION_ERROR", ["Use --body-file <readable-json-file>"]);
+    }
+  } else if (piped !== undefined) {
+    bodyRaw = piped.toString("utf8");
+  }
   if (bodyRaw !== undefined) {
     try {
       body = JSON.parse(bodyRaw);
     } catch {
-      throw new AxiError("flag --body must be valid JSON", "VALIDATION_ERROR", [
-        "Example: --body '{\"query\":\"Resources | take 1\"}'",
+      const source = bodyFile !== undefined ? "--body-file" : piped !== undefined ? "stdin body" : "flag --body";
+      throw new AxiError(`${source} must be valid JSON`, "VALIDATION_ERROR", [
+        "Use --body-file <valid-json-file>",
       ]);
     }
   }
@@ -164,6 +196,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
       cls,
       body,
       bodyRaw,
+      bodyFile: bodyFile ?? (piped !== undefined ? "<body-file>" : undefined),
       apiVersion,
       query,
       queryRaw: flagString(args, "query"),
@@ -236,6 +269,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
         apiVersion,
         query: flagString(args, "query"),
         body: bodyRaw,
+        bodyFile: bodyFile ?? (piped !== undefined ? "<body-file>" : undefined),
       }),
     );
   } else if (nextLink) {

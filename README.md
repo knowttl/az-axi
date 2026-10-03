@@ -276,6 +276,12 @@ Resource inspection commands bound rows and long cells by default, except `api` 
 Use `--limit N` to cap rows and `--fields a,b` to select list columns.
 `--full` expands truncated cells and removes display row limits for most inspection lists; `rg query` keeps its page cap, and `logs query` and `api` still honor `--limit`.
 `api` follows additional pages only with `--all`, subject to a page cap.
+For JSON request bodies, use `--body-file <path>` or pipe JSON on stdin, for example `az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json` or the same command with `< query.json` instead of `--body-file query.json`.
+Inline `--body` remains supported; choose exactly one source.
+Bodies accept any JSON value, including strings, numbers, booleans and null, and preserve its JSON type in the request.
+Conflicting sources, unreadable files and invalid JSON are refused before requests; empty stdin means no body.
+All input forms use the same request classification and write safeguards.
+Paging hints retain `--body-file` paths; for stdin bodies, replace the hint's `<body-file>` placeholder with a file containing the original JSON before rerunning with `--all`.
 Use each command's `--help` for its defaults and paging limits.
 
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
@@ -349,7 +355,7 @@ Prefer PIM-eligible roles with temporary activation over standing Owner or Contr
 Use the [agent approval hook](#agent-integration) when an agent performs writes, and review the preview before approving execution.
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
-For example, `az-axi api PATCH <resource-path> --api-version <version> --body '<json>' --profile <profile>` previews a field-level diff.
+For example, `az-axi api PATCH <resource-path> --api-version <version> --body-file body.json --profile <profile>` previews a field-level diff.
 PUT and PATCH previews show `changes[]{path,from,to}`, capped at 20 rows with `remaining` for additional changes, and `noop: true` when nothing would change.
 PUT also lists omitted fields as removals; PATCH normally compares supplied fields, but supplying `tags` replaces the tag set, so omitted tags appear as removals.
 Preview output includes the request class, method, shortened target, subscription, redacted body and available ETag; `--full` expands a truncated body.
@@ -357,7 +363,8 @@ DELETE previews summarize the resource and warn about detected resource or resou
 Other POST actions show the body and execution command without a current-state diff.
 Completed deployment what-if previews summarize change counts.
 Pending deployment previews return an `az-axi op status` command without polling or an execution command.
-Other previews include a shell-quoted execution command with an available ETag and destructive confirmation; redacted bodies use a `<json-body>` placeholder that must be replaced with the original body.
+Other previews include a shell-quoted execution command with an available ETag and destructive confirmation.
+File bodies retain their `--body-file` path; stdin and redacted inline bodies use `--body-file '<body-file>'`, whose placeholder must be replaced with a file containing the original JSON.
 
 Add `--execute` to send the write after all gates pass.
 Destructive execution requires `--confirm <resource-name>`, matching the percent-decoded resource name exactly; for destructive POST actions, use the name preceding the action segment.

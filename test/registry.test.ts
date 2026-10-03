@@ -74,7 +74,7 @@ describe("exact leaf contracts", () => {
       defender: "abf0481253893cc00df76b0b5cc375f98a76a4b91c109538f23de13dd19d0332",
       exposure: "3c34ade43fa8d6c15499e009490c9c2387d1db7b2d54840a831a960c21e682b1",
       logs: "92a81f09f11afb0f16e2949bb90af133634798cdfb3f777ce9ff4c553c2ffa06",
-      api: "de48bf006b5f22aa85d7106617a288b321f724fbe02ce6207af8535a8312feec",
+      api: "8a363b22d6122afb9b2ebdc58d3e20236cb3f4de14fe23700de8b6f1bd957547",
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries({ top: TOP_LEVEL_HELP, ...COMMAND_HELP })

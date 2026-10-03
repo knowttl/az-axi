@@ -267,6 +267,7 @@ export const apiListResponse = {
 
 // source: Resource Groups - Get, resources/resource-manager/Microsoft.Resources@2021-04-01 (synthetic).
 export const apiWriteState = { name: "rg-demo", location: "westus", tags: { env: "dev" } };
+export const apiWriteBody = { tags: { env: "prod" } };
 
 // Dashboard alert-count rows for the home command (Resource Graph shape).
 export const homeAlertCounts = [

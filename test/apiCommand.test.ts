@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn().mockResolvedValue(undefined) }));
 
 vi.mock("../src/lib/client.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../src/lib/client.js")>(),

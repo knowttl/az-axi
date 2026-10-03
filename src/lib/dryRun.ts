@@ -20,10 +20,12 @@ export interface DryRunRequest {
   /** Canonical host-root path with the effective query string. */
   path: string;
   cls: RequestClass;
-  /** Parsed `--body`, or undefined when absent. */
+  /** Parsed JSON body, or undefined when absent. */
   body: unknown;
-  /** Raw `--body` text for the exact execute command. */
+  /** Original JSON text for inline execution hints when safe to display. */
   bodyRaw?: string;
+  /** File source, or a placeholder for saving a stdin body before execution. */
+  bodyFile?: string;
   apiVersion?: string;
   /** Parsed `--query` pairs, forwarded to the current-state GET. */
   query?: Record<string, string>;
@@ -100,6 +102,7 @@ export function buildExecuteCommand(options: {
   apiVersion?: string;
   queryRaw?: string;
   bodyRaw?: string;
+  bodyFile?: string;
   etag?: string;
   confirmName?: string;
 }): string {
@@ -108,10 +111,12 @@ export function buildExecuteCommand(options: {
   if (options.resource !== "arm") parts.push(formatFlagValue("resource", options.resource));
   if (options.apiVersion) parts.push(formatFlagValue("api-version", options.apiVersion));
   if (options.queryRaw) parts.push(formatFlagValue("query", options.queryRaw));
-  if (options.bodyRaw !== undefined) {
+  if (options.bodyFile !== undefined) {
+    parts.push(formatFlagValue("body-file", options.bodyFile));
+  } else if (options.bodyRaw !== undefined) {
     const body = JSON.parse(options.bodyRaw) as unknown;
-    const safeBody = JSON.stringify(redact(body)) === JSON.stringify(body) ? options.bodyRaw : "<json-body>";
-    parts.push(formatFlagValue("body", safeBody));
+    if (JSON.stringify(redact(body)) === JSON.stringify(body)) parts.push(formatFlagValue("body", options.bodyRaw));
+    else parts.push(formatFlagValue("body-file", "<body-file>"));
   }
   if (options.etag) parts.push(formatFlagValue("if-match", options.etag));
   parts.push("--execute");
@@ -183,6 +188,7 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
       apiVersion: request.apiVersion,
       queryRaw: request.queryRaw,
       bodyRaw: request.bodyRaw,
+      bodyFile: request.bodyFile,
       confirmName: request.cls === "destructive" ? targetResourceName(request.path, request.method) : undefined,
       ...extra,
     });
@@ -206,7 +212,7 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
     const out: Record<string, unknown> = { ...base };
     if (probed.etag) out.etag = probed.etag;
     if (request.body === undefined) {
-      help.push("Pass --body '<json>' to preview the field-level change");
+      help.push("Pass --body-file <path> or pipe JSON on stdin to preview the field-level change");
       help.push(command({ etag: probed.etag ?? request.ifMatch }));
       return { ...out, help };
     }

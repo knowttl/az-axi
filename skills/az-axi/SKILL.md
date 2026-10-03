@@ -196,10 +196,18 @@ az-axi rg query --file query.kql
 az-axi logs query --file hunt.kql --workspace sentinel
 ```
 
-`api` currently accepts JSON only through inline `--body`; it does not support body files or stdin.
-Do not use `api --body` under this rule.
+`api` accepts JSON through `--body-file <path>` or piped stdin.
+Use exactly one body source; combining either with inline `--body`, or a file with non-empty stdin, is an error.
+Empty stdin means no body; files and non-empty stdin must contain valid JSON.
+Do not use inline `api --body` for shell-sensitive content under this rule.
+```sh
+az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json
+az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 < query.json
+```
+
+Write previews retain the file path in execution hints.
+For stdin or redacted inline bodies, replace `<body-file>` in the hint with a file containing the original JSON before execution.
 For Resource Graph and Log Analytics queries, use the file or stdin inputs of `rg query` and `logs query`, which construct the JSON request body internally.
-If another request requires a JSON body, stop and report the missing file or stdin support rather than inventing an `api --file` command or a shell-escaping workaround.
 
 ## Writes
 

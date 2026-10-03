@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
+vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn().mockResolvedValue(undefined) }));
 
 vi.mock("../src/lib/client.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../src/lib/client.js")>(),
@@ -18,6 +19,11 @@ function argumentsOf(shell: string, command: string): string[] {
 }
 
 describe.each(["sh", "bash"])("command hints in %s", (shell) => {
+  it("preserves a body-file path in execute hints", () => {
+    const bodyFile = "body '$() ` file.json";
+    const command = buildExecuteCommand({ method: "PATCH", path: "/target", resource: "arm", bodyFile });
+    expect(argumentsOf(shell, command.slice(1, -1))).toEqual(["api", "PATCH", "/target", "--body-file", bodyFile, "--execute"]);
+  });
   it("preserves every execute argument", () => {
     const path = "/subscriptions/id/resourceGroups/rg?api-version=1&x=2";
     const query = "a=1&b=2;*<>|()!#~";

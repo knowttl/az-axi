@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn().mockResolvedValue(undefined) }));
 import { clearCredentialCache } from "../src/lib/auth.js";
 import { classifyRequest } from "../src/lib/policy.js";
 import { run } from "../src/commands/api.js";
@@ -286,7 +287,7 @@ describe("write-enabled profile without --execute", () => {
     expect(JSON.stringify(short.body)).not.toContain("hunter2");
     expect(JSON.stringify(short)).not.toContain("hunter2");
     expect(short.changes).toEqual([{ path: "adminPassword", to: "***redacted***" }]);
-    expect((short.help as string[]).join("\n")).toContain("--body '<json-body>'");
+    expect((short.help as string[]).join("\n")).toContain("--body-file '<body-file>'");
 
     const truncated = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", big, "--profile", "writer"]);
     expect(typeof truncated.body).toBe("string");
@@ -333,7 +334,7 @@ describe("write-enabled profile without --execute", () => {
     "keeps secret bodies out of %s %s command hints", async (method, path) => {
       const result = await run([method, path, "--api-version", API_VERSION, "--profile", "writer", "--body", '{"adminPassword":"hunter2"}']);
       expect(JSON.stringify(result)).not.toContain("hunter2");
-      expect((result.help as string[]).join("\n")).toContain("--body '<json-body>'");
+      expect((result.help as string[]).join("\n")).toContain("--body-file '<body-file>'");
       assertOnlyPreviewReads();
     },
   );
