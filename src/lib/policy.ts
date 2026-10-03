@@ -37,6 +37,9 @@ export const SECRET_ACTIONS: readonly string[] = [
   "generateCredentials",
   "sharedKeys",
   "regenerateSharedKey",
+  "readonlykeys",
+  "listCallbackUrl",
+  "retrieveBootDiagnosticsData",
 ];
 
 export const SECRET_PARAMETER_ACTIONS: readonly string[] = ["createQueryKey", "regenerateAdminKey"];
@@ -56,6 +59,9 @@ export const DESTRUCTIVE_ACTIONS: readonly string[] = [
   "restart",
   "failover",
   "reimage",
+  "redeploy",
+  "reimageall",
+  "simulateEviction",
 ];
 
 /**

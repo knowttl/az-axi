@@ -55,6 +55,10 @@ describe("client execution backstop", () => {
     ["Microsoft.ContainerRegistry/registries/registry1", "generateCredentials", { tokenId: "token1" }],
     ["Microsoft.OperationalInsights/workspaces/workspace1", "sharedKeys", undefined],
     ["Microsoft.OperationalInsights/workspaces/workspace1", "regenerateSharedKey", { keyType: "primary" }],
+    ["Microsoft.DocumentDB/databaseAccounts/account1", "readonlykeys", undefined],
+    ["Microsoft.Logic/workflows/workflow1/triggers/manual", "listCallbackUrl", undefined],
+    ["Microsoft.Compute/virtualMachines/vm1", "retrieveBootDiagnosticsData", undefined],
+    ["Microsoft.Compute/virtualMachineScaleSets/scale1/virtualMachines/0", "retrieveBootDiagnosticsData", undefined],
   ] as const)("blocks %s/%s before credential acquisition or transport", async (resource, action, body) => {
     delete process.env.AZ_AXI_ARM_TOKEN;
     for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
@@ -66,6 +70,38 @@ describe("client execution backstop", () => {
               confirm: resource.split("/").at(-1)!, body })).rejects.toMatchObject({ code: "READ_ONLY" });
             expect(fetchMock).not.toHaveBeenCalled();
           }
+        }
+      }
+    }
+  });
+
+  it.each([
+    ["virtualMachines/vm1", "redeploy"],
+    ["virtualMachineScaleSets/scale1", "redeploy"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "redeploy"],
+    ["virtualMachineScaleSets/scale1", "reimageall"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "reimageall"],
+    ["virtualMachines/vm1", "simulateEviction"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "simulateEviction"],
+  ])("gates Compute %s/%s at the transport boundary", async (resource, action) => {
+    const name = resource.split("/").at(-1)!;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
+        const target = `${path}/providers/Microsoft.Compute/${resource}/${representation}${suffix}`;
+        for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+          fetchMock.mockReset().mockResolvedValueOnce(new Response(null, { status: 204 }));
+          const options = { method: "POST", path, apiVersion: "1", execute: true, body: {} };
+          for (const confirm of [undefined, "wrong", action]) {
+            await expect(sendRequest(writer(), { ...options, confirm })).rejects.toMatchObject({
+              code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH",
+            });
+          }
+          await expect(sendRequest(writer(), { ...options, execute: false, confirm: name }))
+            .rejects.toMatchObject({ code: "API_ERROR" });
+          expect(fetchMock).not.toHaveBeenCalled();
+          expect(await sendRequest(writer(), { ...options, confirm: name })).toMatchObject({ status: 204 });
+          expect(fetchMock).toHaveBeenCalledOnce();
+          expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST", body: "{}" });
         }
       }
     }

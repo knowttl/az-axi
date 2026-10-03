@@ -117,6 +117,9 @@ describe("policy rule lists", () => {
       "generateCredentials",
       "sharedKeys",
       "regenerateSharedKey",
+      "readonlykeys",
+      "listCallbackUrl",
+      "retrieveBootDiagnosticsData",
     ]);
     expect(SECRET_PARAMETER_ACTIONS).toEqual(["createQueryKey", "regenerateAdminKey"]);
     expect(DESTRUCTIVE_ACTIONS).toEqual([
@@ -133,6 +136,9 @@ describe("policy rule lists", () => {
       "restart",
       "failover",
       "reimage",
+      "redeploy",
+      "reimageall",
+      "simulateEviction",
     ]);
     expect(PROTECTED_AUTHORIZATION_TYPES).toEqual(["roleAssignments", "roleDefinitions", "locks", "policyAssignments"]);
   });

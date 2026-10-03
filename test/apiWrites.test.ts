@@ -49,6 +49,10 @@ describe("API write execution", () => {
     ["Microsoft.ContainerRegistry/registries/registry1", "generateCredentials", { tokenId: "token1" }],
     ["Microsoft.OperationalInsights/workspaces/workspace1", "sharedKeys", undefined],
     ["Microsoft.OperationalInsights/workspaces/workspace1", "regenerateSharedKey", { keyType: "primary" }],
+    ["Microsoft.DocumentDB/databaseAccounts/account1", "readonlykeys", undefined],
+    ["Microsoft.Logic/workflows/workflow1/triggers/manual", "listCallbackUrl", undefined],
+    ["Microsoft.Compute/virtualMachines/vm1", "retrieveBootDiagnosticsData", undefined],
+    ["Microsoft.Compute/virtualMachineScaleSets/scale1/virtualMachines/0", "retrieveBootDiagnosticsData", undefined],
   ] as const)("never previews or executes %s/%s", async (resource, action, body) => {
     for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
       for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
@@ -62,6 +66,41 @@ describe("API write execution", () => {
             expect(log).not.toHaveBeenCalled();
             expect(identityOf).not.toHaveBeenCalled();
           }
+        }
+      }
+    }
+  });
+
+  it.each([
+    ["virtualMachines/vm1", "redeploy"],
+    ["virtualMachineScaleSets/scale1", "redeploy"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "redeploy"],
+    ["virtualMachineScaleSets/scale1", "reimageall"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "reimageall"],
+    ["virtualMachines/vm1", "simulateEviction"],
+    ["virtualMachineScaleSets/scale1/virtualMachines/0", "simulateEviction"],
+  ])("requires confirmation for Compute %s/%s", async (resource, action) => {
+    const name = resource.split("/").at(-1)!;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
+        const path = `${TARGET}/providers/Microsoft.Compute/${resource}/${representation}${suffix}`;
+        for (const target of [path, path.slice(1), `https://management.azure.com${path}`]) {
+          send.mockReset().mockResolvedValueOnce(response({}, 200, { etag: '"fresh"' })).mockResolvedValueOnce(response({}, 204));
+          log.mockReset();
+          const argv = ["POST", target, "--api-version", "1", "--body", "{}"];
+          const preview = await run(argv);
+          expect(preview).toMatchObject({ dryRun: true, class: "destructive" });
+          expect(preview.help).toContainEqual(expect.stringContaining(`--confirm ${name}`));
+          for (const confirm of [undefined, "wrong", action]) {
+            await expect(run([...argv, "--execute", ...(confirm === undefined ? [] : ["--confirm", confirm])]))
+              .rejects.toMatchObject({ code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH" });
+          }
+          expect(send).not.toHaveBeenCalled();
+          expect(log).not.toHaveBeenCalled();
+          expect(await run([...argv, "--execute", "--confirm", name])).toMatchObject({ result: "done", status: 204 });
+          expect(send.mock.calls.map((call) => call[1].method ?? "GET")).toEqual(["GET", "POST"]);
+          expect(send.mock.calls[1]?.[1]).toMatchObject({ execute: true, confirm: name, ifMatch: '"fresh"', body: {} });
+          expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ class: "destructive", method: "POST" }));
         }
       }
     }
