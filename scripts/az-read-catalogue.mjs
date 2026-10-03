@@ -14,12 +14,12 @@ const SOURCE_FILE = new URL("./az-read-catalogue.sources.json", import.meta.url)
 const OUTPUT_FILE = new URL("../src/lib/azReadCatalogue.ts", import.meta.url);
 // These digests lock the reviewed excerpts, source identities and line ranges together.
 const PINS = {
-  registration: "8387dff962b632c0f69338f07de58d366830f1fd4e25ec1cc93c979188ce6bf0",
+  registration: "fca267cc3e1ab90e1faee5876b28f886a46cf0105e58937360069e7527d76f8a",
   arguments: "4edcf7d929fa8c5a6a0f8562d610c4edd69d46655d52b3e59100f1b81f4aebc4",
   profile: "bc56550e29074493b6d1a2255dbbb64885c0804f06b1a3729718ff722392c46a",
   dependency: "27267bb4dfb90c6882c5571665f690ca96725ee7c1d2fbf6daae79b3056d2959",
   factory: "fbec12c7cd90ea8f5d0c8bb61dd629e5397d8069143d40cb911bc8cc67690f04",
-  operation: "1290c65a9bdea52ee62ba2a4044fb9fed0adab36c2d42e3445091bd279910f1a",
+  operation: "33cb04855779d33322944a70c1022c3085ec6ce7d518d4ef2318833551ccbd50",
 };
 const VERSION = "2.77.0";
 const HANDLER = "azure.mgmt.resource.resources.operations#ResourceGroupsOperations.get";

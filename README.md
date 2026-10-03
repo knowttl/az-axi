@@ -342,7 +342,7 @@ pnpm catalogue:check
 
 [scripts/az-read-catalogue.sources.json](scripts/az-read-catalogue.sources.json) holds the reviewed excerpts.
 To refresh, retrieve the referenced files at immutable Microsoft commits using `gh-axi api repos/<owner>/<repo>/contents/<path>?ref=<commit>`, review the registration, arguments, client factory, dependency/profile and complete SDK operation chain, then update the source snapshots and generator's integrity pins together.
-Excerpts preserve the selected lines with surrounding whitespace trimmed; separated ranges are joined by a newline.
+Excerpts preserve each inclusive line range with its surrounding whitespace trimmed; separated ranges are then joined by a newline.
 Regenerate and review the artifact diff, then run the catalogue tests and full offline suite.
 The generator never promotes newly discovered commands; broadening the allowlist requires explicit code and provenance review.
 Offline tests check reproducibility, refusal invariants and zero network/child execution; catalogue maintenance does not require an Azure account.

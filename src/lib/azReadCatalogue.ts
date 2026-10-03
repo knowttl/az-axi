@@ -91,7 +91,7 @@ export const AZ_READ_CATALOGUE = {
               297
             ]
           ],
-          "excerptSha256": "815c47a0ba115bd898d1603a4c9247b443405e94ebe29ca6617be89c12c668a4"
+          "excerptSha256": "2fdae932246c4dd7e18e8e0f030917f498c8cea2d34398b9299a28a83d7f1d7e"
         },
         {
           "kind": "arguments",
@@ -156,10 +156,10 @@ export const AZ_READ_CATALOGUE = {
             ],
             [
               10771,
-              10820
+              10821
             ]
           ],
-          "excerptSha256": "fcaea978a7e3257cf30fc9a842bdacc4e06e7b8bd9280003235db774905acc7f"
+          "excerptSha256": "75141f5a2acd37e41aae4427a75d5e018bbd0af189f400f0f08fc0ecf4b6eba6"
         }
       ]
     }
