@@ -4,6 +4,8 @@
   "packages": {
     ".": {
       "release-type": "node",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
       "initial-version": "0.1.0",
       "package-name": "@knowttl/az-axi"
     }
