@@ -15,8 +15,8 @@ const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
 ];
 
 function isSecretKeyName(key: string): boolean {
-  const name = key.toLowerCase();
-  return name === "sas" || SECRET_KEY_PARTS.some((part) => name.includes(part)) || KEY_SUFFIX.test(key);
+  const name = key.toLowerCase().replace(/[-_]/g, "");
+  return name === "sas" || name === "authorization" || SECRET_KEY_PARTS.some((part) => name.includes(part)) || KEY_SUFFIX.test(name);
 }
 
 function isSecretString(value: string): boolean {

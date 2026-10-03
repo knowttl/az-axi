@@ -18,6 +18,9 @@ The `offlinePassthroughReads` export is also measured only by that budget suite,
 The fetch capture/replay transport cannot record or replay child-process reads.
 Scenario argv contains no profile or subscription flags; capture injects the owner's selectors.
 The logs workspace is supplied by targets rather than relying on an owner's workspace alias.
+Optional `resourceGroup` and `resourceId` targets select the group-show and resource-show captures.
+Use a resource group name and a virtual machine ARM ID in the selected subscription; the VM scenario uses API version `2024-07-01`.
+Unset targets skip those captures with a note, and replay skips their absent fixtures while retaining synthetic selectors for available captures.
 Every child forces `AZ_AXI_READ_ONLY=1`.
 
 The fetch preload keeps original responses and CLI output in memory only.

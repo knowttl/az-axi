@@ -85,7 +85,15 @@ describe("benchmark preload", () => {
 });
 
 describe("benchmark surface", () => {
-  it("uses the owner workspace for both captured query paths", () => {
+  it.each([
+    { details: {}, count: 15, notes: ["Skipped group-show", "Skipped resource-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 16, notes: ["Skipped resource-show"], detailCalls: [
+      ["group", "show", "--name", "owner-group"],
+    ] },
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 16, notes: ["Skipped group-show"], detailCalls: [
+      ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
+    ] },
+  ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
     const dir = scratch();
     for (const path of ["scripts/benchmark/capture.mjs", "benchmark/scenarios.mjs"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
@@ -95,6 +103,7 @@ describe("benchmark surface", () => {
       subscription: "00000000-0000-0000-0000-000000000001",
       workspace: "00000000-0000-0000-0000-000000000010",
       leakCheck: ["owner"],
+      ...details,
     };
     writeFileSync(join(dir, "benchmark/targets.json"), JSON.stringify(targets));
     const bootstrap = join(dir, "bootstrap.mjs");
@@ -116,7 +125,14 @@ describe("benchmark surface", () => {
     });
     expect(child.status, child.stderr).toBe(0);
     const captured = JSON.parse(readFileSync(calls, "utf8"));
-    expect(captured).toHaveLength(scenarios.length);
+    expect(captured).toHaveLength(count);
+    for (const note of notes) expect(child.stderr).toContain(note);
+    for (const argv of detailCalls) expect(captured).toContainEqual([
+      "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js", ...argv,
+      "--profile", targets.profile, "--subscription", targets.subscription,
+    ]);
+    expect(captured.flat()).not.toContain("rg-demo");
+    expect(captured.flat()).not.toContain("vm1");
     expect(captured).toContainEqual([
       "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
       "logs", "query", "SigninLogs | take 50", "--workspace", targets.workspace,
@@ -129,7 +145,10 @@ describe("benchmark surface", () => {
     ]);
   });
 
-  it("runs every real scenario through the offline benchmark runner", () => {
+  it.each([
+    { omitted: [], rows: "rows[17]", notes: [] },
+    { omitted: ["group-show", "resource-show"], rows: "rows[15]", notes: ["Skipped group-show", "Skipped resource-show"] },
+  ])("runs available scenarios through offline replay with omitted $omitted captures", ({ omitted, rows, notes }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
@@ -142,6 +161,7 @@ describe("benchmark surface", () => {
     const response = (method: string, body: unknown, host = "management.azure.com") => ({ method, host, status: 200, body: scrub(body) });
     const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" }] });
     for (const scenario of scenarios) {
+      if (omitted.includes(scenario.name)) continue;
       let responses;
       if (scenario.name === "group-list") {
         responses = [response("GET", { value: [] })];
@@ -181,7 +201,8 @@ describe("benchmark surface", () => {
     }
     const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
-    expect(child.stdout).toContain("rows[17]");
+    expect(child.stdout).toContain(rows);
+    for (const note of notes) expect(child.stderr).toContain(note);
     expect(child.stdout).toContain("rbac-privileged");
     expect(child.stdout).toContain("logs-query");
     expect(child.stdout).not.toContain("benchmark-dummy");

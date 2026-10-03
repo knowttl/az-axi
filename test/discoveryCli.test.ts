@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { discoveryGroup, discoveryResource, SUB_A, subscriptionList } from "./samples.js";
+import { discoveryGroup, discoveryResource, discoveryWorkflow, SUB_A, subscriptionList } from "./samples.js";
+import { REDACTED } from "../src/lib/redact.js";
 
 describe("built CLI ARM discovery offline", () => {
   let dir: string;
@@ -12,9 +13,9 @@ describe("built CLI ARM discovery offline", () => {
     writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
-  function run(args: string[], empty = false) {
+  function run(args: string[], empty = false, resource: Record<string, unknown> = discoveryResource) {
     const stub = `
-      const data = ${JSON.stringify({ discoveryGroup, discoveryResource, subscriptionList })};
+      const data = ${JSON.stringify({ discoveryGroup, discoveryResource: resource, subscriptionList })};
       globalThis.fetch = async (url, options) => {
         process.stderr.write(JSON.stringify({url, method: options.method}) + '\\n');
         const path = new URL(url).pathname;
@@ -25,7 +26,7 @@ describe("built CLI ARM discovery offline", () => {
           body = {value: ${empty} ? [] : [item], nextLink: ${empty} ? undefined : url + '&page=2'};
           if (url.includes('page=2')) body = {value: []};
         } else if (path.endsWith('/providers/Microsoft.Compute')) body = {resourceTypes: [{resourceType:'virtualMachines',apiVersions:['2025-01-01']}]};
-        else body = path.includes('/virtualMachines/') ? data.discoveryResource : data.discoveryGroup;
+        else body = path.includes('/providers/') ? data.discoveryResource : data.discoveryGroup;
         return Response.json(body);
       };
     `;
@@ -54,6 +55,18 @@ describe("built CLI ARM discovery offline", () => {
     expect(result.stdout).toContain(discoveryResource.id);
     expect(result.stdout).toContain("tags:");
     expect(result.stderr).toContain("api-version=2025-01-01");
+  });
+  it.each([
+    ["--ids", discoveryWorkflow.id, "--full"],
+    ["--ids", discoveryWorkflow.id, "--fields", "properties"],
+    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--full"],
+    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--fields", "properties"],
+  ])("redacts credential headers through resource show %j", (...flags) => {
+    const result = run(["resource", "show", ...flags, "--api-version", "2019-05-01"], false, discoveryWorkflow);
+    expect(result.status, result.stdout).toBe(0);
+    expect(result.stdout).not.toContain("opaque-header-value");
+    expect(result.stdout).toContain(REDACTED);
+    expect(result.stdout).toContain("application/json");
   });
   it.each([
     ["group", "list", "--execute"], ["group", "show"],

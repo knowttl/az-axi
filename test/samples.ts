@@ -37,6 +37,22 @@ export const discoveryResource = {
   properties: { provisioningState: "Succeeded" },
 };
 
+export const discoveryWorkflow = {
+  id: `${discoveryGroup.id}/providers/Microsoft.Logic/workflows/http-demo`,
+  name: "http-demo", type: "Microsoft.Logic/workflows", location: "westus",
+  properties: { definition: { actions: { http: { type: "Http", inputs: {
+    headers: {
+      authorization: "opaque-header-value", "x-api-key": "opaque-header-value",
+      "api-key": "opaque-header-value", apikey: "opaque-header-value",
+      "ocp-apim-subscription-key": "opaque-header-value", "x-functions-key": "opaque-header-value",
+      "custom-key": "opaque-header-value", "custom-token": "opaque-header-value",
+      "custom-secret": "opaque-header-value", password: "opaque-header-value",
+      connectionstring: "opaque-header-value", X_API_KEY: "opaque-header-value",
+      "Connection_String": "opaque-header-value", Accept: "application/json",
+    },
+  } } } } },
+};
+
 // source: resources/resource-manager/Microsoft.Resources/subscriptions/stable/2022-12-01/examples/GetSubscriptions.json
 export const subscriptionList = [
   { id: `/subscriptions/${SUB_A}`, subscriptionId: SUB_A, displayName: "Sandbox", state: "Enabled" },
