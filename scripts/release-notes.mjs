@@ -6,10 +6,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const HEADING = /^## \[([^\]]+)\]/;
+const HEADING = /^## (?:\[([^\]]+)\]|(\d+\.\d+\.\d+(?:-[\w.-]+)?))(?=[\s(]|$)/;
 
 /**
- * The body of the `## [version]` section, without the heading itself.
+ * The body of a version section, including release-please's unlinked first release.
  * Falls back to `fallback` when the version is absent or the section is empty.
  */
 export function releaseNotes(changelog, version, fallback = "See CHANGELOG.md.") {
@@ -17,7 +17,7 @@ export function releaseNotes(changelog, version, fallback = "See CHANGELOG.md.")
   const lines = changelog.split(/\r?\n/);
   const start = lines.findIndex((line) => {
     const match = HEADING.exec(line);
-    return match !== null && match[1].trim() === wanted;
+    return match !== null && (match[1] ?? match[2]).trim() === wanted;
   });
   if (start === -1) {
     return fallback;

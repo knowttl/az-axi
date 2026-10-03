@@ -47,4 +47,26 @@ describe("release notes", () => {
       "See CHANGELOG.md.",
     );
   });
+
+  it("extracts release-please's initial unlinked version and linked later versions", () => {
+    const changelog = [
+      "## [0.1.1](https://github.com/knowttl/az-axi/compare/v0.1.0...v0.1.1) (2026-10-03)",
+      "",
+      "### Bug Fixes",
+      "",
+      "- A later fix.",
+      "",
+      "## 0.1.0 (2026-10-02)",
+      "",
+      "### Features",
+      "",
+      "- The first release.",
+      "",
+      "## [Unreleased]",
+      "",
+      "- Pending changes.",
+    ].join("\n");
+    expect(releaseNotes(changelog, "v0.1.1")).toBe("### Bug Fixes\n\n- A later fix.");
+    expect(releaseNotes(changelog, "v0.1.0")).toBe("### Features\n\n- The first release.");
+  });
 });

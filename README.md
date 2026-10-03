@@ -13,7 +13,7 @@ Never install both globally on one machine: the second install overwrites the `a
 Requires Node.js 22.12 or later, and the Azure CLI for the default `az` profile mode.
 
 ```
-npm install -g @knowttl/az-axi
+npm i -g @knowttl/az-axi
 az-axi --help
 az-axi doctor
 ```
@@ -29,6 +29,32 @@ pnpm install --frozen-lockfile
 pnpm run build
 node dist/bin/az-axi.js --help
 ```
+
+### Releases
+
+Conventional commits on `main` produce a release-please PR with the version and `CHANGELOG.md` changes.
+The initial release is `0.1.0`; merging a release PR creates its tag and GitHub release, then builds, checks and publishes that tag to npm with OIDC provenance.
+`release-please` owns the changelog and GitHub release notes; `scripts/release-notes.mjs` remains available to extract a version's changelog section locally.
+The previous tag-driven release workflow is replaced by `.github/workflows/release-please.yml`.
+The `lint` script retains this repository's existing TypeScript no-emit check; no separate style linter is configured.
+
+For the first publish, the owner must bootstrap the npm package before merging the first release PR:
+
+1. Sign in to npmjs.com with an account allowed to publish under `@knowttl`, enable two-factor authentication, and confirm that the scope belongs to that account or organization.
+2. Keep the first `0.1.0` release PR open for owner review.
+   From a reviewed checkout of that PR, run `corepack pnpm install --frozen-lockfile`, `corepack pnpm run build`, `corepack pnpm run typecheck`, `corepack pnpm run lint` and `corepack pnpm test`.
+   Confirm `package.json` says `0.1.0`, then authenticate locally with `npm login` and publish once with `npm publish --access public`.
+   This creates the package; a new package has no Settings page on which to configure OIDC beforehand.
+   Do not put npm credentials into GitHub or this repository, or reuse another project's token.
+   This local bootstrap publish has no CI provenance.
+3. On npmjs.com, open `@knowttl/az-axi` → Settings → Trusted publishing → Add trusted publisher → GitHub Actions.
+   Set organization/user to `knowttl`, repository to `az-axi`, workflow filename to `release-please.yml` (filename only), and leave environment blank.
+   Enable direct `npm publish` in Allowed actions and save.
+4. After the history privacy audit permits making `knowttl/az-axi` public, merge the approved release PR.
+   The workflow skips the already published `0.1.0`; later versions publish with provenance from the public repository.
+   In GitHub repository Settings → Actions → General, enable GitHub Actions to create pull requests so release-please can open its PRs.
+
+See npm's [trusted publisher setup](https://docs.npmjs.com/trusted-publishers/) for the configuration fields and provenance requirements.
 
 ## Agent integration
 
