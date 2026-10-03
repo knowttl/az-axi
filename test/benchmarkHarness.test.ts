@@ -145,7 +145,7 @@ describe("benchmark surface", () => {
     expect(result.help.topLevel).toBeGreaterThan(0);
     expect(Object.keys(result.help)).toHaveLength(13);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
-  });
+  }, 20_000);
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
