@@ -97,4 +97,23 @@ describe("built API body inputs, offline only", () => {
       expect(requests().at(-1)?.body).toEqual(JSON.parse(input));
     }
   });
+
+  it.each(["inline", "file", "stdin"])("preserves %s JSON strings through queries, execution and deployment previews", (form) => {
+    for (const body of ["text", "false", '{"tags":{"env":"prod"}}']) {
+      const input = JSON.stringify(body);
+      writeFileSync(join(dir, "body file.json"), input);
+      const flags = form === "inline" ? ["--body", input] : form === "file" ? ["--body-file", join(dir, "body file.json")] : [];
+      const stdin = form === "stdin" ? input : "";
+      const cases = [
+        { path: "/providers/Microsoft.ResourceGraph/resources", method: "POST", flags },
+        { path: TARGET, method: "PATCH", flags: [...flags, "--execute"] },
+        { path: `${TARGET}/providers/Microsoft.Resources/deployments/demo`, method: "PUT", flags },
+      ];
+      for (const request of cases) {
+        const result = cli(request.flags, stdin, request.path, request.method);
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+        expect(requests().at(-1)).toMatchObject({ method: request.method === "PUT" ? "POST" : request.method, body });
+      }
+    }
+  });
 });

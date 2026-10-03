@@ -129,7 +129,7 @@ export async function sendRequest<T = unknown>(
 
   let body: string | undefined;
   if (options.body !== undefined) {
-    body = typeof options.body === "string" ? options.body : JSON.stringify(options.body);
+    body = JSON.stringify(options.body);
   }
 
   for (let attempt = 0; ; attempt++) {

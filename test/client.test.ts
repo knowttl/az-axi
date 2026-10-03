@@ -372,6 +372,14 @@ describe("sendRequest", () => {
     expect(init.headers["If-Match"]).toBe('"etag-1"');
   });
 
+  it.each(["text", "false", '{"query":"Resources"}', null, false, 0, [], {}].map((body) => ({ body })))("serializes JSON body $body without changing its type", async ({ body }) => {
+    fetchMock.mockImplementation(async () => json({}));
+    await sendRequest(profile(), {
+      method: "POST", path: "/providers/Microsoft.ResourceGraph/resources", apiVersion: "1", body,
+    });
+    expect(fetchMock.mock.calls[0]?.[1].body).toBe(JSON.stringify(body));
+  });
+
   it("returns raw text and tolerates empty and non-JSON bodies", async () => {
     fetchMock.mockImplementationOnce(async () => new Response("plain", { status: 200 }));
     expect(await request(profile(), { path: "/x", apiVersion: "1", raw: true })).toBe("plain");

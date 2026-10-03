@@ -11,7 +11,7 @@ globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
   let body;
   if (process.env.AZ_AXI_TEST_CAPTURE_BODY === "1" && init.body !== undefined) {
-    try { body = JSON.parse(init.body); } catch { body = init.body; }
+    body = JSON.parse(init.body);
   }
   appendFileSync(process.env.AZ_AXI_TEST_REQUESTS, JSON.stringify({ method, ifMatch: init.headers?.["If-Match"],
     ...(body !== undefined ? { body } : {}) }) + "\n");
@@ -22,6 +22,7 @@ globalThis.fetch = async (url, init = {}) => {
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
     return json({ tags: { env: scenario === "noop" ? "prod" : "dev" } }, 200, { etag: '"fresh"' });
   }
+  if (new URL(url).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });
   if (scenario === "precondition") return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
   if (scenario === "network") throw new Error("synthetic offline network failure");
   if (["async", "failure", "timeout", "no-wait", "location"].includes(scenario)) {
