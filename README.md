@@ -36,14 +36,14 @@ Conventional commits on `main` produce a release-please PR with the version and 
 The initial release is `0.1.0`; merging a release PR creates its tag and GitHub release, then builds, checks and publishes that tag to npm with OIDC provenance.
 `release-please` owns the changelog and GitHub release notes; `scripts/release-notes.mjs` remains available to extract a version's changelog section locally.
 The previous tag-driven release workflow is replaced by `.github/workflows/release-please.yml`.
-The `lint` script retains this repository's existing TypeScript no-emit check; no separate style linter is configured.
+The `typecheck` script runs this repository's TypeScript no-emit check; no separate style linter is configured.
 
 For the first publish, the owner must bootstrap the npm package before merging the first release PR:
 
 1. Sign in to npmjs.com with an account allowed to publish under `@knowttl`, enable two-factor authentication, and confirm that the scope belongs to that account or organization.
    In GitHub repository Settings → Actions → General, enable GitHub Actions to create pull requests so release-please can open its PRs.
 2. Keep the first `0.1.0` release PR open for owner review.
-   From a reviewed checkout of that PR, run `corepack pnpm install --frozen-lockfile`, `corepack pnpm run build`, `corepack pnpm run typecheck`, `corepack pnpm run lint` and `corepack pnpm test`.
+   From a reviewed checkout of that PR, run `corepack pnpm install --frozen-lockfile`, `corepack pnpm run build`, `corepack pnpm run typecheck` and `corepack pnpm test`.
    Confirm `package.json` says `0.1.0`, then authenticate locally with `npm login` and publish once with `npm publish --access public`.
    This creates the package; a new package has no Settings page on which to configure OIDC beforehand.
    Do not put npm credentials into GitHub or this repository, or reuse another project's token.

@@ -39,7 +39,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm run typecheck
-      - run: pnpm run lint
       - run: pnpm test
       # Keep the registry URL but remove setup-node's placeholder authentication.
       - name: Enable npm OIDC trusted publishing
