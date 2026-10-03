@@ -43,12 +43,13 @@ function needsApproval(command) {
 
   // Substitutions and incomplete quoting are ambiguous: scan the entire text,
   // including nested commands, rather than trusting the simple word grouping.
-  if (quote || /\$|`|\\|<<|[<>]\(|(?<!\|)\|(?!\|)/.test(command)) {
+  if (quote || /\$|`|\\|=|[\[\]{}()]|<<|(?<!\|)\|(?!\|)/.test(command)) {
     const texts = [
+      command,
       command.replace(/\\[^\s]?|["'`]/g, " "),
       command.replace(/\\\n/g, "").replace(/\$(["'])/g, "$1").replace(/["'`\\]/g, ""),
     ];
-    return texts.some((text) => invocation.test(text)) && texts.some((text) => execute.test(text));
+    return texts.some((text) => invocation.test(text)) && texts.some((text) => text.includes("--execute"));
   }
   return groups.some((words) => {
     const text = words.join(" ").replace(/["'\\]/g, "");
