@@ -41,6 +41,7 @@ The `lint` script retains this repository's existing TypeScript no-emit check; n
 For the first publish, the owner must bootstrap the npm package before merging the first release PR:
 
 1. Sign in to npmjs.com with an account allowed to publish under `@knowttl`, enable two-factor authentication, and confirm that the scope belongs to that account or organization.
+   In GitHub repository Settings → Actions → General, enable GitHub Actions to create pull requests so release-please can open its PRs.
 2. Keep the first `0.1.0` release PR open for owner review.
    From a reviewed checkout of that PR, run `corepack pnpm install --frozen-lockfile`, `corepack pnpm run build`, `corepack pnpm run typecheck`, `corepack pnpm run lint` and `corepack pnpm test`.
    Confirm `package.json` says `0.1.0`, then authenticate locally with `npm login` and publish once with `npm publish --access public`.
@@ -52,7 +53,6 @@ For the first publish, the owner must bootstrap the npm package before merging t
    Enable direct `npm publish` in Allowed actions and save.
 4. After the history privacy audit permits making `knowttl/az-axi` public, merge the approved release PR.
    The workflow skips the already published `0.1.0`; later versions publish with provenance from the public repository.
-   In GitHub repository Settings → Actions → General, enable GitHub Actions to create pull requests so release-please can open its PRs.
 
 See npm's [trusted publisher setup](https://docs.npmjs.com/trusted-publishers/) for the configuration fields and provenance requirements.
 
