@@ -314,6 +314,37 @@ Repeated scalar and boolean flags may repeat the same value; conflicting values 
 Unknown flags, short clusters or abbreviations, and missing values fail with exit 2 before requests.
 `--query` retains its HTTP-parameter meaning only on `api`; output JMESPath and `--output` are unsupported.
 
+### Pinned Azure CLI read catalogue
+
+[src/lib/azReadCatalogue.ts](src/lib/azReadCatalogue.ts) is a data-only seed for future reviewed read passthrough.
+It does not add an `az-axi az` command or change native commands, aliases, TOON output or write safeguards.
+The generated catalogue owns the exact allowlist, handler and operation mappings, runtime and SDK version pins, profiles, clouds, platforms and approved extension set.
+This is a source audit, not a live runtime certification; no Azure CLI handler is imported or executed to build it.
+`group list` is deliberately excluded because its official registration uses a custom handler.
+
+Each entry records argument constraints, authentication and permission needs, exact operations, an output schema identifier and immutable source commits, line ranges and excerpt hashes.
+Consult its `arguments` and `argumentPolicy` fields for accepted flags, value constraints and refusals; these are recorded policy for a future consumer, not executable CLI validation.
+A future consumer must require matching az-auth tenant/subscription context, force JSON transport, disable prompts and dynamic extension installation, then normalize output to TOON.
+Token profiles do not authorize ambient az identity use.
+
+Unknown command, version, extension, handler or operation means **write/refusal**, including custom handlers and transitive operations.
+Keys, connection strings, SAS, secret values, credentials and similar actions never become reads based on a `list` verb, GET method or output filter.
+The generator reads pinned official excerpts as text, without Python, extension imports, child execution, network access or dynamic discovery.
+
+```sh
+node scripts/az-read-catalogue.mjs --help
+pnpm catalogue:generate
+pnpm catalogue:check
+```
+
+These maintenance commands require a source checkout with development dependencies installed.
+[scripts/az-read-catalogue.sources.json](scripts/az-read-catalogue.sources.json) holds the reviewed excerpts.
+To refresh, retrieve the referenced files at immutable Microsoft commits using `gh-axi api repos/<owner>/<repo>/contents/<path>?ref=<commit>`, review the registration, arguments, client factory, dependency/profile and complete SDK operation chain, then update the source snapshots and generator's integrity pins together.
+Excerpts preserve each inclusive line range with its surrounding whitespace trimmed; separated ranges are then joined by a newline.
+Regenerate and review the artifact diff, then run the catalogue tests and full offline suite.
+The generator never promotes newly discovered commands; broadening the allowlist requires explicit code and provenance review.
+Offline tests check reproducibility, refusal invariants and zero network/child execution; catalogue maintenance does not require an Azure account.
+
 ## Behavior
 
 Resource inspection commands bound rows and long cells by default, except `api` lists have no default row cap.

@@ -55,6 +55,8 @@ The offline test suite checks this list against the registry.
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
+See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for its data-only status, refusal policy, credential exclusions and maintenance workflow.
+
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
 secure score, exposure counts, and write status - enough to act without a second
