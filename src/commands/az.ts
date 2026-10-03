@@ -86,9 +86,10 @@ export async function run(argv: string[], signal?: AbortSignal): Promise<Record<
     }
     const result = await json([...entry.command.split(" "), ...entry.arguments.flatMap((arg) => [arg.flags[0], flags[arg.flags[0].slice(2)]!]), "--output", "json"]);
     const expectedId = `/subscriptions/${subscription}/resourceGroups/${flags.name}`;
-    if (typeof result.id !== "string" || result.id.toLowerCase() !== expectedId.toLowerCase() || result.name !== flags.name) refuse("passthrough response does not match the requested resource group");
+    if (typeof result.id !== "string" || result.id.toLowerCase() !== expectedId.toLowerCase() ||
+      typeof result.name !== "string" || result.name.toLowerCase() !== flags.name!.toLowerCase()) refuse("passthrough response does not match the requested resource group");
     const state = objectOf(result.properties)?.provisioningState;
-    const tags = result.tags === undefined ? {} : objectOf(result.tags);
+    const tags = objectOf(result.tags ?? {});
     if (typeof result.location !== "string" || state !== undefined && typeof state !== "string" ||
       !tags || Object.values(tags).some((value) => typeof value !== "string")) refuse("passthrough returned an invalid resource-group envelope");
     const resourceGroup = { id: result.id, name: result.name, location: result.location, state: state ?? "" };

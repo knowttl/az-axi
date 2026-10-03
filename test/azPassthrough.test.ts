@@ -80,6 +80,29 @@ describe("built CLI reviewed passthrough", () => {
   it("projects --fields locally", () => {
     expect(invoke([...args, "--fields", "name,state"]).output).toEqual({ resourceGroup: { name: "rg-demo", state: "Succeeded" } });
   });
+  it.each([
+    { flags: [], expected: { id: azResourceGroup.id, name: "rg-demo", location: "westeurope", state: "Succeeded" } },
+    { flags: ["--fields", "name,state"], expected: { name: "rg-demo", state: "Succeeded" } },
+    { flags: ["--full"], expected: { id: azResourceGroup.id, name: "rg-demo", location: "westeurope", state: "Succeeded", tags: {} } },
+  ])("normalizes empty tags in output mode $flags", ({ flags, expected }) => {
+    responses["group show"] = { ...azResourceGroup, tags: null };
+    expect(invoke([...args, ...flags])).toEqual({ status: 0, calls: [...probes, read], output: { resourceGroup: expected } });
+    responses["group show"] = { ...azResourceGroup, tags: undefined };
+    expect(invoke([...args, ...flags])).toEqual({ status: 0, calls: [...probes, read, ...probes, read], output: { resourceGroup: expected } });
+  });
+  it.each([
+    { flags: [], expected: { id: azResourceGroup.id, name: "rg-demo", location: "westeurope", state: "Succeeded" } },
+    { flags: ["--fields", "name,state"], expected: { name: "rg-demo", state: "Succeeded" } },
+    { flags: ["--full"], expected: { id: azResourceGroup.id, name: "rg-demo", location: "westeurope", state: "Succeeded", tags: azResourceGroup.tags } },
+  ])("matches group names case-insensitively in output mode $flags", ({ flags, expected }) => {
+    const argv = ["az", "group", "show", "--name", "RG-DEMO", "--subscription", SUB_A];
+    const requestedRead = ["group", "show", "--name", "RG-DEMO", "--subscription", SUB_A, "--output", "json"];
+    expect(invoke([...argv, ...flags])).toEqual({ status: 0, calls: [...probes, requestedRead], output: { resourceGroup: expected } });
+  });
+  it.each([{ tags: [] }, { tags: "invalid" }, { tags: { owner: 1 } }, { name: null }, { name: "rg-other" }])("refuses malformed or mismatched group metadata %j", (change) => {
+    responses["group show"] = { ...azResourceGroup, ...change };
+    expect(invoke()).toMatchObject({ status: 2, calls: [...probes, read], output: { code: "VALIDATION_ERROR" } });
+  });
   it("isolates inherited user, system and dev extension sources without changing the login directory", () => {
     expect(invoke(args, {
       AZURE_EXTENSION_DIR: "untrusted", AZURE_EXTENSION_SYS_DIR: "untrusted-system",
