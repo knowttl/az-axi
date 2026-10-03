@@ -28,6 +28,7 @@ Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
 secure score, exposure counts, and write status - enough to act without a second
 call. A failed section degrades to a hint; the rest still render.
+See [README.md#writes](../../README.md#writes) for the dashboard and `doctor` write scope, read-only override and log path details.
 
 ```sh
 az-axi                      # dashboard

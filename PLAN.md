@@ -1052,11 +1052,7 @@ Tasks:
 7. Write `scripts/claude-guard.mjs` and the README "Agent integration" and "Writes" sections (Section 4.3 and 6.13.10). The "Writes" section covers enabling writes by hand-editing a profile, the subscription restriction, every gate, the write log location, and recommended RBAC (PIM-eligible write roles scoped to the write-enabled subscriptions only).
 8. Add the write status to the dashboard and `doctor`, and add write round-trip checks to `scripts/live-smoke.mjs` that run only when `--writes --subscription <id> --resource-group <rg>` is passed explicitly.
 
-The smoke script's destructive step additionally requires `--delete-storage-account <throwaway-account>`, supplied and pre-created by the owner in the named resource group.
-It never creates resources or deletes the supplied resource group; without the extra flag it reports the destructive check as skipped.
-Tag previews that return an ETag exercise `--if-match` and stale-ETag rejection, including the throwaway account's tag preview when supplied.
-When the resource group returns no ETag, the script follows the execute contract without `--if-match` and checks the explicit protection notice.
-If neither target returns an ETag, its summary says `If-Match path not exercised: target returned no ETag`.
+See [README.md#writes](README.md#writes) for the implemented owner-only smoke prerequisites, destructive opt-in and conditional ETag checks.
 
 Acceptance criteria:
 

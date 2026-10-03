@@ -165,7 +165,7 @@ One example per inspection command; see [Profiles](#profiles) for `config init` 
 Every command also accepts `--help` with its full reference.
 
 ```
-az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure
+az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes
 az-axi home                                             # the same dashboard
 az-axi doctor                                           # check az, tokens, ARM reachability and write status per profile
 az-axi config list                                      # profiles with scope, write status and description
@@ -290,7 +290,9 @@ Both report whether `AZ_AXI_READ_ONLY` is set and whether its value forces read-
 Read-scope overrides do not change the reported write subscriptions.
 
 The owner-only source-checkout smoke script keeps its existing checks when run without write flags.
+Build with `pnpm run build` before running it; the script imports API versions from `dist`.
 Write checks require all three flags explicitly: `--writes --subscription <id> --resource-group <rg>`.
+Select a write-enabled profile whose configured subscriptions include the sandbox subscription, with `AZ_AXI_READ_ONLY` not forcing read-only.
 The script preserves existing tags and sets the sandbox resource group's `axi-test` tag to `1` (or `2` if already `1`), then checks execution, a repeated no-op and the read-only block.
 It leaves the test tag in place.
 It never creates resources or deletes the supplied resource group.
@@ -301,7 +303,8 @@ node scripts/live-smoke.mjs --profile <profile> --writes --subscription <id> --r
 node scripts/live-smoke.mjs --profile <profile> --writes --subscription <id> --resource-group <sandbox-rg> --delete-storage-account <throwaway-account>
 ```
 
-The destructive step is skipped unless `--delete-storage-account` names an existing account in that resource group.
+The destructive step is skipped when `--delete-storage-account` is omitted.
+When supplied, the named account must already exist in that resource group; a missing or mismatched target fails the check without deletion.
 It previews deletion, refuses detected locks or failed lock checks, checks that execution without confirmation is blocked, deletes with `--confirm <throwaway-account>`, and verifies the account is gone.
 Where a tag preview returns an ETag, execution uses `--if-match` and a subsequent write with the stale reviewed ETag must return `PRECONDITION_FAILED`.
 The storage account's tag preview is also checked; its tag round trip runs only when it returns an ETag.

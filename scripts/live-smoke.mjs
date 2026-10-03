@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Live smoke test (PLAN.md Section 13.2). Owner-run only, never in CI: it makes real calls
 // with whatever `az login` (or the token variables) provides.
-// Prints pass or fail per check and writes the same summary to the OS temp directory.
+// Prints pass, fail or skip per check and writes the same summary to the OS temp directory.
 // It never prints or stores response bodies.
 //
 // Usage: node scripts/live-smoke.mjs [--profile <name>] [--bin <path-to-az-axi.js>]
@@ -150,7 +150,7 @@ export function checksFor(argv, azAxi) {
     return typeof row?.writes === "string" && row.writes.startsWith(expected);
   };
 
-// Each check inspects the output privately and reports only a pass or fail.
+// Each check inspects the output privately and reports only an outcome or skip reason.
 const checks = [
   ["version", () => {
     const r = azAxi(["--version"]);
