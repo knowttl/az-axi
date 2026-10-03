@@ -59,7 +59,8 @@ describe("built API body inputs, offline only", () => {
     expect(requests()).toEqual([{ method: "POST", body }]);
   });
 
-  it.each([" ", "\t"])("preserves body-file paths ending in %j through preview and execution", (suffix) => {
+  // Windows filenames cannot contain tab characters.
+  it.each(process.platform === "win32" ? [" "] : [" ", "\t"])("preserves body-file paths ending in %j through preview and execution", (suffix) => {
     const file = join(dir, `body.json${suffix}`);
     writeFileSync(join(dir, "body.json"), '{"tags":{"env":"wrong"}}');
     writeFileSync(file, '{"tags":{"env":"selected"}}');
