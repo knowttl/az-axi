@@ -3,12 +3,13 @@ import { RESOURCE_GRAPH_RESOURCES, SUBSCRIPTIONS_LIST } from "../lib/apiVersions
 import { assertKnownFlags, flagString, parseArgs } from "../lib/args.js";
 import { identityOf } from "../lib/auth.js";
 import { requestAll, sendRequest } from "../lib/client.js";
-import { loadConfig, writeStatus } from "../lib/config.js";
+import { loadConfig, readOnlyForced, writeStatus } from "../lib/config.js";
 import { graphScope, profileFromArgs, scopeFlags } from "../lib/context.js";
 import { DESCRIPTION } from "../help.js";
 import { collapseHomeDirectory, homeHeader } from "../lib/paths.js";
 import { DEFENDER_ACTIVE_ALERT_COUNTS, DEFENDER_SECURE_SCORES, exposureQuery } from "../lib/queries.js";
 import type { CommandMeta } from "../lib/registry.js";
+import { resolveWriteLogPath } from "../lib/writeLog.js";
 
 export const meta: CommandMeta = { name: "home", effect: "read" };
 
@@ -274,6 +275,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     score,
     exposure,
     writes: writeStatus(profile.allowWrites, profile.writeSubscriptions).label,
+    writeSubscriptions: profile.allowWrites === true ? profile.writeSubscriptions : [],
+    readOnly: { set: process.env.AZ_AXI_READ_ONLY !== undefined, forced: readOnlyForced() },
+    writeLog: collapseHomeDirectory(resolveWriteLogPath()),
   };
 
   const next: string[] = [];

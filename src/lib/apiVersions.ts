@@ -24,6 +24,27 @@
 export const SUBSCRIPTIONS_LIST = "2022-12-01";
 
 /**
+ * Resource groups - Get and Update, owner-only smoke tag round trip.
+ * Value: 2021-04-01. Newer stable: 2025-04-01 has the same GET/PATCH shape.
+ * Spec: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/resources.json
+ * Docs: https://learn.microsoft.com/en-us/rest/api/resources/resource-groups/update?view=rest-resources-2021-04-01
+ * Verified: 2026-10-02 against the spec and REST reference.
+ * Reason: documented stable GET/PATCH contract; no ETag or If-Match is promised.
+ */
+export const RESOURCE_GROUPS = "2021-04-01";
+
+/**
+ * Storage accounts - Get Properties and Delete, owner-only smoke throwaway target.
+ * Value: 2025-06-01. Newer stable: 2026-09-01 in the specification tree.
+ * Spec: storage/resource-manager/Microsoft.Storage/stable/2025-06-01/openapi.json
+ * Docs: https://learn.microsoft.com/en-us/rest/api/storagerp/storage-accounts/delete?view=rest-storagerp-2025-06-01
+ * Verified: 2026-10-02 against the spec and REST reference.
+ * Reason: pinned to the verified REST reference's stable GET/DELETE contract;
+ * newer versions are not needed for the throwaway check. No credential actions used.
+ */
+export const STORAGE_ACCOUNTS = "2025-06-01";
+
+/**
  * Resource Graph query (`POST /providers/Microsoft.ResourceGraph/resources`).
  * Also used for `authorizationresources` (rbac list) and `securityresources`
  * (defender assessments, defender score, exposure checks).

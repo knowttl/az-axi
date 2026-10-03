@@ -3,10 +3,11 @@ import { SUBSCRIPTIONS_LIST } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagString, parseArgs } from "../lib/args.js";
 import { identityOf, resolveCredential, runAz, type Identity } from "../lib/auth.js";
 import { requestAll } from "../lib/client.js";
-import { loadConfig, resolveProfile, writeStatus, type ResolvedProfile } from "../lib/config.js";
+import { loadConfig, readOnlyForced, resolveProfile, writeStatus, type ResolvedProfile } from "../lib/config.js";
 import { collapseHomeDirectory } from "../lib/paths.js";
 import type { CommandMeta } from "../lib/registry.js";
 import { packageInfo } from "../lib/version.js";
+import { resolveWriteLogPath } from "../lib/writeLog.js";
 
 export const meta: CommandMeta = { name: "doctor", effect: "read" };
 
@@ -42,6 +43,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   return {
     package: `${pkg.name} ${pkg.version}`,
     config: config ? collapseHomeDirectory(path) : `${collapseHomeDirectory(path)} (not found; using the implicit az profile)`,
+    readOnly: { set: process.env.AZ_AXI_READ_ONLY !== undefined, forced: readOnlyForced() },
+    writeLog: collapseHomeDirectory(resolveWriteLogPath()),
     profiles: rows,
     help: help.length > 0 ? help : ["Run `az-axi sub list` to see visible subscriptions"],
   };
@@ -72,6 +75,7 @@ async function inspect(
         subscriptions: "-",
         writes: "-",
         status: `invalid: ${error.message}`,
+        writeSubscriptions: "-",
       },
       help: (error.suggestions ?? []).map((s) => `[${name ?? "az"}] ${s}`),
     };
@@ -156,6 +160,7 @@ async function inspect(
       subscriptions,
       writes: writeStatus(profile.allowWrites, profile.writeSubscriptions).label,
       status,
+      writeSubscriptions: profile.allowWrites === true ? profile.writeSubscriptions.join(",") : "(none)",
     },
     help,
   };

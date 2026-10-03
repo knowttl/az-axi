@@ -14,6 +14,8 @@ vi.mock("../src/lib/client.js", () => ({ requestAll: vi.fn() }));
 import { run } from "../src/commands/doctor.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { requestAll } from "../src/lib/client.js";
+import { resolveWriteLogPath } from "../src/lib/writeLog.js";
+import { collapseHomeDirectory } from "../src/lib/paths.js";
 
 const SUB_A = "00000000-0000-0000-0000-000000000020";
 const TENANT = "00000000-0000-0000-0000-000000000001";
@@ -25,7 +27,7 @@ const requestAllMock = vi.mocked(requestAll);
 
 let dir: string;
 let path: string;
-const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_READ_ONLY", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION"];
+const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_READ_ONLY", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_WRITE_LOG"];
 let saved: Record<string, string | undefined>;
 
 const rows = async (argv: string[] = []) => (await run(argv)).profiles as Array<Record<string, unknown>>;
@@ -57,8 +59,10 @@ describe("doctor", () => {
     expect(result.package).toMatch(/az-axi \d+\.\d+\.\d+/);
     expect(String(result.config)).toContain("implicit az profile");
     expect(result.profiles).toEqual([
-      { name: "az", auth: "az", identity: "ada@contoso.com", type: "user", subscriptions: 3, writes: "disabled (default)", status: "ok" },
+      { name: "az", auth: "az", identity: "ada@contoso.com", type: "user", subscriptions: 3, writes: "disabled (default)", writeSubscriptions: "(none)", status: "ok" },
     ]);
+    expect(result.readOnly).toEqual({ set: false, forced: false });
+    expect(result.writeLog).toBe(collapseHomeDirectory(resolveWriteLogPath()));
     expect(credentialMock.mock.calls.map(([, resource]) => resource)).toEqual(["arm", "logs", "graph"]);
     expect(requestAllMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -91,6 +95,7 @@ describe("doctor", () => {
       ["ci", "disabled (default)", "ok"],
     ]);
     expect(result[2]).toMatchObject({ identity: "(token)", type: "token" });
+    expect(result.map((row) => row.writeSubscriptions)).toEqual(["(none)", SUB_A, "(none)"]);
     // token mode never spawns az
     expect(runAzMock).toHaveBeenCalledTimes(2);
   });
@@ -98,7 +103,23 @@ describe("doctor", () => {
   it("shows write status forced off by $AZ_AXI_READ_ONLY", async () => {
     writeFileSync(path, JSON.stringify({ profiles: { sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
     process.env.AZ_AXI_READ_ONLY = "1";
-    expect((await rows())[0]?.writes).toBe("disabled (AZ_AXI_READ_ONLY)");
+    const result = await run([]);
+    expect(result.readOnly).toEqual({ set: true, forced: true });
+    expect((result.profiles as Array<Record<string, unknown>>)[0]).toMatchObject({
+      writes: "disabled (AZ_AXI_READ_ONLY)", writeSubscriptions: SUB_A,
+    });
+  });
+
+  it("reports a set but inactive override, custom log and unchanged write scope despite read selectors", async () => {
+    writeFileSync(path, JSON.stringify({ profiles: { sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
+    process.env.AZ_AXI_READ_ONLY = "0";
+    process.env.AZ_AXI_WRITE_LOG = join(dir, "custom.log");
+    process.env.AZ_AXI_SUBSCRIPTION = "00000000-0000-0000-0000-000000000021";
+    const result = await run(["--subscription", "00000000-0000-0000-0000-000000000022"]);
+    expect(result.readOnly).toEqual({ set: true, forced: false });
+    expect(result.writeLog).toBe(join(dir, "custom.log"));
+    expect((result.profiles as Array<Record<string, unknown>>)[0]?.writeSubscriptions).toBe(SUB_A);
+    expect(JSON.stringify(result.help)).not.toMatch(/allowWrites/);
   });
 
   it("restricts the check to --profile", async () => {
