@@ -50,6 +50,27 @@ describe("client execution backstop", () => {
   const path = `/subscriptions/${sub}/resourceGroups/rg-demo`;
   const writer = () => profile({ allowWrites: true, subscriptions: [sub], writeSubscriptions: [sub] });
 
+  it.each([
+    ["Microsoft.ContainerRegistry/registries/registry1", "regenerateCredential", { name: "password" }],
+    ["Microsoft.ContainerRegistry/registries/registry1", "generateCredentials", { tokenId: "token1" }],
+    ["Microsoft.OperationalInsights/workspaces/workspace1", "sharedKeys", undefined],
+    ["Microsoft.OperationalInsights/workspaces/workspace1", "regenerateSharedKey", { keyType: "primary" }],
+  ] as const)("blocks %s/%s before credential acquisition or transport", async (resource, action, body) => {
+    delete process.env.AZ_AXI_ARM_TOKEN;
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
+        const target = `${path}/providers/${resource}/${representation}${suffix}`;
+        for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+          for (const execute of [false, true]) {
+            await expect(sendRequest(writer(), { method: "POST", path, apiVersion: "1", execute,
+              confirm: resource.split("/").at(-1)!, body })).rejects.toMatchObject({ code: "READ_ONLY" });
+            expect(fetchMock).not.toHaveBeenCalled();
+          }
+        }
+      }
+    }
+  });
+
   it.each(["", "/slots/slot1"])("blocks App Service publishxml%s at the transport boundary", async (suffix) => {
     for (const action of ["publishxml", "PUBLISHXML", "%70ublishxml/?api-version=1"]) {
       const target = `${path}/providers/Microsoft.Web/sites/app1${suffix}/${action}`;

@@ -113,6 +113,10 @@ describe("policy rule lists", () => {
       "listAccountSas",
       "listServiceSas",
       "regeneratePassword",
+      "regenerateCredential",
+      "generateCredentials",
+      "sharedKeys",
+      "regenerateSharedKey",
     ]);
     expect(SECRET_PARAMETER_ACTIONS).toEqual(["createQueryKey", "regenerateAdminKey"]);
     expect(DESTRUCTIVE_ACTIONS).toEqual([

@@ -33,6 +33,10 @@ export const SECRET_ACTIONS: readonly string[] = [
   "listAccountSas",
   "listServiceSas",
   "regeneratePassword",
+  "regenerateCredential",
+  "generateCredentials",
+  "sharedKeys",
+  "regenerateSharedKey",
 ];
 
 export const SECRET_PARAMETER_ACTIONS: readonly string[] = ["createQueryKey", "regenerateAdminKey"];

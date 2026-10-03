@@ -44,6 +44,29 @@ afterEach(() => {
 });
 
 describe("API write execution", () => {
+  it.each([
+    ["Microsoft.ContainerRegistry/registries/registry1", "regenerateCredential", { name: "password" }],
+    ["Microsoft.ContainerRegistry/registries/registry1", "generateCredentials", { tokenId: "token1" }],
+    ["Microsoft.OperationalInsights/workspaces/workspace1", "sharedKeys", undefined],
+    ["Microsoft.OperationalInsights/workspaces/workspace1", "regenerateSharedKey", { keyType: "primary" }],
+  ] as const)("never previews or executes %s/%s", async (resource, action, body) => {
+    for (const representation of [action, action.toUpperCase(), `%${action.charCodeAt(0).toString(16)}${action.slice(1)}`]) {
+      for (const suffix of ["", "/", "?api-version=1", "/?api-version=1"]) {
+        const path = `${TARGET}/providers/${resource}/${representation}${suffix}`;
+        for (const target of [path, path.slice(1), `https://management.azure.com${path}`]) {
+          for (const flags of [[], ["--execute", "--confirm", resource.split("/").at(-1)!]]) {
+            await expect(run(["POST", target, "--api-version", "1",
+              ...(body === undefined ? [] : ["--body", JSON.stringify(body)]), ...flags]))
+              .rejects.toMatchObject({ code: "READ_ONLY" });
+            expect(send).not.toHaveBeenCalled();
+            expect(log).not.toHaveBeenCalled();
+            expect(identityOf).not.toHaveBeenCalled();
+          }
+        }
+      }
+    }
+  });
+
   it.each(["", "/slots/slot1"])("never previews or executes App Service publishxml%s", async (suffix) => {
     for (const action of ["publishxml", "PUBLISHXML", "%70ublishxml/?api-version=1"]) {
       const path = `${TARGET}/providers/Microsoft.Web/sites/app1${suffix}/${action}`;
