@@ -44,6 +44,46 @@ afterEach(() => {
 });
 
 describe("API write execution", () => {
+  it.each(["", "/slots/slot1"])("never previews or executes App Service publishxml%s", async (suffix) => {
+    for (const action of ["publishxml", "PUBLISHXML", "%70ublishxml/?api-version=1"]) {
+      const path = `${TARGET}/providers/Microsoft.Web/sites/app1${suffix}/${action}`;
+      for (const target of [path, path.slice(1), `https://management.azure.com${path}`]) {
+        for (const flags of [[], ["--execute", "--confirm", suffix ? "slot1" : "app1"]]) {
+          await expect(run(["POST", target, "--api-version", "1", ...flags])).rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(send).not.toHaveBeenCalled();
+          expect(log).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
+  it.each(["subscriptions/client1", "tenant/access", "tenant/gitAccess"])("requires confirmation for API Management %s key rotation", async (suffix) => {
+    const name = suffix.split("/").at(-1)!;
+    for (const action of ["regeneratePrimaryKey", "regenerateSecondaryKey"]) {
+      for (const representation of [action, action.toUpperCase(), `%72${action.slice(1)}/?api-version=1`]) {
+        const path = `${TARGET}/providers/Microsoft.ApiManagement/service/apim1/${suffix}/${representation}`;
+        for (const target of [path, path.slice(1), `https://management.azure.com${path}`]) {
+          send.mockReset().mockResolvedValueOnce(response({}, 200, { etag: '"fresh"' })).mockResolvedValueOnce(response({}, 204));
+          log.mockReset();
+          const argv = ["POST", target, "--api-version", "1"];
+          const preview = await run(argv);
+          expect(preview).toMatchObject({ dryRun: true, class: "destructive" });
+          expect(preview.help).toContainEqual(expect.stringContaining(`--confirm ${name}`));
+          for (const confirm of [undefined, "wrong", action]) {
+            await expect(run([...argv, "--execute", ...(confirm === undefined ? [] : ["--confirm", confirm])]))
+              .rejects.toMatchObject({ code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH" });
+          }
+          expect(send).not.toHaveBeenCalled();
+          expect(log).not.toHaveBeenCalled();
+          expect(await run([...argv, "--execute", "--confirm", name])).toMatchObject({ result: "done", status: 204 });
+          expect(send.mock.calls.map((call) => call[1].method ?? "GET")).toEqual(["GET", "POST"]);
+          expect(send.mock.calls[1]?.[1]).toMatchObject({ execute: true, confirm: name, ifMatch: '"fresh"' });
+          expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ class: "destructive", method: "POST" }));
+        }
+      }
+    }
+  });
+
   it.each(["delete", "DELETE", "%64elete/?api-version=1"])("requires VMSS confirmation for POST %s", async (action) => {
     const path = `${TARGET}/providers/Microsoft.Compute/virtualMachineScaleSets/scale1/${action}`;
     const argv = ["POST", path, "--api-version", "1", "--body", '{"instanceIds":["0"]}'];

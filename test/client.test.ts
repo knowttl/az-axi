@@ -50,6 +50,43 @@ describe("client execution backstop", () => {
   const path = `/subscriptions/${sub}/resourceGroups/rg-demo`;
   const writer = () => profile({ allowWrites: true, subscriptions: [sub], writeSubscriptions: [sub] });
 
+  it.each(["", "/slots/slot1"])("blocks App Service publishxml%s at the transport boundary", async (suffix) => {
+    for (const action of ["publishxml", "PUBLISHXML", "%70ublishxml/?api-version=1"]) {
+      const target = `${path}/providers/Microsoft.Web/sites/app1${suffix}/${action}`;
+      for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+        for (const execute of [false, true]) {
+          await expect(sendRequest(writer(), { method: "POST", path, apiVersion: "1", execute,
+            confirm: suffix ? "slot1" : "app1" })).rejects.toMatchObject({ code: "READ_ONLY" });
+          expect(fetchMock).not.toHaveBeenCalled();
+        }
+      }
+    }
+  });
+
+  it.each(["subscriptions/client1", "tenant/access", "tenant/gitAccess"])("gates API Management %s key rotation at the transport boundary", async (suffix) => {
+    const name = suffix.split("/").at(-1)!;
+    for (const action of ["regeneratePrimaryKey", "regenerateSecondaryKey"]) {
+      for (const representation of [action, action.toUpperCase(), `%72${action.slice(1)}/?api-version=1`]) {
+        const target = `${path}/providers/Microsoft.ApiManagement/service/apim1/${suffix}/${representation}`;
+        for (const path of [target, target.slice(1), `https://management.azure.com${target}`]) {
+          fetchMock.mockReset().mockResolvedValueOnce(new Response(null, { status: 204 }));
+          const options = { method: "POST", path, apiVersion: "1", execute: true };
+          for (const confirm of [undefined, "wrong", action]) {
+            await expect(sendRequest(writer(), { ...options, confirm })).rejects.toMatchObject({
+              code: confirm === undefined ? "CONFIRM_REQUIRED" : "CONFIRM_MISMATCH",
+            });
+          }
+          await expect(sendRequest(writer(), { ...options, execute: false, confirm: name }))
+            .rejects.toMatchObject({ code: "API_ERROR" });
+          expect(fetchMock).not.toHaveBeenCalled();
+          expect(await sendRequest(writer(), { ...options, confirm: name })).toMatchObject({ status: 204 });
+          expect(fetchMock).toHaveBeenCalledOnce();
+          expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST" });
+        }
+      }
+    }
+  });
+
   it.each(["delete", "DELETE", "%64elete/?api-version=1"])("gates VMSS POST %s at the transport boundary", async (action) => {
     const target = `${path}/providers/Microsoft.Compute/virtualMachineScaleSets/scale1/${action}`;
     const options = { method: "POST", path: target, apiVersion: "1", execute: true, body: { instanceIds: ["0"] } };
