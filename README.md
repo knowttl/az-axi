@@ -30,6 +30,47 @@ pnpm run build
 node dist/bin/az-axi.js --help
 ```
 
+## Agent integration
+
+Install the usage skill from this repository:
+
+```
+npx skills add knowttl/az-axi --skill az-axi -g
+```
+
+For agent sessions that should never write, launch the agent with `AZ_AXI_READ_ONLY=1` in its environment.
+For example, `AZ_AXI_READ_ONLY=1 claude` forces az-axi previews and execution to remain blocked even on a write-enabled profile.
+Use PIM-eligible write roles instead of standing write access, scoped only to the write-enabled subscriptions.
+
+For Claude Code sessions where writes are intended, install the Bash approval hook from a reviewed checkout's [scripts/claude-guard.mjs](scripts/claude-guard.mjs).
+Keep the script at a trusted absolute path and merge this configuration into `~/.claude/settings.json` (all projects) or `.claude/settings.json` (one project), replacing the example path:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/absolute/path/to/az-axi/scripts/claude-guard.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook requests human approval with the full command whenever it detects an az-axi invocation containing `--execute`, including quoted words, paths, `env`, `npx` and chained commands.
+Ambiguous shell text is treated conservatively and may also prompt, including `--execute=false`.
+It only inspects text and never runs the command itself.
+It is a Bash hook, so it does not cover PowerShell or other tools, aliases or dynamically assembled commands that contain no recognizable az-axi name and flag.
+Use an interactive session with permission prompts enabled; after installation or a Claude Code hook upgrade, check approval with the harmless `az-axi api --help --execute` command, and check that `az-axi --help` does not trigger this hook.
+See the official [hooks reference](https://code.claude.com/docs/en/hooks), [setup guide](https://code.claude.com/docs/en/hooks-guide) and [permissions documentation](https://code.claude.com/docs/en/permissions).
+CLI flags are supplied by the agent; the harness approval is the human control.
+
 ## Configure
 
 az-axi authenticates in one of two modes, chosen per profile.
@@ -242,12 +283,26 @@ For automatic polling during write execution, see [Writes](#writes).
 
 Writes are disabled by default.
 To permit `api` previews and execution, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
-`AZ_AXI_READ_ONLY=1` still blocks both with `WRITES_DISABLED`.
-Write targets must belong to that profile's configured subscriptions; flag and environment overrides cannot widen this list, and tenant or management-group targets are blocked.
+Find the selected configuration file with `az-axi config path`, then edit only the intended profile.
+No az-axi command enables writes.
 A profile with an invalid write configuration is rejected before it is used.
 Writes are limited to ARM; Graph and Log Analytics accept only reads and supported queries.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
+
+For requests classified as write or destructive, the gates run in this order and stop at the first failure:
+
+1. `AZ_AXI_READ_ONLY=1` blocks previews and execution with `WRITES_DISABLED`.
+2. The selected profile must have writes enabled, or return `WRITES_DISABLED`.
+3. The target path must start with a subscription in that profile's configured `subscriptions`, or return `SUBSCRIPTION_NOT_WRITABLE`.
+   Flag and environment overrides cannot widen this list; tenant and management-group targets are always blocked.
+4. Without `--execute`, return a dry run and send no write.
+5. Destructive execution requires `--confirm <resource-name>`; missing or incorrect confirmation returns `CONFIRM_REQUIRED` or `CONFIRM_MISMATCH`.
+6. Execute only after all preceding gates pass, with the ETag, no-op, polling and audit behavior below.
+
+Grant only the RBAC permissions needed for the intended operations, scoped to the write-enabled subscriptions or narrower resource scopes.
+Prefer PIM-eligible roles with temporary activation over standing Owner or Contributor access, especially at management-group scope.
+Use the [agent approval hook](#agent-integration) when an agent performs writes, and review the preview before approving execution.
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
 For example, `az-axi api PATCH <resource-path> --api-version <version> --body '<json>' --profile <profile>` previews a field-level diff.
