@@ -620,10 +620,7 @@ az-axi activity list [--subscription <id>] [--since 24h] [--caller <upn|appId>] 
 
 ### 6.8 `defender alerts | assessments | score`
 
-Native write: `security alert update --subscription <id> --location <location> --name <name> --status dismiss|resolve|activate`, with alias `defender alerts update` and optional `--resource-group`.
-Exactly one explicit subscription ID is required; names and implicit env/profile scope are not accepted.
-It uses the shared write gates, current-status preview, no-op detection, execution log and LRO handling.
-The action is a bodyless POST; no ETag/If-Match concurrency guarantee is documented.
+The later native Defender alert status write is documented in [README.md#writes](README.md#writes).
 **Reference:** [Azure CLI alert update](https://learn.microsoft.com/en-us/cli/azure/security/alert#az-security-alert-update) and [ARM alert activate](https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/update-subscription-level-state-to-activate?view=rest-defenderforcloud-2022-01-01).
 
 **alerts**

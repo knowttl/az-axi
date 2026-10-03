@@ -173,6 +173,7 @@ az-axi config path
 
 Every command accepts `--profile`, `--tenant`, `--subscription a,b`, `--management-group` and `--config`.
 `$AZ_AXI_TENANT` and `$AZ_AXI_SUBSCRIPTION` set the same overrides from the environment.
+Native write commands constrain scope as documented in [Writes](#writes).
 `$AZ_AXI_READ_ONLY=1` forces the whole process read-only whatever a profile says.
 
 ### Signing in
@@ -288,7 +289,8 @@ Command paths must be complete and contiguous; put command flags after the full 
 Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
 `--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
 `rg query` continues to mean Resource Graph; resource groups use `group` when supported.
-Account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
+Account/resource discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
+For the native alert status write and its legacy alias, see [Writes](#writes).
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
 
 `graph query` and `monitor log-analytics query` are the canonical query paths; `rg query` and `logs query` remain aliases with their existing flags and output keys.
@@ -305,7 +307,7 @@ Log Analytics accepts `--workspace` / `-w` and `--timespan` / `-t`; workspace al
 The selected timespan is included in TOON output as `timespan`.
 Additional workspaces are unsupported.
 
-Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
+Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, `-l` for location, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
 After the complete leaf path, list flags accept commas, spaces or repetition, such as `--subscription a b --subscription c` or `--severity High Medium`.
 On leaves taking positional input (`rg query`, `logs query`, `api`, `op status`, `defender alerts get`), lists consume one token per flag to preserve existing argument placement; use commas or repeated flags there.
 Canonical query paths use named query input and accept space-separated lists after the full leaf path.
@@ -456,8 +458,9 @@ Add `--execute` to send the write after all gates pass.
 Destructive execution requires `--confirm <resource-name>`, matching the percent-decoded resource name exactly; for destructive POST actions, use the name preceding the action segment.
 DELETE, recognized disruptive POST actions, and PUT/PATCH on protected Microsoft.Authorization types require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
 Execution re-reads the resource, or the parent resource for POST actions, before sending.
-Use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
-Without it, execution uses the fresh GET's ETag when available and reports that review-to-execute protection was not used.
+For APIs supporting conditional writes, use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
+Without it, execution uses the fresh GET's ETag when available; generic `api` execution reports that review-to-execute protection was not used.
+Native execution reports its operation-specific protection limits as described above.
 An unchanged PUT/PATCH or DELETE of an already absent resource returns `result: already in desired state (no-op)` without sending or logging a write.
 
 Async writes with HTTP 201/202 and an operation URL poll automatically, preferring `Azure-AsyncOperation` over `Location`.
