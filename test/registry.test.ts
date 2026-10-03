@@ -53,9 +53,10 @@ describe("exact leaf contracts", () => {
     }
   });
 
-  it("fails when the committed agent command list drifts", () => {
-    const skill = readFileSync(new URL("../skills/az-axi/SKILL.md", import.meta.url), "utf8");
-    const block = skill.split("<!-- command-registry:start -->\n")[1]?.split("\n<!-- command-registry:end -->")[0];
+  it.each(["\n", "\r\n"])("checks the committed generated command table with %j line endings", (lineEnding) => {
+    const skill = readFileSync(new URL("../skills/az-axi/SKILL.md", import.meta.url), "utf8")
+      .replace(/\r?\n/g, lineEnding);
+    const block = skill.replace(/\r\n/g, "\n").split("<!-- command-registry:start -->\n")[1]?.split("\n<!-- command-registry:end -->")[0];
     expect(block).toBe(commandListMarkdown());
   });
 
