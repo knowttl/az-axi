@@ -162,7 +162,7 @@ describe("token budgets", () => {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
     } }));
     sendMock.mockResolvedValue(ok(defenderAlertUpdateState));
-    const { argv } = routeArgv(offlineWritePreviews[0]!.argv);
+    const { argv } = routeArgv([...offlineWritePreviews[0]!.argv, "--subscription", SUB_A]);
     await expectUnderBudget("security alert update", await runSecurity(argv.slice(1)));
   });
   it("home stays under its ceiling", async () => {
