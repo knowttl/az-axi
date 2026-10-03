@@ -13,14 +13,14 @@ import { requestAll, sendRequest, type ApiResponse } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
 import type { ResolvedProfile } from "../lib/config.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { ageDays, parseSince } from "../lib/time.js";
 
 export const meta = commandMeta("activity");
 
 const SUBCOMMANDS = ["list"] as const;
-const KNOWN_FLAGS = ["since", "caller", "resource-group", "status", "operation"] as const;
+const KNOWN_FLAGS = commandFlags("activity list");
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 1000;
 const DEFAULT_SINCE = "24h";

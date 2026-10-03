@@ -45,6 +45,7 @@ import {
   EXPOSURE_PUBLIC_IPS,
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
+import { routeArgv } from "../src/lib/router.js";
 import {
   SUB_A,
   WORKSPACE,
@@ -123,6 +124,7 @@ const subItems = () =>
   subscriptionList.map((s) => ({ subscriptionId: s.subscriptionId, displayName: s.displayName }));
 
 beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(() => { throw new Error("unexpected network request in token budgets"); }));
   dir = mkdtempSync(join(tmpdir(), "az-axi-budget-"));
   saved = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
   for (const key of ENV_KEYS) delete process.env[key];
@@ -141,6 +143,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   for (const key of ENV_KEYS) {
     if (saved[key] === undefined) delete process.env[key];
     else process.env[key] = saved[key];
@@ -182,30 +185,30 @@ describe("token budgets", () => {
     await expectUnderBudget("rg query", await runRg(["query", "Resources | take 5"]));
   });
 
-  it("rbac list stays under its ceiling", async () => {
+  it.each(["rbac list", "role assignment list"])("%s stays under the RBAC ceiling", async (path) => {
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) =>
       options["resource"] === "graph"
         ? ok(graphNames)
         : ok({ totalRecords: rbacAssignments.length, count: rbacAssignments.length, data: rbacAssignments }),
     );
-    await expectUnderBudget("rbac list", await runRbac(["list"]));
+    const { argv } = routeArgv(path.split(" "));
+    await expectUnderBudget("rbac list", await runRbac(argv.slice(1)));
   });
 
-  it("activity list stays under its ceiling", async () => {
+  it.each(["activity list", "monitor activity-log list"])("%s stays under the activity ceiling", async (path) => {
     sendMock.mockResolvedValue(ok({ value: activityEvents }));
-    await expectUnderBudget(
-      "activity list",
-      await runActivity(["list", "--subscription", SUB_A, "--since", "24h"]),
-    );
+    const { argv } = routeArgv([...path.split(" "), "--subscription", SUB_A, "--since", "24h"]);
+    await expectUnderBudget("activity list", await runActivity(argv.slice(1)));
   });
 
-  it("defender alerts stays under its ceiling", async () => {
+  it.each(["defender alerts", "security alert list"])("%s stays under the alert ceiling", async (path) => {
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
       const path = String(options["path"] ?? "");
       if (!path.endsWith("/alerts") && /\/alerts\/[^/]+$/i.test(path)) return ok(defenderAlertDetail);
       return ok({ value: defenderAlerts });
     });
-    await expectUnderBudget("defender alerts", await runDefender(["alerts", "--subscription", SUB_A]));
+    const { argv } = routeArgv([...path.split(" "), "--subscription", SUB_A]);
+    await expectUnderBudget("defender alerts", await runDefender(argv.slice(1)));
   });
 
   it("defender alerts get stays under its ceiling", async () => {
@@ -219,9 +222,10 @@ describe("token budgets", () => {
     await expectUnderBudget("defender assessments", await runDefender(["assessments"]));
   });
 
-  it("defender score stays under its ceiling", async () => {
+  it.each(["defender score", "security secure-scores list"])("%s stays under the score ceiling", async (path) => {
     sendMock.mockResolvedValue(ok({ totalRecords: defenderScores.length, data: defenderScores }));
-    await expectUnderBudget("defender score", await runDefender(["score"]));
+    const { argv } = routeArgv(path.split(" "));
+    await expectUnderBudget("defender score", await runDefender(argv.slice(1)));
   });
 
   it("exposure stays under its ceiling", async () => {

@@ -8,7 +8,8 @@ Start with `az-axi` for a dashboard, then use focused inspection commands, KQL q
 
 The backend is a local Node.js application written in TypeScript that calls Azure REST APIs directly.
 
-- **Command routing:** [the CLI entry point](src/bin/az-axi.ts) handles arguments, help and errors through `axi-sdk-js`.
+- **Command routing:** [the router](src/lib/router.ts) resolves exact leaf paths, validates flags and serves leaf help before loading handlers.
+  [The CLI entry point](src/bin/az-axi.ts) uses `axi-sdk-js` for execution, top-level help and error rendering.
   The [registry](src/lib/registry.ts) loads command handlers and enforces their declared Azure effects.
 - **Profiles and authentication:** [config](src/lib/config.ts) resolves the profile, tenant and scope from files, flags and environment variables.
   [Authentication](src/lib/auth.ts) obtains tokens from Azure CLI sign-in or profile-selected environment variables.
@@ -245,7 +246,7 @@ Every command also accepts `--help` with its full reference.
 
 The machine-readable exact leaf registry in [src/lib/registry.ts](src/lib/registry.ts) owns dispatch metadata, Azure effect declarations, capability definitions and the existing grouped help.
 Its generated [agent skill command list](skills/az-axi/SKILL.md#orientation) records each leaf's capability and Azure effect.
-Only existing native leaves are catalogued here; this registry does not claim coverage for other Azure commands or add command paths.
+The registry includes additive az-shaped paths for existing native operations and does not claim coverage for other Azure commands.
 `api` retains its request-classified dynamic effect and all write safeguards; `config init` has no Azure effect.
 Offline tests fail when help or the committed skill command list diverges from the registry.
 
@@ -269,6 +270,32 @@ az-axi op status '<operation-url>' --profile work       # read the current resul
 ```
 
 See [Profiles](#profiles) for selector flags and environment overrides, and [Behavior](#behavior) for output controls.
+
+These az-shaped paths run the same native operation as the legacy path, with identical TOON output and scope:
+
+| Az-shaped path | Legacy path | Native behavior |
+|---|---|---|
+| `role assignment list --assignee <id-or-upn>` | `rbac list --principal <id-or-upn>` | Cross-subscription analysis including inherited assignments |
+| `monitor activity-log list --offset 24h` | `activity list --since 24h` | Default 24h; newest first across subscriptions |
+| `security alert list` | `defender alerts` | Active alerts by default |
+| `security secure-scores list` | `defender score` | Per-subscription scores, lowest percentage first |
+
+All legacy paths remain available.
+Command paths must be complete and contiguous; put command flags after the full leaf path.
+Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
+`--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
+`rg query` continues to mean Resource Graph; resource groups use `group` when supported.
+Query paths, account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
+The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
+
+Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
+After the complete leaf path, list flags accept commas, spaces or repetition, such as `--subscription a b --subscription c` or `--severity High Medium`.
+On leaves taking positional input (`rg query`, `logs query`, `api`, `op status`, `defender alerts get`), lists consume one token per flag to preserve existing argument placement; use commas or repeated flags there.
+Boolean flags accept a bare flag, `--full=false`, or `--full false`.
+Repeated scalar and boolean flags may repeat the same value; conflicting values are refused.
+`--` ends flag parsing and protects literal positional input.
+Unknown flags, short clusters or abbreviations, and missing values fail with exit 2 before requests.
+`--query` retains its HTTP-parameter meaning only on `api`; output JMESPath and `--output` are unsupported.
 
 ## Behavior
 

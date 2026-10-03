@@ -11,7 +11,7 @@ import { readStdinIfPiped } from "../lib/stdin.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
 import type { Resource } from "../lib/config.js";
 
 /**
@@ -23,7 +23,7 @@ import type { Resource } from "../lib/config.js";
 export const meta = commandMeta("api");
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
-const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "body-file", "raw", "all", "execute", "confirm", "if-match", "timeout", "no-wait"] as const;
+const KNOWN_FLAGS = commandFlags("api");
 const STRING_TRUNCATE = 4000;
 const MAX_PAGES = 10;
 

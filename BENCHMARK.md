@@ -12,7 +12,7 @@ The profile must already be usable locally; this harness does not sign in or con
 Only the owner runs `pnpm bench:capture`, which makes read-only Azure requests.
 Agents and CI must never run capture or live smoke commands.
 
-Scenarios are Resource Graph inventory at 1, 10 and 50 rows, privileged RBAC assignments, Defender alerts, all three exposure checks, and a 50-row SigninLogs query.
+The scenario inventory and command arguments are defined in [benchmark/scenarios.mjs](benchmark/scenarios.mjs).
 Scenario argv contains no profile or subscription flags; capture injects the owner's selectors.
 The logs workspace is supplied by targets rather than relying on an owner's workspace alias.
 Every child forces `AZ_AXI_READ_ONLY=1`.
@@ -53,6 +53,10 @@ Recordings with behavior dependent on omitted headers require a new capture with
 | rg-10 | Owner to fill | Owner to fill | Owner to fill |
 | rg-50 | Owner to fill | Owner to fill | Owner to fill |
 | rbac-privileged | Owner to fill | Owner to fill | Owner to fill |
+| role-assignment-privileged | Owner to fill | Owner to fill | Owner to fill |
+| monitor-activity | Owner to fill | Owner to fill | Owner to fill |
+| security-alerts | Owner to fill | Owner to fill | Owner to fill |
+| security-scores | Owner to fill | Owner to fill | Owner to fill |
 | defender-alerts | Owner to fill | Owner to fill | Owner to fill |
 | exposure | Owner to fill | Owner to fill | Owner to fill |
 | logs-query | Owner to fill | Owner to fill | Owner to fill |

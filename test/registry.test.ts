@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   CAPABILITIES, COMMAND_LEAVES, COMMANDS, COMMAND_HELP, TOP_LEVEL_HELP,
-  assertEffectAllows, commandListMarkdown, commandMeta, runWithEffect,
+  assertEffectAllows, commandListMarkdown, commandMeta, leafHelp, runWithEffect, type CommandLeaf,
 } from "../src/lib/registry.js";
 
 /** Expand only documented command paths, stopping before arguments, flags or comments. */
@@ -42,7 +42,7 @@ describe("exact leaf contracts", () => {
     expect(documentedLeaves(Object.values(COMMAND_HELP).join("\n")))
       .toEqual(COMMAND_LEAVES.map((leaf) => leaf.path).sort());
     expect([...new Set(documentedLeaves(TOP_LEVEL_HELP).map((path) => path.split(" ")[0]))].sort())
-      .toEqual(names.sort());
+      .toEqual([...names, "role", "monitor", "security"].sort());
     for (const name of names) {
       expect(typeof COMMAND_HELP[name]).toBe("string");
       const module = await COMMANDS[name!]!();
@@ -63,7 +63,6 @@ describe("exact leaf contracts", () => {
   it("preserves the exact pre-registry help text", () => {
     // SHA-256 values captured from origin/main before centralizing the help source.
     const expected = {
-      top: "891693f7f7e8efb39fd98d38ce17760097634e5e87a9b794c934cfb6e69fdd1c",
       home: "d3ca0c70af59860ef81995074ea50c4ad93da1d0f3eab53cf287316e00cb2c25",
       doctor: "17f287915d3cd4c621533eec03a8f3079f30223f7015165b5a7a2460feab9ea1",
       config: "9055852012e73c38dc9e8203c351d4d832aa0ff03f255d8fc79330d1a9327052",
@@ -77,11 +76,11 @@ describe("exact leaf contracts", () => {
       api: "8a363b22d6122afb9b2ebdc58d3e20236cb3f4de14fe23700de8b6f1bd957547",
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
-    expect(Object.fromEntries(Object.entries({ top: TOP_LEVEL_HELP, ...COMMAND_HELP })
+    expect(Object.fromEntries(Object.entries(COMMAND_HELP)
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 
-  it.each(COMMAND_LEAVES)("prints built CLI help for $path without Azure access", ({ path }) => {
+  it.each(COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => [leaf.path, ...leaf.aliases ?? []].map((path) => ({ leaf, path }))))("prints built CLI help for $path without Azure access", ({ leaf, path }) => {
     const guard = "globalThis.fetch=()=>{throw new Error('unexpected network request')};";
     const result = spawnSync(process.execPath, [
       "--import", `data:text/javascript,${encodeURIComponent(guard)}`,
@@ -89,7 +88,7 @@ describe("exact leaf contracts", () => {
     ], { encoding: "utf8", env: { ...process.env, AZ_AXI_READ_ONLY: "1" } });
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout.trimEnd()).toBe(COMMAND_HELP[path.split(" ")[0]!]!.trimEnd());
+    expect(result.stdout.trimEnd()).toBe(leafHelp(leaf, path).trimEnd());
   });
 
   it("enforces registered read effects on requests and resets after failure", async () => {

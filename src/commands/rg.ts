@@ -7,12 +7,12 @@ import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import { shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { readStdinIfPiped } from "../lib/stdin.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
 
 export const meta = commandMeta("rg");
 
 const SUBCOMMANDS = ["query"] as const;
-const KNOWN_FLAGS = ["skip-token", "file"] as const;
+const KNOWN_FLAGS = commandFlags("rg query");
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 1000;
 const CELL_TRUNCATE = 200;

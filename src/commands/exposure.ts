@@ -9,13 +9,13 @@ import {
   exposureQuery,
   type ExposureCheck,
 } from "../lib/queries.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
 import { shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import type { ResolvedProfile } from "../lib/config.js";
 
 export const meta = commandMeta("exposure");
 
-const KNOWN_FLAGS = ["check", "show-query"] as const;
+const KNOWN_FLAGS = commandFlags("exposure");
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 1000;
 const FETCH_TOP = 1000;

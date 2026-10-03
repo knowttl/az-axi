@@ -35,16 +35,23 @@ The offline test suite checks this list against the registry.
 | `az-axi sub list` | native | read |
 | `az-axi rg query` | native | read |
 | `az-axi rbac list` | native | read |
+| `az-axi role assignment list` | native | read |
 | `az-axi activity list` | native | read |
+| `az-axi monitor activity-log list` | native | read |
 | `az-axi defender alerts` | native | read |
+| `az-axi security alert list` | native | read |
 | `az-axi defender alerts get` | native | read |
 | `az-axi defender assessments` | native | read |
 | `az-axi defender score` | native | read |
+| `az-axi security secure-scores list` | native | read |
 | `az-axi exposure` | native | read |
 | `az-axi logs query` | native | read |
 | `az-axi api` | native | dynamic |
 | `az-axi op status` | native | read |
 <!-- command-registry:end -->
+
+See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
+Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest

@@ -9,12 +9,12 @@ import { convertKustoTables, partialErrorText, type KustoResponse } from "../lib
 import { workspaceCustomerIdCommand } from "../lib/queries.js";
 import { readStdinIfPiped } from "../lib/stdin.js";
 import { normalizeTimespan } from "../lib/time.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
 
 export const meta = commandMeta("logs");
 
 const SUBCOMMANDS = ["query"] as const;
-const KNOWN_FLAGS = ["workspace", "timespan", "file"] as const;
+const KNOWN_FLAGS = commandFlags("logs query");
 const DEFAULT_LIMIT = 50;
 const CELL_TRUNCATE = 200;
 const DEFAULT_TIMESPAN = "P1D";
