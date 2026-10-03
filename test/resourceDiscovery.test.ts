@@ -5,6 +5,21 @@ import { run } from "../src/commands/resource.js";
 import { discoveryResource, SUB_A } from "./samples.js";
 
 describe("resource show resolution", () => {
+  it("returns only approved envelope metadata in the full view", async () => {
+    vi.mocked(request).mockReset();
+    const item = { ...discoveryResource, kind: "example", sku: { name: "Standard" },
+      identity: { type: "SystemAssigned", principalId: "private-principal", userAssignedIdentities: { private: {} } },
+      extra: "private-extra", properties: { provisioningState: "Succeeded", detail: "private-detail" },
+    };
+    vi.mocked(request).mockResolvedValue(item);
+    expect((await run(["show", "--ids", item.id, "--subscription", SUB_A, "--api-version", "2025-01-01", "--full"])).resource).toEqual({
+      id: item.id, name: item.name, type: item.type, kind: item.kind, location: item.location,
+      tags: item.tags, sku: item.sku, identity: { type: "SystemAssigned" }, provisioningState: "Succeeded",
+    });
+    expect((await run(["show", "--ids", item.id, "--subscription", SUB_A, "--api-version", "2025-01-01", "--fields", "identity,provisioningState"])).resource).toEqual({
+      identity: { type: "SystemAssigned" }, provisioningState: "Succeeded",
+    });
+  });
   describe.each(["name", "ids"])("%s selectors", (selector) => {
     it.each([
       ["listKeys", "Microsoft.Compute/virtualMachines"],

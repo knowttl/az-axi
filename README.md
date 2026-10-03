@@ -255,6 +255,10 @@ Discovery uses live ARM GETs, with subscription flags, environment or profile sc
 Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
 Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
 `--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
+Generic `resource show` returns only the ARM envelope: id, name, type, kind, location, tags, sku, identity type and provisioningState.
+Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
+Provider `properties` and nested field paths are rejected by `--fields`; no show view returns the raw properties blob.
+Use typed commands for provider details, or the raw `az-axi api` path with its existing redaction.
 Paging stops at 100 pages per subscription and marks incomplete counts as lower bounds.
 Show by name requires one subscription; resource show also requires `--resource-group` and `--resource-type`, or exactly one `--ids` instead.
 Resource show selects the newest stable provider API version unless `--api-version` is supplied.

@@ -75,7 +75,10 @@ describe.each([
   it("shows compact and full detail", async () => {
     const flags = kind === "group" ? ["--name", "rg-demo"] : ["--ids", discoveryResource.id, "--api-version", "2025-01-01"];
     expect((await run(["show", ...flags]))[kind]).toMatchObject({ id: sample.id, name: sample.name });
-    expect((await run(["show", ...flags, "--full"]))[kind]).toEqual(sample);
+    expect((await run(["show", ...flags, "--full"]))[kind]).toEqual(kind === "group" ? sample : {
+      id: sample.id, name: sample.name, type: discoveryResource.type, kind: "", location: sample.location,
+      tags: sample.tags, sku: "", identity: { type: "" }, provisioningState: "Succeeded",
+    });
     expect((await run(["show", ...flags, "--fields", "id"]))[kind]).toEqual({ id: sample.id });
   });
 });

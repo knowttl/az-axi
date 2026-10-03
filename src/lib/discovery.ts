@@ -13,9 +13,11 @@ interface ArmItem extends Record<string, unknown> {
   name: string;
   type?: string;
   location?: string;
+  identity?: { type?: string };
   properties?: { provisioningState?: string };
 }
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const RESOURCE_SHOW_FIELDS = ["id", "name", "type", "kind", "location", "tags", "sku", "identity", "provisioningState"];
 
 function invalid(message: string): never {
   throw new AxiError(message, "VALIDATION_ERROR", ["Run `az-axi group show --help` or `az-axi resource show --help` for selectors"]);
@@ -77,6 +79,9 @@ export async function runDiscovery(kind: "group" | "resource", argv: string[]): 
   if (args.positionals.length !== 1) invalid("unexpected positional argument");
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
+  if (kind === "resource" && verb === "show" && fields?.some((field) => !RESOURCE_SHOW_FIELDS.includes(field))) {
+    invalid(`resource show --fields supports only ARM envelope fields: ${RESOURCE_SHOW_FIELDS.join(", ")}; use typed commands or az-axi api for provider details`);
+  }
   const limit = flagNumber(args, "limit") ?? 50;
   if (!Number.isInteger(limit) || limit <= 0) invalid("--limit must be a positive integer");
   const name = flagText(args, "name");
@@ -137,7 +142,12 @@ export async function runDiscovery(kind: "group" | "resource", argv: string[]): 
       if (!version) invalid("no stable API version found; supply --api-version for this resource type");
     }
     const item = await request<ArmItem>(profile, { method: "GET", path: resolved.id, apiVersion: version });
-    return { profile: profile.name, resource: pickFields([full ? item : fields ? { ...item, ...compact(item, kind) } : compact(item, kind)], fields)[0] };
+    const envelope = {
+      ...pickFields([item], RESOURCE_SHOW_FIELDS)[0],
+      identity: { type: item.identity?.type ?? "" },
+      provisioningState: item.properties?.provisioningState ?? "",
+    };
+    return { profile: profile.name, resource: pickFields([full || fields ? envelope : compact(item, kind)], fields)[0] };
   }
   const shown = items.slice(0, full ? undefined : limit);
   const noun = kind === "group" ? "resource groups" : "resources";

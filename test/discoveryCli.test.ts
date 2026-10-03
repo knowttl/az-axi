@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { decode } from "@toon-format/toon";
 import { discoveryGroup, discoveryResource, discoveryWorkflow, SUB_A, subscriptionList } from "./samples.js";
-import { REDACTED } from "../src/lib/redact.js";
 
 describe("built CLI ARM discovery offline", () => {
   let dir: string;
@@ -58,18 +57,32 @@ describe("built CLI ARM discovery offline", () => {
     expect(result.stderr).toContain("api-version=2025-01-01");
   });
   it.each([
+    ["--ids", discoveryWorkflow.id],
     ["--ids", discoveryWorkflow.id, "--full"],
-    ["--ids", discoveryWorkflow.id, "--fields", "properties"],
+    ["--ids", discoveryWorkflow.id, "--fields", "id,name,type,identity,provisioningState"],
+    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows"],
     ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--full"],
-    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--fields", "properties"],
-  ])("redacts credential headers through resource show %j", (...flags) => {
+    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--fields", "id,name,type,identity,provisioningState"],
+  ])("omits provider properties through resource show %j", (...flags) => {
     const result = run(["resource", "show", ...flags, "--api-version", "2019-05-01"], false, discoveryWorkflow);
     expect(result.status, result.stdout).toBe(0);
     expect(result.stdout).not.toContain("opaque-header-value");
-    expect(decode(result.stdout)).toMatchObject({ resource: { properties: { definition: { actions: { http: { inputs: { headers: {
-      "x-api-key": REDACTED, authorization: REDACTED, Accept: "application/json",
-    } } } } } } } });
-    expect(result.stdout).toContain("application/json");
+    expect(result.stdout).not.toContain("Basic dXNlcjpwYXNz");
+    expect(result.stdout).not.toContain("opaque-pfx-value");
+    expect(decode(result.stdout)).toMatchObject({ resource: { id: discoveryWorkflow.id, name: "http-demo" } });
+    expect(decode(result.stdout)).not.toHaveProperty("resource.properties");
+  });
+  it.each([
+    ["--ids", discoveryWorkflow.id, "--fields", "properties"],
+    ["--ids", discoveryWorkflow.id, "--full", "--fields", "properties.definition"],
+    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--fields", "properties"],
+    ["--name", "http-demo", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Logic/workflows", "--full", "--fields", "properties.definition"],
+  ])("rejects provider property selection through resource show %j", (...flags) => {
+    const result = run(["resource", "show", ...flags, "--api-version", "2019-05-01"], false, discoveryWorkflow);
+    expect(result.status, result.stdout).toBe(2);
+    expect(result.stdout).toContain("supports only ARM envelope fields");
+    expect(decode(result.stdout)).not.toHaveProperty("resource");
+    expect(result.stderr).toBe("");
   });
   it.each([
     ["--name", "listKeys", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines"],

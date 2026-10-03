@@ -50,6 +50,9 @@ export const discoveryWorkflow = {
       connectionstring: "opaque-header-value", X_API_KEY: "opaque-header-value",
       "Connection_String": "opaque-header-value", Accept: "application/json",
     },
+    authentication: { type: "Raw", value: "Basic dXNlcjpwYXNz" },
+  } }, certificate: { type: "Http", inputs: {
+    authentication: { type: "ClientCertificate", pfx: "opaque-pfx-value" },
   } } } } },
 };
 
