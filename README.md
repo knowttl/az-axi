@@ -278,8 +278,10 @@ Use `--limit N` to cap rows and `--fields a,b` to select list columns.
 `api` follows additional pages only with `--all`, subject to a page cap.
 For JSON request bodies, use `--body-file <path>` or pipe JSON on stdin, for example `az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json` or the same command with `< query.json` instead of `--body-file query.json`.
 Inline `--body` remains supported; choose exactly one source.
+Bodies accept any JSON value, including strings, numbers, booleans and null, and preserve its JSON type in the request.
 Conflicting sources, unreadable files and invalid JSON are refused before requests; empty stdin means no body.
 All input forms use the same request classification and write safeguards.
+Paging hints retain `--body-file` paths; for stdin bodies, replace the hint's `<body-file>` placeholder with a file containing the original JSON before rerunning with `--all`.
 Use each command's `--help` for its defaults and paging limits.
 
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
