@@ -39,8 +39,7 @@ npx skills add knowttl/az-axi --skill az-axi -g
 ```
 
 For agent sessions that should never write, launch the agent with `AZ_AXI_READ_ONLY=1` in its environment.
-For example, `AZ_AXI_READ_ONLY=1 claude` forces az-axi previews and execution to remain blocked even on a write-enabled profile.
-Use PIM-eligible write roles instead of standing write access, scoped only to the write-enabled subscriptions.
+For example, `AZ_AXI_READ_ONLY=1 claude` forces az-axi write previews and execution to remain blocked even on a write-enabled profile.
 
 For Claude Code sessions where writes are intended, install the Bash approval hook from a reviewed checkout's [scripts/claude-guard.mjs](scripts/claude-guard.mjs).
 Keep the script at a trusted absolute path and merge this configuration into `~/.claude/settings.json` (all projects) or `.claude/settings.json` (one project), replacing the example path:
@@ -64,7 +63,9 @@ Keep the script at a trusted absolute path and merge this configuration into `~/
 ```
 
 The hook requests human approval with the full command whenever it detects an az-axi invocation containing `--execute`, including quoted words, paths, `env`, `npx` and chained commands.
-Ambiguous shell text is treated conservatively and may also prompt, including `--execute=false`.
+For ambiguous shell text, the hook checks both raw and normalized text for a recognizable az-axi name and literal `--execute` evidence, including assignments, arrays, pipelines, here-documents and escaped or ANSI-quoted text.
+That evidence need not form an exact flag token or belong to the same command, so unrelated literal text and strings such as `--execute-later` may also prompt in ambiguous commands.
+Even simple commands containing `--execute=false` prompt.
 It only inspects text and never runs the command itself.
 It is a Bash hook, so it does not cover PowerShell or other tools, aliases or dynamically assembled commands that contain no recognizable az-axi name and flag.
 Use an interactive session with permission prompts enabled; after installation or a Claude Code hook upgrade, check approval with the harmless `az-axi api --help --execute` command, and check that `az-axi --help` does not trigger this hook.
