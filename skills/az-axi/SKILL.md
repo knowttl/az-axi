@@ -55,11 +55,7 @@ The offline test suite checks this list against the registry.
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
-The data-only [pinned Azure CLI read catalogue](../../README.md#pinned-azure-cli-read-catalogue) contains `group show` metadata for official Azure CLI 2.77.0 with no extensions.
-It does not enable `az-axi az` passthrough.
-Unknown command, version, extension, handler or operation is write/refusal; custom handlers and credential-returning actions never auto-promote to reads.
-Do not import or run installed extensions to discover metadata, and do not retrieve keys, connection strings, SAS, secret values or credentials with output filters.
-The catalogue records argument constraints and matching az-auth requirements; all native commands and write approval requirements remain as documented here.
+See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for its data-only status, refusal policy, credential exclusions and maintenance workflow.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest

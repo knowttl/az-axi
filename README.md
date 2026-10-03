@@ -318,15 +318,12 @@ Unknown flags, short clusters or abbreviations, and missing values fail with exi
 
 [src/lib/azReadCatalogue.ts](src/lib/azReadCatalogue.ts) is a data-only seed for future reviewed read passthrough.
 It does not add an `az-axi az` command or change native commands, aliases, TOON output or write safeguards.
-The initial allowlist contains exactly one leaf: `group show`, registered as the SDK `ResourceGroupsOperations.get`, mapping to ARM `GET /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}` at API version `2024-11-01`.
-The supported metadata runtime is trusted official Azure CLI **2.77.0**, latest profile, AzureCloud, Linux/macOS/Windows, with **no extensions**, using `azure-mgmt-resource` **23.3.0**.
+The generated catalogue owns the exact allowlist, handler and operation mappings, runtime and SDK version pins, profiles, clouds, platforms and approved extension set.
 This is a source audit, not a live runtime certification; no Azure CLI handler is imported or executed to build it.
 `group list` is deliberately excluded because its official registration uses a custom handler.
 
-Each entry records argument constraints, authentication and permission needs, exact operations, output schema and immutable source commits, line ranges and excerpt hashes.
-Only one resource-group name (one of `--name`, `-n`, `--resource-group`, `-g`) and one explicit subscription UUID are admitted by the recorded policy.
-Names use a conservative ASCII subset of the SDK validation, with length 1-90.
-Unknown flags, duplicate aliases, positional arguments, fan-out, caller-supplied output/query/debug options and local destinations are refused.
+Each entry records argument constraints, authentication and permission needs, exact operations, an output schema identifier and immutable source commits, line ranges and excerpt hashes.
+Consult its `arguments` and `argumentPolicy` fields for accepted flags, value constraints and refusals; these are recorded policy for a future consumer, not executable CLI validation.
 A future consumer must require matching az-auth tenant/subscription context, force JSON transport, disable prompts and dynamic extension installation, then normalize output to TOON.
 Token profiles do not authorize ambient az identity use.
 
@@ -340,6 +337,7 @@ pnpm catalogue:generate
 pnpm catalogue:check
 ```
 
+These maintenance commands require a source checkout with development dependencies installed.
 [scripts/az-read-catalogue.sources.json](scripts/az-read-catalogue.sources.json) holds the reviewed excerpts.
 To refresh, retrieve the referenced files at immutable Microsoft commits using `gh-axi api repos/<owner>/<repo>/contents/<path>?ref=<commit>`, review the registration, arguments, client factory, dependency/profile and complete SDK operation chain, then update the source snapshots and generator's integrity pins together.
 Excerpts preserve each inclusive line range with its surrounding whitespace trimmed; separated ranges are then joined by a newline.
