@@ -567,6 +567,11 @@ Port upstream `commands/config.ts`. `config init` flags: `--name`, `--auth az|to
 
 ### 6.5 `rg query`
 
+Canonical path: `graph query --graph-query <kql>` / `-q <kql>`, retaining `rg query` as the legacy alias.
+The canonical path accepts plural subscription/management-group lists, `--first` (alias of `--limit`), and `--skip-token`; `--skip` and partial scopes are rejected.
+Profile scope and the default 50-row page remain unchanged; explicit scope families are mutually exclusive on the canonical path.
+**Reference:** Azure CLI Graph query flags and all-accessible default scope (https://learn.microsoft.com/en-us/cli/azure/graph#az-graph-query).
+
 ```
 az-axi rg query "<kql>" [--subscription a,b] [--management-group mg] [--limit 50] [--skip-token <t>]
 az-axi rg query --file query.kql
@@ -662,6 +667,11 @@ Default `--check all` returns a summary with counts per check and the first 10 r
 **Reference:** Resource Graph sample queries (https://learn.microsoft.com/en-us/azure/governance/resource-graph/samples/starter); network security group rule properties (search Microsoft Learn for "Network Security Groups - Get REST API"). Validate each query (via `--show-query`) in the portal's Resource Graph Explorer before committing (Section 14.4).
 
 ### 6.10 `logs query`
+
+Canonical path: `monitor log-analytics query --analytics-query <kql> --workspace <alias|guid>`, retaining `logs query` as the legacy alias.
+File/stdin input, workspace aliases, display limits and TOON output remain unchanged.
+`-w` / `-t` select workspace/timespan, and the default timespan remains P1D instead of Azure CLI's all-available default.
+**Reference:** Azure CLI Log Analytics query flags and default timespan (https://learn.microsoft.com/en-us/cli/azure/monitor/log-analytics#az-monitor-log-analytics-query).
 
 ```
 az-axi logs query "<kql>" --workspace <alias|guid> [--timespan P1D] [--limit 50]
@@ -1344,6 +1354,8 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `defender score` | `az security secure-scores list` |
 | `exposure` | Each query from `--show-query` pasted into Resource Graph Explorer |
 | `logs query` | Same query in the workspace's Logs blade, or `az monitor log-analytics query -w <workspace-guid> --analytics-query "<kql>"` |
+| `graph query -q "<kql>"` | Compare with `az graph query -q "<kql>"` using the same explicit scope and `--first 50`; az-axi retains profile scope |
+| `monitor log-analytics query --analytics-query "<kql>"` | Compare with Azure CLI using explicit `--timespan P1D`; az-axi retains P1D instead of all available data |
 | Request correlation | `az monitor activity-log list --correlation-id <correlationId from az-axi output>` returns the matching event (writes only; reads are not in the activity log) |
 
 Reference for the Azure CLI commands: Azure CLI reference index (https://learn.microsoft.com/en-us/cli/azure/reference-index).

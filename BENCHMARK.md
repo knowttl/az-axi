@@ -60,6 +60,8 @@ Recordings with behavior dependent on omitted headers require a new capture with
 | defender-alerts | Owner to fill | Owner to fill | Owner to fill |
 | exposure | Owner to fill | Owner to fill | Owner to fill |
 | logs-query | Owner to fill | Owner to fill | Owner to fill |
+| graph-query | Owner to fill | Owner to fill | Owner to fill |
+| monitor-log-analytics-query | Owner to fill | Owner to fill | Owner to fill |
 
 ## Skill and help surface
 

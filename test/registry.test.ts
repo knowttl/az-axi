@@ -21,11 +21,11 @@ function documentedLeaves(help: string): string[] {
 }
 
 describe("exact leaf contracts", () => {
-  it("records every legacy leaf, without introducing command paths", () => {
+  it("records canonical query leaves while retaining legacy aliases", () => {
     expect(COMMAND_LEAVES.map((leaf) => leaf.path)).toEqual([
       "home", "doctor", "config init", "config list", "config path", "sub list",
-      "rg query", "rbac list", "activity list", "defender alerts", "defender alerts get",
-      "defender assessments", "defender score", "exposure", "logs query", "api", "op status",
+      "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
+      "defender assessments", "defender score", "exposure", "monitor log-analytics query", "api", "op status",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
@@ -36,18 +36,18 @@ describe("exact leaf contracts", () => {
   });
 
   it("keeps dispatch, module effects and help in agreement with every leaf", async () => {
-    const names = [...new Set(COMMAND_LEAVES.map((leaf) => leaf.path.split(" ")[0]))];
+    const names = [...new Set(COMMAND_LEAVES.map((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path).split(" ")[0]))];
     expect(Object.keys(COMMANDS)).toEqual(names);
     expect(Object.keys(COMMAND_HELP)).toEqual(names);
     expect(documentedLeaves(Object.values(COMMAND_HELP).join("\n")))
-      .toEqual(COMMAND_LEAVES.map((leaf) => leaf.path).sort());
+      .toEqual(COMMAND_LEAVES.map((leaf: CommandLeaf) => leaf.handlerPath ?? leaf.path).sort());
     expect([...new Set(documentedLeaves(TOP_LEVEL_HELP).map((path) => path.split(" ")[0]))].sort())
-      .toEqual([...names, "role", "monitor", "security"].sort());
+      .toEqual([...names, "graph", "role", "monitor", "security"].sort());
     for (const name of names) {
       expect(typeof COMMAND_HELP[name]).toBe("string");
       const module = await COMMANDS[name!]!();
       expect(module.meta).toEqual(commandMeta(name!));
-      for (const leaf of COMMAND_LEAVES.filter((leaf) => leaf.path.split(" ")[0] === name)) {
+      for (const leaf of COMMAND_LEAVES.filter((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path).split(" ")[0] === name)) {
         expect(leaf.effect).toBe(module.meta.effect);
       }
     }

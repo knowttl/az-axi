@@ -34,6 +34,7 @@ function nextPageCommand(options: {
   file?: string;
   subscriptions?: string[];
   managementGroup?: string;
+  managementGroups?: string[];
   limit?: number;
   fields?: string[];
   full: boolean;
@@ -47,6 +48,11 @@ function nextPageCommand(options: {
   }
   if (options.subscriptions?.length) parts.push(`--subscription ${options.subscriptions.join(",")}`);
   if (options.managementGroup) parts.push(`--management-group ${options.managementGroup}`);
+  if (options.managementGroups) {
+    parts[0] = "az-axi graph query";
+    if (!options.file) parts[1] = `--graph-query ${shellDoubleQuoted(options.query)}`;
+  }
+  if (options.managementGroups) parts.push(`--management-groups ${options.managementGroups.join(",")}`);
   if (options.limit !== undefined && options.limit !== DEFAULT_LIMIT) parts.push(`--limit ${options.limit}`);
   if (options.fields?.length) parts.push(`--fields ${options.fields.join(",")}`);
   if (options.full) parts.push("--full");
@@ -136,7 +142,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const flagMg = flagString(args, "management-group");
   let subscriptions: string[] | undefined;
   let managementGroups: string[] | undefined;
-  if (flagMg) managementGroups = [flagMg];
+  const pluralMg = flagList(args, "management-groups");
+  if (pluralMg?.length) managementGroups = pluralMg;
+  else if (flagMg) managementGroups = [flagMg];
   else if (flagSubs?.length) subscriptions = flagSubs;
   else if (profile.managementGroup) managementGroups = [profile.managementGroup];
   else if (profile.subscriptions?.length) subscriptions = profile.subscriptions;
@@ -162,7 +170,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const rows = body.data ?? [];
   const total = body.totalRecords ?? body.count ?? rows.length;
   const scopeHint = managementGroups?.length
-    ? `in management group ${managementGroups[0]}`
+    ? `in management group${managementGroups.length > 1 ? "s" : ""} ${managementGroups.join(",")}`
     : subscriptions?.length
       ? `for ${subscriptions.length} subscription${subscriptions.length === 1 ? "" : "s"}`
       : "across accessible subscriptions";
@@ -219,7 +227,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
         query,
         file,
         subscriptions: flagSubs ?? subscriptions,
-        managementGroup: flagMg ?? managementGroups?.[0],
+        managementGroup: pluralMg ? undefined : flagMg ?? managementGroups?.[0],
+        managementGroups: pluralMg,
         limit: full ? undefined : (flagNumber(args, "limit") ?? (skipToken ? undefined : DEFAULT_LIMIT)),
         fields,
         full,

@@ -85,6 +85,50 @@ describe("benchmark preload", () => {
 });
 
 describe("benchmark surface", () => {
+  it("uses the owner workspace for both captured query paths", () => {
+    const dir = scratch();
+    for (const path of ["scripts/benchmark/capture.mjs", "benchmark/scenarios.mjs"]) {
+      cpSync(join(root, path), join(dir, path), { recursive: true });
+    }
+    const targets = {
+      profile: "owner",
+      subscription: "00000000-0000-0000-0000-000000000001",
+      workspace: "00000000-0000-0000-0000-000000000010",
+      leakCheck: ["owner"],
+    };
+    writeFileSync(join(dir, "benchmark/targets.json"), JSON.stringify(targets));
+    const bootstrap = join(dir, "bootstrap.mjs");
+    const calls = join(dir, "calls.json");
+    writeFileSync(bootstrap, [
+      'import childProcess from "node:child_process";',
+      'import { syncBuiltinESMExports } from "node:module";',
+      'import { writeFileSync } from "node:fs";',
+      'const calls = [];',
+      'childProcess.spawnSync = (command, argv) => {',
+      '  calls.push(argv);',
+      `  writeFileSync(${JSON.stringify(calls)}, JSON.stringify(calls));`,
+      '  return { status: 0 };',
+      '};',
+      'syncBuiltinESMExports();',
+    ].join("\n"));
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/capture.mjs"], {
+      cwd: dir, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "" },
+    });
+    expect(child.status, child.stderr).toBe(0);
+    const captured = JSON.parse(readFileSync(calls, "utf8"));
+    expect(captured).toHaveLength(scenarios.length);
+    expect(captured).toContainEqual([
+      "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
+      "logs", "query", "SigninLogs | take 50", "--workspace", targets.workspace,
+      "--profile", targets.profile, "--subscription", targets.subscription,
+    ]);
+    expect(captured).toContainEqual([
+      "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
+      "monitor", "log-analytics", "query", "--analytics-query", "SigninLogs | take 50", "--workspace", targets.workspace,
+      "--profile", targets.profile, "--subscription", targets.subscription,
+    ]);
+  });
+
   it("runs every real scenario through the offline benchmark runner", () => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
@@ -99,8 +143,8 @@ describe("benchmark surface", () => {
     const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" }] });
     for (const scenario of scenarios) {
       let responses;
-      if (scenario.name.startsWith("rg-")) {
-        const count = Number(scenario.name.slice(3));
+      if (scenario.name.startsWith("rg-") || scenario.name === "graph-query") {
+        const count = scenario.name === "graph-query" ? 50 : Number(scenario.name.slice(3));
         responses = [response("POST", { totalRecords: count, data: Array.from({ length: count }, (_, index) => ({
           id, name: `contoso-vm-${index}`, type: "Microsoft.Compute/virtualMachines", location: "contoso-region",
         })) }), subscriptions()];
@@ -129,7 +173,7 @@ describe("benchmark surface", () => {
     }
     const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
-    expect(child.stdout).toContain("rows[11]");
+    expect(child.stdout).toContain("rows[13]");
     expect(child.stdout).toContain("rbac-privileged");
     expect(child.stdout).toContain("logs-query");
     expect(child.stdout).not.toContain("benchmark-dummy");
@@ -151,7 +195,7 @@ describe("benchmark surface", () => {
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");

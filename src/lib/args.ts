@@ -11,7 +11,7 @@ export const GLOBAL_FLAG_SCHEMA: FlagSchema = {
   config: "value", help: "boolean", full: "boolean", fields: "list", limit: "value",
 };
 const SHORT_FLAGS: Record<string, string> = {
-  h: "help", s: "subscription", g: "resource-group", n: "name", w: "workspace", t: "timespan",
+  h: "help", s: "subscription", g: "resource-group", n: "name", w: "workspace", t: "timespan", q: "graph-query",
 };
 
 /** Validate the exact leaf before loading handlers, credentials or transport. */

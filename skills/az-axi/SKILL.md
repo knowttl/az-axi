@@ -33,6 +33,7 @@ The offline test suite checks this list against the registry.
 | `az-axi config list` | native | read |
 | `az-axi config path` | native | read |
 | `az-axi sub list` | native | read |
+| `az-axi graph query` | native | read |
 | `az-axi rg query` | native | read |
 | `az-axi rbac list` | native | read |
 | `az-axi role assignment list` | native | read |
@@ -45,6 +46,7 @@ The offline test suite checks this list against the registry.
 | `az-axi defender score` | native | read |
 | `az-axi security secure-scores list` | native | read |
 | `az-axi exposure` | native | read |
+| `az-axi monitor log-analytics query` | native | read |
 | `az-axi logs query` | native | read |
 | `az-axi api` | native | dynamic |
 | `az-axi op status` | native | read |
@@ -95,11 +97,12 @@ az-axi config path
 ## Inventory
 
 ```sh
-az-axi rg query Resources
-az-axi rg query --file query.kql
+az-axi graph query -q Resources
+az-axi graph query --file query.kql
 ```
 
 `rg query` trims surrounding query whitespace, then POSTs the KQL to Resource Graph across the scope in `--subscription` / `--management-group` flags, then the profile `managementGroup`, then the profile `subscriptions`.
+See [README.md#use](../../README.md#use) for the canonical `graph query` path, query input flags, plural scope selectors, Azure CLI differences and pagination hint paths.
 Without `--full`, `--limit` maps to `$top` (default 50, maximum 1000).
 `--full` ignores `--limit` and requests up to 1000 rows per page.
 Output is `total`, `count`, `rows`; nested objects render as compact JSON truncated at 200 characters unless `--full`.
@@ -161,7 +164,7 @@ KQL without running it.
 ## Logs
 
 ```sh
-az-axi logs query --file hunt.kql --workspace sentinel
+az-axi monitor log-analytics query --file hunt.kql --workspace sentinel
 ```
 
 `--workspace` takes an alias from the profile `workspaces` map or a workspace
@@ -170,6 +173,7 @@ GUID. `--timespan` defaults to `P1D` and accepts `30m`, `24h`, `7d`, ISO 8601
 durations, ISO dates, and start/end intervals; it intersects any time filter in
 the query.
 Surrounding query whitespace is trimmed; no row limits or time filters are added.
+See [README.md#use](../../README.md#use) for the canonical `monitor log-analytics query` path, query input flags, timespan default and workspace coverage.
 `--limit` caps displayed rows client-side (default 50). Output is
 `total`, `count`, `rows` from the first table; extra tables appear by name and
 row count only. Partial errors return a `warning` instead of failing.
@@ -195,7 +199,7 @@ See [README.md#check-an-operation](../../README.md#check-an-operation) for URL r
 In every shell, pass JSON bodies and KQL containing quotes, pipes, or other shell metacharacters through file or stdin input, never through interpolated command-line arguments.
 Use file or stdin input for all multiline content as well.
 `rg query` and `logs query` take it from `--file` or piped stdin; passing both a query and `--file` is an error.
-Keep inline KQL short and free of shell metacharacters, as in `az-axi rg query Resources` above.
+Keep inline KQL short and free of shell metacharacters, as in `az-axi graph query -q Resources` above.
 Prefer these file commands across shells:
 
 ```sh

@@ -23,7 +23,8 @@ for (const scenario of scenarios) {
   const file = fileURLToPath(new URL(`../../benchmark/fixtures/${scenario.name}.json`, import.meta.url));
   rmSync(file, { force: true });
   const argv = [...scenario.argv, "--profile", targets.profile, "--subscription", targets.subscription];
-  if (scenario.name === "logs-query") argv[argv.indexOf("--workspace") + 1] = targets.workspace;
+  const workspaceIndex = argv.indexOf("--workspace");
+  if (workspaceIndex !== -1) argv[workspaceIndex + 1] = targets.workspace;
   const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js", ...argv], {
     cwd: root,
     encoding: "utf8",
