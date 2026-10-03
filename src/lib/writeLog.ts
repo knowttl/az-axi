@@ -25,7 +25,7 @@ export interface WriteLogEntry {
   url: string;
   /** `x-ms-request-id` of the write response, not a later poll response. */
   requestId?: string;
-  /** `x-ms-correlation-request-id` of the final response, when present. */
+  /** `x-ms-correlation-request-id` of the write response, when present. */
   correlationId?: string;
   /** Write response HTTP status, or 0 when no response was received. */
   httpStatus: number;
