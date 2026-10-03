@@ -7,11 +7,11 @@ import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/f
 import { isPrivilegedRole, PRIVILEGED_ROLE_IDS } from "../lib/roles.js";
 import { resolvePrincipalId, resolvePrincipalNames } from "../lib/principals.js";
 import { RBAC_ASSIGNMENTS, rbacAssignmentsQuery, scopeMatches } from "../lib/queries.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 import { shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import type { ResolvedProfile } from "../lib/config.js";
 
-export const meta: CommandMeta = { name: "rbac", effect: "read" };
+export const meta = commandMeta("rbac");
 
 const SUBCOMMANDS = ["list"] as const;
 const KNOWN_FLAGS = ["principal", "role", "scope", "privileged", "show-query"] as const;

@@ -17,12 +17,12 @@ import { requestAll, sendRequest, type ApiResponse } from "../lib/client.js";
 import { graphScope, profileFromArgs, scopeFlags } from "../lib/context.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
 import { DEFENDER_SECURE_SCORES, defenderAssessmentsQuery } from "../lib/queries.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { parseSince } from "../lib/time.js";
 import type { ResolvedProfile } from "../lib/config.js";
 
-export const meta: CommandMeta = { name: "defender", effect: "read" };
+export const meta = commandMeta("defender");
 
 const SUBCOMMANDS = ["alerts", "assessments", "score"] as const;
 const ALERT_FLAGS = ["severity", "status", "since"] as const;

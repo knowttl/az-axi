@@ -9,7 +9,7 @@ import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
 import { countLine, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 import type { Resource } from "../lib/config.js";
 
 /**
@@ -18,7 +18,7 @@ import type { Resource } from "../lib/config.js";
  * gate order (Section 6.13.2) and return the dry run (Section 6.13.3) or,
  * with --execute, the execute flow (Section 6.13.4).
  */
-export const meta: CommandMeta = { name: "api", effect: "dynamic" };
+export const meta = commandMeta("api");
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as const;
 const KNOWN_FLAGS = ["resource", "api-version", "query", "body", "raw", "all", "execute", "confirm", "if-match", "timeout", "no-wait"] as const;

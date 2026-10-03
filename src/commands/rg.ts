@@ -7,9 +7,9 @@ import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import { shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { readStdinIfPiped } from "../lib/stdin.js";
-import type { CommandMeta } from "../lib/registry.js";
+import { commandMeta } from "../lib/registry.js";
 
-export const meta: CommandMeta = { name: "rg", effect: "read" };
+export const meta = commandMeta("rg");
 
 const SUBCOMMANDS = ["query"] as const;
 const KNOWN_FLAGS = ["skip-token", "file"] as const;
