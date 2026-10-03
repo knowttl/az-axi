@@ -66,7 +66,9 @@ export function writeChecks(options, azAxi) {
   const rg = `/subscriptions/${options.subscription}/resourceGroups/${encodeURIComponent(options["resource-group"])}`;
   const account = options["delete-storage-account"];
   let tagPassed = false;
-  let ifMatchExercised = false;
+  let etagChecks = 0;
+  let ifMatchAvailable = 0;
+  let ifMatchExercised = 0;
   const api = (method, path, version, extra = [], env = {}) => {
     const r = azAxi(["api", method, path, "--api-version", version, ...extra], env);
     return { exit: r.status, output: decode(r.stdout) };
@@ -87,6 +89,8 @@ export function writeChecks(options, azAxi) {
         !Array.isArray(preview.output.changes) || preview.output.changes.length === 0) return false;
     const etag = typeof preview.output.etag === "string" && preview.output.etag.trim() && preview.output.etag !== "*"
       ? preview.output.etag : undefined;
+    etagChecks++;
+    if (etag) ifMatchAvailable++;
     if (requireEtag && !etag) return "skip";
     if (!blocked(api("PATCH", path, version, [...body, "--execute"], { AZ_AXI_READ_ONLY: "1" }), "WRITES_DISABLED")) return false;
     const executed = api("PATCH", path, version, [...body, "--execute", ...(etag ? ["--if-match", etag] : [])]);
@@ -96,7 +100,7 @@ export function writeChecks(options, azAxi) {
       // The successful PATCH changed the target after review. Reverting with its old ETag must fail.
       const stale = api("PATCH", path, version, ["--body", JSON.stringify({ tags }), "--execute", "--if-match", etag]);
       if (!blocked(stale, "PRECONDITION_FAILED")) return false;
-      ifMatchExercised = true;
+      ifMatchExercised++;
     }
     return true;
   }
@@ -123,12 +127,28 @@ export function writeChecks(options, azAxi) {
       if (!success(api("DELETE", path, STORAGE_ACCOUNTS, extra), "done")) return false;
       return blocked(api("GET", path, STORAGE_ACCOUNTS), "NOT_FOUND");
     }],
-    ["writes: If-Match / PRECONDITION_FAILED", () => ifMatchExercised || "If-Match path not exercised: target returned no ETag"],
+    ["writes: If-Match / PRECONDITION_FAILED", () => {
+      if (ifMatchAvailable > 0) return ifMatchExercised === ifMatchAvailable;
+      return etagChecks === (account ? 2 : 1)
+        ? "If-Match path not exercised: target returned no ETag" : false;
+    }],
   ];
 }
 
 export function checksFor(argv, azAxi) {
   const writes = writeOptions(argv);
+  const doctorWrites = (expected, env = {}) => {
+    const dashboard = azAxi([]);
+    if (dashboard.status !== 0) return false;
+    const profile = decode(dashboard.stdout).profile;
+    if (typeof profile !== "string") return false;
+    const doctor = azAxi(["doctor"], env);
+    if (doctor.status !== 0) return false;
+    const profiles = decode(doctor.stdout).profiles;
+    if (!Array.isArray(profiles)) return false;
+    const row = profiles.find((row) => row.name === profile);
+    return typeof row?.writes === "string" && row.writes.startsWith(expected);
+  };
 
 // Each check inspects the output privately and reports only a pass or fail.
 const checks = [
@@ -153,12 +173,10 @@ const checks = [
     return /,(user|servicePrincipal|managedIdentity|token),/.test(r.stdout);
   }],
   [writes ? "doctor: write status is enabled for the selected profile" : "doctor: write status is disabled by default", () => {
-    const r = azAxi(["doctor"]);
-    return r.stdout.includes(writes ? "ENABLED" : "disabled");
+    return doctorWrites(writes ? "ENABLED for " : "disabled (");
   }],
   ["doctor: AZ_AXI_READ_ONLY forces read-only", () => {
-    const r = azAxi(["doctor"], { AZ_AXI_READ_ONLY: "1" });
-    return r.stdout.includes("disabled (AZ_AXI_READ_ONLY)") && !r.stdout.includes("ENABLED");
+    return doctorWrites("disabled (AZ_AXI_READ_ONLY)", { AZ_AXI_READ_ONLY: "1" });
   }],
   ["sub list: ARM reachable and lists subscriptions", () => {
     const r = azAxi(["sub", "list"]);

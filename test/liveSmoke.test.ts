@@ -86,6 +86,72 @@ describe("owner smoke checks, mocked CLI only", () => {
     });
   });
 
+  it.each([
+    { argv: FLAGS, selected: "reader", expected: false },
+    { argv: FLAGS, selected: "writer", expected: true },
+    { argv: [], selected: "reader", expected: true },
+    { argv: [], selected: "writer", expected: false },
+    { argv: [...FLAGS, "--profile", "writer"], selected: "writer", expected: true },
+  ])("checks the dashboard's selected profile: $selected with $argv", ({ argv, selected, expected }) => {
+    const client = vi.fn((args: string[]) => args.length === 0
+      ? response({ profile: selected })
+      : response({ profiles: [
+        { name: "reader", writes: "disabled (default)" },
+        { name: "writer", writes: "ENABLED for 1 subscription" },
+      ] }));
+    const check = checksFor(argv, client).find(([name]: [string]) => name.startsWith("doctor: write status"))![1];
+    expect(check()).toBe(expected);
+  });
+
+  it.each(["doctor failed", "dashboard failed", "profile missing", "wrong forced profile"])("rejects write-status evidence when %s", (failure) => {
+    const client = vi.fn((args: string[]) => args.length === 0
+      ? response({ profile: "selected" }, failure === "dashboard failed" ? 1 : 0)
+      : response({ profiles: [
+        { name: "other", writes: "disabled (AZ_AXI_READ_ONLY)" },
+        ...(failure === "profile missing" ? [] : [{ name: "selected", writes: failure === "wrong forced profile"
+          ? "ENABLED for 1 subscription" : "disabled (AZ_AXI_READ_ONLY)" }]),
+      ] }, failure === "doctor failed" ? 1 : 0));
+    const check = checksFor([], client).find(([name]: [string]) => name === "doctor: AZ_AXI_READ_ONLY forces read-only")![1];
+    expect(check()).toBe(false);
+  });
+
+  it("checks forced read-only on the selected profile with a successful doctor response", () => {
+    const client = vi.fn((args: string[], env: Record<string, string> = {}) => args.length === 0
+      ? response({ profile: "writer" })
+      : response({ profiles: [{ name: "writer", writes: env.AZ_AXI_READ_ONLY === "1"
+        ? "disabled (AZ_AXI_READ_ONLY)" : "ENABLED for 1 subscription" }] }));
+    const check = checksFor(FLAGS, client).find(([name]: [string]) => name === "doctor: AZ_AXI_READ_ONLY forces read-only")![1];
+    expect(check()).toBe(true);
+    expect(client).toHaveBeenCalledWith(["doctor"], { AZ_AXI_READ_ONLY: "1" });
+  });
+
+  it.each([RG, ACCOUNT].flatMap((path) => ["read-only", "execute", "no-op", "stale"].map((stage) => ({ path, stage }))))(
+    "fails If-Match verification when $stage fails for $path despite an available ETag", ({ path, stage }) => {
+      const good = runner(true);
+      const client = vi.fn((argv: string[], env: Record<string, string> = {}) => {
+        if (argv[1] === "PATCH" && argv[2] === path && argv.includes("--execute")) {
+          if (stage === "read-only" && env.AZ_AXI_READ_ONLY) return response({ result: "done" });
+          if (!env.AZ_AXI_READ_ONLY) {
+            if (stage === "execute" && argv.includes("--if-match")) return response({ code: "PRECONDITION_FAILED" }, 1);
+            if (stage === "no-op" && !argv.includes("--if-match")) return response({ result: "done" });
+            if (stage === "stale" && argv[argv.indexOf("--body") + 1] === '{"tags":{"existing":"keep"}}') return response({ result: "done" });
+          }
+        }
+        return good(argv, env);
+      });
+      const results = execute(DELETE_FLAGS, client);
+      expect(results[path === RG ? 0 : 1]?.result).toBe(false);
+      expect(results[2]?.result).toBe(false);
+    },
+  );
+
+  it.each([RG, ACCOUNT])("does not claim ETag absence when preview was never obtained for %s", (path) => {
+    const good = runner();
+    const client = vi.fn((argv: string[], env: Record<string, string> = {}) => argv[1] === "GET" && argv[2] === path
+      ? response({ code: "NOT_FOUND" }, 2) : good(argv, env));
+    expect(execute(DELETE_FLAGS, client)[2]?.result).toBe(false);
+  });
+
   it.each(["missing", "wrong", "lock-check failed", "confirmation failed", "stale ETag accepted"])("does not delete when the account precondition is %s", (failure) => {
     const good = runner(true);
     const client = vi.fn((argv: string[], env: Record<string, string> = {}) => {
