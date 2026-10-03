@@ -36,10 +36,12 @@ function walk(value: unknown, parentKey: string | undefined): unknown {
   if (proto !== Object.prototype && proto !== null) return value;
 
   const record = value as Record<string, unknown>;
-  // Pair objects: {keyName, value} anywhere, {name, value} inside a `passwords` or `keys` array.
+  // Pair objects and values nested under secret-named parameters.
   const isSecretPair =
     "value" in record &&
-    ("keyName" in record || ("name" in record && (parentKey === "passwords" || parentKey === "keys")));
+    ("keyName" in record ||
+      (parentKey !== undefined && isSecretKeyName(parentKey)) ||
+      ("name" in record && (parentKey === "passwords" || parentKey === "keys")));
 
   return Object.fromEntries(
     Object.entries(record).map(([key, child]) => {

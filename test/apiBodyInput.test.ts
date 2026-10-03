@@ -41,6 +41,24 @@ function source(form: string): { flags: string[]; input: string } {
 }
 
 describe("built API body inputs, offline only", () => {
+  it.each(["inline", "file", "stdin"])("keeps secret parameter values out of %s deployment previews and hints", (form) => {
+    const body = { properties: { mode: "Incremental", parameters: {
+      password: { value: "disposable-password-value" }, location: { value: "westus" },
+    } } };
+    const input = JSON.stringify(body);
+    writeFileSync(join(dir, "body file.json"), input);
+    const flags = form === "inline" ? ["--body", input] : form === "file" ? ["--body-file", join(dir, "body file.json")] : [];
+    const result = cli(flags, form === "stdin" ? input : "", `${TARGET}/providers/Microsoft.Resources/deployments/demo`, "PUT");
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout + result.stderr).not.toContain("disposable-password-value");
+    const output = decode(result.stdout) as { body: typeof body; help: string[] };
+    expect(output.body.properties.parameters).toEqual({
+      password: { value: "***redacted***" }, location: { value: "westus" },
+    });
+    expect(output.help.join("\n")).toContain("--body-file");
+    expect(requests()).toEqual([{ method: "POST", body }]);
+  });
+
   it.each([" ", "\t"])("preserves body-file paths ending in %j through preview and execution", (suffix) => {
     const file = join(dir, `body.json${suffix}`);
     writeFileSync(join(dir, "body.json"), '{"tags":{"env":"wrong"}}');
