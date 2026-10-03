@@ -8,7 +8,8 @@ Start with `az-axi` for a dashboard, then use focused inspection commands, KQL q
 
 The backend is a local Node.js application written in TypeScript that calls Azure REST APIs directly.
 
-- **Command routing:** [the CLI entry point](src/bin/az-axi.ts) handles arguments, help and errors through `axi-sdk-js`.
+- **Command routing:** [the router](src/lib/router.ts) resolves exact leaf paths, validates flags and serves leaf help before loading handlers.
+  [The CLI entry point](src/bin/az-axi.ts) uses `axi-sdk-js` for execution, top-level help and error rendering.
   The [registry](src/lib/registry.ts) loads command handlers and enforces their declared Azure effects.
 - **Profiles and authentication:** [config](src/lib/config.ts) resolves the profile, tenant and scope from files, flags and environment variables.
   [Authentication](src/lib/auth.ts) obtains tokens from Azure CLI sign-in or profile-selected environment variables.
@@ -280,6 +281,9 @@ These az-shaped paths run the same native operation as the legacy path, with ide
 | `security secure-scores list` | `defender score` | Per-subscription scores, lowest percentage first |
 
 All legacy paths remain available.
+Command paths must be complete and contiguous; put command flags after the full leaf path.
+Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
+`--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
 `rg query` continues to mean Resource Graph; resource groups use `group` when supported.
 Query paths, account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
