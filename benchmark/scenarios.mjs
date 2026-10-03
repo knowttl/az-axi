@@ -11,4 +11,6 @@ export const scenarios = [
   { name: "defender-alerts", argv: ["defender", "alerts"] },
   { name: "exposure", argv: ["exposure"] },
   { name: "logs-query", argv: ["logs", "query", "SigninLogs | take 50", "--workspace", "benchmark"] },
+  { name: "graph-query", argv: ["graph", "query", "-q", "Resources | take 50", "--first", "50"] },
+  { name: "monitor-log-analytics-query", argv: ["monitor", "log-analytics", "query", "--analytics-query", "SigninLogs | take 50", "--workspace", "benchmark"] },
 ];

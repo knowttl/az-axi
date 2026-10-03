@@ -20,11 +20,15 @@ export type Capability = keyof typeof CAPABILITIES;
 
 export interface CommandLeaf {
   path: string;
+  handlerPath?: string;
   effect: Effect;
   capability: Capability;
   flags?: FlagSchema;
   aliases?: readonly string[];
   aliasFlags?: Readonly<Record<string, string>>;
+  canonicalFlags?: FlagSchema;
+  canonicalFlagAliases?: Readonly<Record<string, string>>;
+  handlerFlags?: FlagSchema;
   positionalInput?: boolean;
 }
 
@@ -36,7 +40,7 @@ export const COMMAND_LEAVES = [
   { path: "config list", effect: "read", capability: "native" },
   { path: "config path", effect: "read", capability: "native" },
   { path: "sub list", effect: "read", capability: "native" },
-  { path: "rg query", effect: "read", capability: "native", positionalInput: true, flags: { "skip-token": "value", file: "value" } },
+  { path: "graph query", handlerPath: "rg query", aliases: ["rg query"], effect: "read", capability: "native", positionalInput: true, flags: { "skip-token": "value", file: "value" }, canonicalFlags: { "graph-query": "value", subscriptions: "list", "management-groups": "list" }, canonicalFlagAliases: { first: "limit" }, handlerFlags: { "management-groups": "list" } },
   { path: "rbac list", effect: "read", capability: "native", aliases: ["role assignment list"], aliasFlags: { assignee: "principal" }, flags: { principal: "value", role: "value", scope: "value", privileged: "boolean", "show-query": "boolean" } },
   { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
   { path: "defender alerts", effect: "read", capability: "native", aliases: ["security alert list"], flags: { severity: "list", status: "value", since: "value" } },
@@ -44,22 +48,23 @@ export const COMMAND_LEAVES = [
   { path: "defender assessments", effect: "read", capability: "native", flags: { severity: "list", status: "value", resource: "value", "show-query": "boolean" } },
   { path: "defender score", effect: "read", capability: "native", aliases: ["security secure-scores list"] },
   { path: "exposure", effect: "read", capability: "native", flags: { check: "value", "show-query": "boolean" } },
-  { path: "logs query", effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" } },
+  { path: "monitor log-analytics query", handlerPath: "logs query", aliases: ["logs query"], effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" }, canonicalFlags: { "analytics-query": "value" } },
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "op status", effect: "read", capability: "native", positionalInput: true },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
-type CommandName = GroupOf<(typeof COMMAND_LEAVES)[number]["path"]>;
+type HandlerPath<Leaf> = Leaf extends { handlerPath: infer Path extends string } ? Path : Leaf extends { path: infer Path extends string } ? Path : never;
+type CommandName = GroupOf<HandlerPath<(typeof COMMAND_LEAVES)[number]>>;
 
 export function commandFlags(path: string): string[] {
-  const leaf: CommandLeaf | undefined = COMMAND_LEAVES.find((leaf) => leaf.path === path);
+  const leaf: CommandLeaf | undefined = COMMAND_LEAVES.find((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path) === path);
   if (!leaf) throw new Error(`Missing command metadata for ${path}`);
-  return Object.keys(leaf.flags ?? {});
+  return Object.keys({ ...leaf.flags, ...leaf.handlerFlags });
 }
 
 export function commandMeta(name: string): CommandMeta {
-  const leaf = COMMAND_LEAVES.find((leaf) => leaf.path.split(" ")[0] === name);
+  const leaf = COMMAND_LEAVES.find((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path).split(" ")[0] === name);
   if (!leaf) throw new Error(`Missing command metadata for ${name}`);
   return { name, effect: leaf.effect };
 }
@@ -142,23 +147,26 @@ const HELP_OVERVIEWS = {
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
 export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
-  const group = leaf.path.split(" ")[0] as CommandName;
-  const flags = Object.keys({ ...GLOBAL_FLAG_SCHEMA, ...leaf.flags });
+  const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
+  const canonical = path === leaf.path && leaf.handlerPath !== undefined;
+  const flags = Object.keys({ ...GLOBAL_FLAG_SCHEMA, ...leaf.flags, ...(canonical ? leaf.canonicalFlags : {}) });
   return [
     `Command: az-axi ${path}`,
-    `Native operation: az-axi ${leaf.path}; existing scope, defaults and TOON output apply.`,
-    `Flags: ${flags.map((name) => `--${name}`).join(", ")}`,
+    `Native operation: az-axi ${leaf.handlerPath ?? leaf.path}; existing scope, defaults and TOON output apply.`,
+    `Flags: ${[...flags, ...Object.keys(canonical ? leaf.canonicalFlagAliases ?? {} : {})].map((name) => `--${name}`).join(", ")}`,
     "Short flags where accepted: -h help, -s subscription, -g resource-group, -n name, -w workspace, -t timespan.",
-    leaf.positionalInput ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
+    leaf.positionalInput && !canonical ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
     "Booleans accept bare flags or true/false. Conflicting scalar values are refused.",
     ...(path === "role assignment list" ? ["--assignee aliases --principal; inherited assignments are always included."] : []),
     ...(path === "monitor activity-log list" ? ["--offset aliases --since (default 24h)."] : []),
     "",
-    LEAF_HELP[leaf.path] ?? HELP_TEXT[group],
+    LEAF_HELP[leaf.handlerPath ? path : leaf.path] ?? HELP_TEXT[group],
   ].join("\n");
 }
 
 const LEAF_HELP: Record<string, string> = {
+  "graph query": 'az-axi graph query --graph-query <kql> | -q <kql> | --file <path> | piped stdin\n--subscriptions a b (or -s a b) selects subscriptions; --management-groups a b selects management groups. Explicit scope families are mutually exclusive.\n--first aliases --limit (default 50, maximum 1000); --full requests a 1000-row page, as on rg query. --skip-token continues a page.\nScope: explicit flags, then profile managementGroup, then profile subscriptions, else all accessible subscriptions. Azure CLI defaults to all accessible subscriptions.\n--skip and --allow-partial-scopes are unsupported and rejected; use --skip-token for paging. --query (JMESPath) is unsupported.\nOutput: unchanged rg query TOON, including legacy pagination hints.\nExamples: az-axi graph query -q Resources --first 5; az-axi graph query --file query.kql --subscriptions <id>',
+  "monitor log-analytics query": 'az-axi monitor log-analytics query --analytics-query <kql> | --file <path> | piped stdin\n--workspace / -w <alias|guid> is required; aliases come from the profile. ARM workspace resource IDs are rejected.\n--timespan / -t defaults to P1D and intersects KQL time filters; Azure CLI defaults to all available data.\n--limit defaults to 50 displayed rows; --full expands cells and still honors --limit. Additional workspaces are unsupported.\nOutput: unchanged logs query TOON, including workspace, workspaceId, timespan, total, count, rows.\nExamples: az-axi monitor log-analytics query --analytics-query Heartbeat -w <guid>; az-axi monitor log-analytics query --file hunt.kql -w sentinel -t P7D',
   "config init": "az-axi config init --name <name> --auth az|token [--default]\n--workspace alias=<guid>,... and --token-env arm=VAR,logs=VAR,graph=VAR configure auth.\nWrites a local profile only. No Azure writes.\nExamples: az-axi config init --name work --auth az; az-axi config init --name ci --auth token --default",
   "config list": "Lists profiles, scope and write status.\nExamples: az-axi config list; az-axi config list --config <path>",
   "config path": "Reports the selected config path and whether it exists.\nExamples: az-axi config path; az-axi config path --config <path>",
@@ -314,7 +322,7 @@ const HELP_TEXT = {
   ].join("\n"),
 } satisfies Record<CommandName, string>;
 
-const commandNames = [...new Set(COMMAND_LEAVES.map((leaf) => leaf.path.split(" ")[0] as CommandName))];
+const commandNames = [...new Set(COMMAND_LEAVES.map((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName))];
 
 /** Keep legacy group dispatch and group help, deriving their surface from exact leaves. */
 export const COMMANDS: Record<string, () => Promise<CommandModule>> = Object.assign(
@@ -329,6 +337,7 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(
 
 export const TOP_LEVEL_HELP = [
   ...commandNames.map((name) => HELP_OVERVIEWS[name]),
+  ...COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.handlerPath).map((leaf) => `az-axi ${leaf.path}  # canonical query path`),
   ...COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => (leaf.aliases ?? []).map((alias) => `az-axi ${alias}  # alias of ${leaf.path}`)),
   ...HELP_FOOTER,
 ].join("\n");

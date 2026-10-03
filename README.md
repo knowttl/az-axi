@@ -275,6 +275,8 @@ These az-shaped paths run the same native operation as the legacy path, with ide
 
 | Az-shaped path | Legacy path | Native behavior |
 |---|---|---|
+| `graph query -q <kql>` | `rg query <kql>` | Resource Graph; profile scope applies; default 50 rows |
+| `monitor log-analytics query --analytics-query <kql> --workspace <alias-or-guid>` | `logs query <kql> --workspace <alias-or-guid>` | Single workspace; default P1D timespan |
 | `role assignment list --assignee <id-or-upn>` | `rbac list --principal <id-or-upn>` | Cross-subscription analysis including inherited assignments |
 | `monitor activity-log list --offset 24h` | `activity list --since 24h` | Default 24h; newest first across subscriptions |
 | `security alert list` | `defender alerts` | Active alerts by default |
@@ -285,12 +287,23 @@ Command paths must be complete and contiguous; put command flags after the full 
 Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
 `--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
 `rg query` continues to mean Resource Graph; resource groups use `group` when supported.
-Query paths, account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
+Account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
+
+`graph query` and `monitor log-analytics query` are the canonical query paths; `rg query` and `logs query` remain aliases with their existing flags, output keys and pagination hints.
+On canonical query paths, supply KQL with `--graph-query` / `-q`, `--analytics-query`, `--file`, or piped stdin, choosing one source.
+Graph accepts `--subscriptions a b` (also `-s a b`), `--management-groups a b`, `--first` as an alias for `--limit`, and `--skip-token`.
+Explicit subscription and management-group scope families are mutually exclusive on the canonical Graph path.
+Without explicit scope, the profile management group takes precedence over profile subscriptions; without either, all accessible subscriptions are queried.
+Azure CLI's Graph default is all accessible subscriptions, while az-axi honors profile scope and defaults to a 50-row page.
+`--full` retains the existing 1000-row Graph page cap; `--skip` and `--allow-partial-scopes` are rejected.
+Log Analytics accepts `--workspace` / `-w` and `--timespan` / `-t`; workspace aliases and the P1D default remain, while Azure CLI defaults to all available data.
+Additional workspaces are unsupported.
 
 Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
 After the complete leaf path, list flags accept commas, spaces or repetition, such as `--subscription a b --subscription c` or `--severity High Medium`.
 On leaves taking positional input (`rg query`, `logs query`, `api`, `op status`, `defender alerts get`), lists consume one token per flag to preserve existing argument placement; use commas or repeated flags there.
+Canonical query paths use named query input and accept space-separated lists after the full leaf path.
 Boolean flags accept a bare flag, `--full=false`, or `--full false`.
 Repeated scalar and boolean flags may repeat the same value; conflicting values are refused.
 `--` ends flag parsing and protects literal positional input.

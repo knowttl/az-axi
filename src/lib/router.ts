@@ -26,11 +26,29 @@ export function routeArgv(argv: readonly string[]): { argv: string[]; help?: str
   }
   const { leaf, path, words } = selected;
   const help = leafHelp(leaf, path);
-  const flagAliases = path === leaf.path ? {} : leaf.aliasFlags;
-  const schema = { ...GLOBAL_FLAG_SCHEMA, ...leaf.flags };
-  const args = parseLeafArgs(argv.slice(words.length), schema, path, help, flagAliases, leaf.positionalInput);
+  const canonical = path === leaf.path && leaf.handlerPath !== undefined;
+  const flagAliases = path === leaf.path ? { ...leaf.canonicalFlagAliases, ...(path === "graph query" ? { subscription: "subscriptions" } : {}) } : leaf.aliasFlags;
+  const schema = { ...GLOBAL_FLAG_SCHEMA, ...leaf.flags, ...(canonical ? leaf.canonicalFlags : {}) };
+  const args = parseLeafArgs(argv.slice(words.length), schema, path, help, flagAliases, leaf.positionalInput && !canonical);
   if (flagBool(args, "help")) return { argv: [...argv], help };
-  const legacy = leaf.path.split(" ");
+  if (canonical) {
+    const queryFlag = path === "graph query" ? "graph-query" : "analytics-query";
+    if (args.positionals.length || args.flags[queryFlag] && args.flags.file) {
+      throw new AxiError(`use exactly one query source: --${queryFlag}, --file or stdin`, "VALIDATION_ERROR", [help]);
+    }
+    if (args.flags[queryFlag]) {
+      args.positionals.push(String(args.flags[queryFlag]));
+      delete args.flags[queryFlag];
+    }
+    if (args.flags.subscriptions) {
+      args.flags.subscription = args.flags.subscriptions;
+      delete args.flags.subscriptions;
+    }
+    if ((args.flags["management-groups"] || args.flags["management-group"]) && args.flags.subscription || args.flags["management-groups"] && args.flags["management-group"]) {
+      throw new AxiError("explicit subscription and management-group scope flags are mutually exclusive", "VALIDATION_ERROR", [help]);
+    }
+  }
+  const legacy = (leaf.handlerPath ?? leaf.path).split(" ");
   // Re-encode normalized flags for the unchanged native handler. `--` protects
   // literal positional input, including KQL or paths that start with a dash.
   return { argv: [

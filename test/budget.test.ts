@@ -180,9 +180,13 @@ describe("token budgets", () => {
     await expectUnderBudget("sub list", await runSub(["list"]));
   });
 
-  it("rg query stays under its ceiling", async () => {
+  it.each([
+    ["rg", "query", "Resources | take 5"],
+    ["graph", "query", "-q", "Resources | take 5"],
+  ])("%j stays under the Resource Graph ceiling", async (...path) => {
     sendMock.mockResolvedValue(ok(resourceGraphPage));
-    await expectUnderBudget("rg query", await runRg(["query", "Resources | take 5"]));
+    const { argv } = routeArgv(path);
+    await expectUnderBudget("rg query", await runRg(argv.slice(1)));
   });
 
   it.each(["rbac list", "role assignment list"])("%s stays under the RBAC ceiling", async (path) => {
@@ -238,11 +242,15 @@ describe("token budgets", () => {
     await expectUnderBudget("exposure", await runExposure([]));
   });
 
-  it("logs query stays under its ceiling", async () => {
+  it.each([
+    ["logs", "query", "SigninLogs | take 5", "--workspace", WORKSPACE],
+    ["monitor", "log-analytics", "query", "--analytics-query", "SigninLogs | take 5", "--workspace", WORKSPACE],
+  ])("%j stays under the Log Analytics ceiling", async (...path) => {
     sendMock.mockResolvedValue(ok(logsResponse));
+    const { argv } = routeArgv(path);
     await expectUnderBudget(
       "logs query",
-      await runLogs(["query", "SigninLogs | take 5", "--workspace", WORKSPACE]),
+      await runLogs(argv.slice(1)),
     );
   });
 

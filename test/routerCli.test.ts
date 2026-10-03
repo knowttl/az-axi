@@ -16,8 +16,8 @@ describe("built CLI exact-leaf routing with fake transport", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  function run(args: string[]) {
-    const payloads = { activityEvents, defenderAlerts, defenderScores, graphNames, logsResponse, rbacAssignments, resourceGraphPage, subscriptionList };
+  function run(args: string[], input = "", graphPage: Record<string, unknown> = resourceGraphPage) {
+    const payloads = { activityEvents, defenderAlerts, defenderScores, graphNames, logsResponse, rbacAssignments, resourceGraphPage: graphPage, subscriptionList };
     const stub = `
       const data = ${JSON.stringify(payloads)};
       const RealDate = Date;
@@ -41,7 +41,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
       };
     `;
     return spawnSync(process.execPath, ["--import", `data:text/javascript,${encodeURIComponent(stub)}`, "dist/bin/az-axi.js", ...args], {
-      encoding: "utf8", input: "", env: {
+      encoding: "utf8", input, env: {
         ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci",
         AZ_AXI_ARM_TOKEN: "router-token", AZ_AXI_GRAPH_TOKEN: "router-token", AZ_AXI_LOGS_TOKEN: "router-token",
         AZ_AXI_SUBSCRIPTION: "", AZ_AXI_READ_ONLY: "1",
@@ -54,6 +54,8 @@ describe("built CLI exact-leaf routing with fake transport", () => {
     { legacy: ["activity", "list", "--since", "24h"], native: ["monitor", "activity-log", "list", "--offset", "24h"], flags: ["--full"] },
     { legacy: ["defender", "alerts"], native: ["security", "alert", "list"], flags: ["--full", "--severity", "High"] },
     { legacy: ["defender", "score"], native: ["security", "secure-scores", "list"], flags: ["--full"] },
+    { legacy: ["rg", "query", "Resources | take 5"], native: ["graph", "query", "-q", "Resources | take 5"], flags: ["--fields", "name", "--limit", "2"] },
+    { legacy: ["logs", "query", "Heartbeat", "--workspace", WORKSPACE], native: ["monitor", "log-analytics", "query", "--analytics-query", "Heartbeat", "-w", WORKSPACE], flags: ["--full", "--limit", "2"] },
   ])("$native preserves legacy output and operations", ({ legacy, native, flags }) => {
     const oldResult = run([...legacy, ...flags]);
     const newResult = run([...native, ...flags]);
@@ -62,6 +64,96 @@ describe("built CLI exact-leaf routing with fake transport", () => {
     expect(newResult.stdout).toBe(oldResult.stdout);
     expect(newResult.stderr).toBe(oldResult.stderr);
     expect(newResult.stderr).toContain('"url":');
+  });
+
+  it("keeps profile scope and the 50-row Graph default instead of az's all-accessible default", () => {
+    const result = run(["graph", "query", "--graph-query", "Resources"]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain(`"subscriptions":["${SUB_A}"]`);
+    expect(result.stderr).toContain('"$top":50');
+    const help = run(["graph", "query", "--help"]);
+    expect(help.stdout).toContain("Azure CLI defaults to all accessible subscriptions");
+  });
+
+  it("keeps profile management-group precedence unless explicit subscriptions select the scope", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", managementGroup: "parent", subscriptions: [SUB_A] } } }));
+    const defaultScope = run(["graph", "query", "-q", "Resources"]);
+    expect(defaultScope.status).toBe(0);
+    expect(defaultScope.stderr).toContain('"managementGroups":["parent"]');
+    expect(defaultScope.stderr).not.toContain('"subscriptions":');
+    const explicitScope = run(["graph", "query", "-q", "Resources", "--subscriptions", SUB_B]);
+    expect(explicitScope.status).toBe(0);
+    expect(explicitScope.stderr).toContain(`"subscriptions":["${SUB_B}"]`);
+    expect(explicitScope.stderr).not.toContain('"managementGroups":');
+  });
+
+  it("queries all accessible subscriptions only when neither flags nor profile specify scope", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+    const result = run(["graph", "query", "-q", "Resources"]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).not.toContain('"subscriptions":');
+    expect(result.stderr).not.toContain('"managementGroups":');
+  });
+
+  it("maps Graph plural subscription scope and --first onto the existing request", () => {
+    const native = run(["graph", "query", "-q", "Resources", "--subscriptions", SUB_A, SUB_B, "--first", "2"]);
+    const legacy = run(["rg", "query", "Resources", "--subscription", `${SUB_A},${SUB_B}`, "--limit", "2"]);
+    expect(native.status).toBe(0);
+    expect(native.stdout).toBe(legacy.stdout);
+    expect(native.stderr).toBe(legacy.stderr);
+  });
+
+  it("retains the legacy 1000-row full Graph page even with --first", () => {
+    const result = run(["graph", "query", "-q", "Resources", "--full", "--first", "2"]);
+    const legacy = run(["rg", "query", "Resources", "--full", "--limit", "2"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(legacy.stdout);
+    expect(result.stderr).toBe(legacy.stderr);
+    expect(result.stderr).toContain('"$top":1000');
+  });
+
+  it("sends all explicitly selected management groups and preserves them in pagination hints", () => {
+    const result = run(["graph", "query", "-q", "Resources", "--management-groups", "parent", "other"], "", { ...resourceGraphPage, $skipToken: "next-page" });
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('"managementGroups":["parent","other"]');
+    expect(result.stderr).not.toContain('"subscriptions":');
+    expect(result.stdout).toContain("--management-groups parent,other");
+    const next = run(["graph", "query", "--graph-query", "Resources", "--management-groups", "parent,other", "--skip-token", "next-page"]);
+    expect(next.status).toBe(0);
+    expect(next.stderr).toContain('"$skipToken":"next-page"');
+    expect(next.stderr).toContain('"managementGroups":["parent","other"]');
+  });
+
+  it("retains P1D in the request and TOON instead of az's all-available log timespan", () => {
+    const result = run(["monitor", "log-analytics", "query", "--analytics-query", "Heartbeat", "-w", WORKSPACE]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('"timespan":"P1D"');
+    expect(result.stdout).toContain("timespan: P1D");
+    expect(run(["monitor", "log-analytics", "query", "--help"]).stdout).toContain("Azure CLI defaults to all available data");
+  });
+
+  it.each([
+    { path: ["graph", "query"], legacy: ["rg", "query"], query: "Resources" },
+    { path: ["monitor", "log-analytics", "query", "-w", WORKSPACE], legacy: ["logs", "query", "--workspace", WORKSPACE], query: "Heartbeat" },
+  ])("reads a KQL file on $path with unchanged output", ({ path, legacy, query }) => {
+    const file = join(dir, "query.kql");
+    writeFileSync(file, query);
+    const result = run([...path, "--file", file]);
+    const oldResult = run([...legacy, "--file", file]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(oldResult.stdout);
+    expect(result.stderr).toBe(oldResult.stderr);
+  });
+
+  it.each([
+    { path: ["graph", "query"], legacy: ["rg", "query"], query: "Resources" },
+    { path: ["monitor", "log-analytics", "query", "-w", WORKSPACE], legacy: ["logs", "query", "--workspace", WORKSPACE], query: "Heartbeat" },
+  ])("reads stdin on $path with unchanged output", ({ path, legacy, query }) => {
+    const result = run(path, `${query}\n`);
+    const oldResult = run(legacy, `${query}\n`);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(oldResult.stdout);
+    expect(result.stderr).toBe(oldResult.stderr);
   });
 
   it("maps short flags and repeated space/comma lists to the original scope", () => {
@@ -121,6 +213,21 @@ describe("built CLI exact-leaf routing with fake transport", () => {
   });
 
   it.each([
+    ["graph", "query", "-q"],
+    ["graph", "query"],
+    ["graph", "query", "-q", "Resources", "--file", "query.kql"],
+    ["graph", "query", "-q", "Resources", "extra"],
+    ["graph", "query", "-q", "Resources", "--graph-query", "Other"],
+    ["graph", "query", "-q", "Resources", "--first", "2", "--limit", "3"],
+    ["graph", "query", "-q", "Resources", "--subscriptions", SUB_A, "--management-groups", "parent"],
+    ["graph", "query", "-q", "Resources", "--skip", "1"],
+    ["graph", "query", "-q", "Resources", "--allow-partial-scopes"],
+    ["graph", "query", "--query", "Resources"],
+    ["rg", "query", "-q", "Resources"],
+    ["monitor", "log-analytics", "query", "--analytics-query"],
+    ["monitor", "log-analytics", "query", "--analytics-query", "Heartbeat"],
+    ["monitor", "log-analytics", "query", "--analytics-query", "Heartbeat", "-w", WORKSPACE, "--workspaces", WORKSPACE],
+    ["logs", "query", "--analytics-query", "Heartbeat", "-w", WORKSPACE],
     ["role", "assignment"],
     ["role", "assignment", "lis"],
     ["security", "alert", "list", "--bogus"],
