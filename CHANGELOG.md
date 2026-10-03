@@ -3,6 +3,15 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.2](https://github.com/knowttl/az-axi/compare/v0.1.1...v0.1.2) (2026-10-03)
+
+
+### Features
+
+* accept API JSON bodies from files and stdin ([#39](https://github.com/knowttl/az-axi/issues/39)) ([0c84d29](https://github.com/knowttl/az-axi/commit/0c84d29fa2aac7f7aed7ee5e19b7d4ef5bb415fc))
+* add az-compatible command routing and flag parsing ([#41](https://github.com/knowttl/az-axi/issues/41)) ([f3938b5](https://github.com/knowttl/az-axi/commit/f3938b5076f82dae0eaad7ff7b9e05784ae39b0a))
+* add az-style Graph and Log Analytics query paths ([#42](https://github.com/knowttl/az-axi/issues/42)) ([f14a693](https://github.com/knowttl/az-axi/commit/f14a693fdf1c2ed036d92a206d5a058fbdef03b8))
+
 ## [0.1.1](https://github.com/knowttl/az-axi/compare/v0.1.0...v0.1.1) (2026-10-03)
 
 
