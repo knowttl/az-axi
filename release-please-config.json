@@ -1,0 +1,11 @@
+{
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "initial-version": "0.1.0",
+      "package-name": "@knowttl/az-axi"
+    }
+  }
+}
