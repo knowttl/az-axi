@@ -49,6 +49,15 @@ describe("built CLI ARM discovery offline", () => {
     expect(result.stdout).toContain("tags:");
     expect(result.stdout).toContain("provisioningState: Succeeded");
   });
+  it.each([
+    ["list"], ["list", "--full"],
+    ["show", "--name", "rg-demo"], ["show", "--name", "rg-demo", "--full"],
+  ])("preserves group state when selecting fields through %j", (...flags) => {
+    const result = run(["group", ...flags, "--fields", "name,state"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(result.stdout).toContain("Succeeded");
+    expect(result.stdout).not.toContain("provisioningState");
+  });
   it("resolves resource names and provider versions and shows requested fields", () => {
     const result = run(["resource", "show", "-n", "vm1", "-g", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines", "--fields", "id,tags"]);
     expect(result.status, result.stdout).toBe(0);

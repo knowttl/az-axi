@@ -119,7 +119,7 @@ export async function runDiscovery(kind: "group" | "resource", argv: string[]): 
 
   if (kind === "group" && verb === "show") {
     const item = await request<ArmItem>(profile, { method: "GET", path: `/subscriptions/${subs[0]}/resourceGroups/${segment(name!)}`, apiVersion: RESOURCE_GROUPS });
-    return { profile: profile.name, group: pickFields([full ? item : fields ? { ...item, ...compact(item, kind) } : compact(item, kind)], fields)[0] };
+    return { profile: profile.name, group: pickFields([fields ? { ...item, ...compact(item, kind) } : full ? item : compact(item, kind)], fields)[0] };
   }
   const items: ArmItem[] = [];
   let incomplete = false;
@@ -158,7 +158,7 @@ export async function runDiscovery(kind: "group" | "resource", argv: string[]): 
     profile: profile.name,
     total: incomplete ? `${items.length}+` : items.length,
     count: `${shown.length} of ${items.length}${incomplete ? "+" : ""} ${noun}`,
-    rows: shown.length ? pickFields(shown.map((item) => full ? item : fields ? { ...item, ...compact(item, kind) } : compact(item, kind)), fields) : emptyState(noun, incomplete ? "in fetched pages; listing is incomplete" : "in selected subscriptions"),
+    rows: shown.length ? pickFields(shown.map((item) => fields ? { ...item, ...compact(item, kind) } : full ? item : compact(item, kind)), fields) : emptyState(noun, incomplete ? "in fetched pages; listing is incomplete" : "in selected subscriptions"),
     help: [
       `Run \`az-axi ${kind} show ${kind === "group" ? "--name <group> --subscription <id>" : "--ids <ARM-id>"}\` for details`,
       ...(shown.length < items.length ? [`Run \`az-axi ${kind} list${selectors} --full\` to show every fetched row`] : []),

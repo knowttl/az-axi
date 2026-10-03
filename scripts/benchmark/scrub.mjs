@@ -28,7 +28,7 @@ export const PUBLIC_VOCABULARY = Object.freeze([
   "Healthy", "Unhealthy", "NotApplicable", "Succeeded", "Failed", "Canceled", "InProgress",
   "User", "Group", "ServicePrincipal", "Enabled", "Disabled",
   OWNER_ROLE_ID, CONTRIBUTOR_ROLE_ID, RBAC_ADMIN_ROLE_ID, USER_ACCESS_ADMIN_ROLE_ID,
-  "id", "name", "type", "location", "tags", "properties", "resourceGroup", "subscriptionId",
+  "id", "name", "type", "location", "tags", "properties", "provisioningState", "resourceGroup", "subscriptionId",
   "https", "management.azure.com", "graph.microsoft.com", "api.loganalytics.io",
   "value", "nextLink", "displayName", "state", "userPrincipalName",
   "data", "count", "totalRecords", "resultTruncated", "$skipToken", "$skiptoken",

@@ -9,6 +9,7 @@ vi.mock("../src/lib/auth.js", () => ({ resolveCredential: async () => ({ header:
 
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runSub } from "../src/commands/sub.js";
+import { run as runGroup } from "../src/commands/group.js";
 import { run as runLogs } from "../src/commands/logs.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runDefender } from "../src/commands/defender.js";
@@ -129,6 +130,16 @@ describe("scrubbed response replay", () => {
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it("preserves group provisioning state through scrubbed response replay", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ value: [{ subscriptionId: SUB }] }))
+      .mockResolvedValueOnce(Response.json(scrub({ value: [{
+        id: `/subscriptions/${SUB}/resourceGroups/private-group`, name: "private-group",
+        properties: { provisioningState: "Succeeded" },
+      }] })));
+    const result = await runGroup(["list", "--subscription", SUB]);
+    expect(result.rows).toEqual([{ name: scrub("private-group"), id: scrub(`/subscriptions/${SUB}/resourceGroups/private-group`), location: "", state: "Succeeded" }]);
+  });
 
   it("keeps Resource Graph rows, totals, pagination and truncation warnings", async () => {
     fetchMock.mockResolvedValueOnce(Response.json(scrub({
