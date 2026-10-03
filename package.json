@@ -43,6 +43,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "catalogue:generate": "node scripts/az-read-catalogue.mjs",
+    "catalogue:check": "node scripts/az-read-catalogue.mjs --check",
     "dev": "tsx src/bin/az-axi.ts",
     "test": "vitest run",
     "test:watch": "vitest",

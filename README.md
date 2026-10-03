@@ -314,6 +314,39 @@ Repeated scalar and boolean flags may repeat the same value; conflicting values 
 Unknown flags, short clusters or abbreviations, and missing values fail with exit 2 before requests.
 `--query` retains its HTTP-parameter meaning only on `api`; output JMESPath and `--output` are unsupported.
 
+### Pinned Azure CLI read catalogue
+
+[src/lib/azReadCatalogue.ts](src/lib/azReadCatalogue.ts) is a data-only seed for future reviewed read passthrough.
+It does not add an `az-axi az` command or change native commands, aliases, TOON output or write safeguards.
+The initial allowlist contains exactly one leaf: `group show`, registered as the SDK `ResourceGroupsOperations.get`, mapping to ARM `GET /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}` at API version `2024-11-01`.
+The supported metadata runtime is trusted official Azure CLI **2.77.0**, latest profile, AzureCloud, Linux/macOS/Windows, with **no extensions**, using `azure-mgmt-resource` **23.3.0**.
+This is a source audit, not a live runtime certification; no Azure CLI handler is imported or executed to build it.
+`group list` is deliberately excluded because its official registration uses a custom handler.
+
+Each entry records argument constraints, authentication and permission needs, exact operations, output schema and immutable source commits, line ranges and excerpt hashes.
+Only one resource-group name (one of `--name`, `-n`, `--resource-group`, `-g`) and one explicit subscription UUID are admitted by the recorded policy.
+Names use a conservative ASCII subset of the SDK validation, with length 1-90.
+Unknown flags, duplicate aliases, positional arguments, fan-out, caller-supplied output/query/debug options and local destinations are refused.
+A future consumer must require matching az-auth tenant/subscription context, force JSON transport, disable prompts and dynamic extension installation, then normalize output to TOON.
+Token profiles do not authorize ambient az identity use.
+
+Unknown command, version, extension, handler or operation means **write/refusal**, including custom handlers and transitive operations.
+Keys, connection strings, SAS, secret values, credentials and similar actions never become reads based on a `list` verb, GET method or output filter.
+The generator reads pinned official excerpts as text, without Python, extension imports, child execution, network access or dynamic discovery.
+
+```sh
+node scripts/az-read-catalogue.mjs --help
+pnpm catalogue:generate
+pnpm catalogue:check
+```
+
+[scripts/az-read-catalogue.sources.json](scripts/az-read-catalogue.sources.json) holds the reviewed excerpts.
+To refresh, retrieve the referenced files at immutable Microsoft commits using `gh-axi api repos/<owner>/<repo>/contents/<path>?ref=<commit>`, review the registration, arguments, client factory, dependency/profile and complete SDK operation chain, then update the source snapshots and generator's integrity pins together.
+Excerpts preserve the selected lines with surrounding whitespace trimmed; separated ranges are joined by a newline.
+Regenerate and review the artifact diff, then run the catalogue tests and full offline suite.
+The generator never promotes newly discovered commands; broadening the allowlist requires explicit code and provenance review.
+Offline tests check reproducibility, refusal invariants and zero network/child execution; catalogue maintenance does not require an Azure account.
+
 ## Behavior
 
 Resource inspection commands bound rows and long cells by default, except `api` lists have no default row cap.
