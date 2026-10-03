@@ -620,6 +620,9 @@ az-axi activity list [--subscription <id>] [--since 24h] [--caller <upn|appId>] 
 
 ### 6.8 `defender alerts | assessments | score`
 
+The later native Defender alert status write is documented in [README.md#writes](README.md#writes).
+**Reference:** [Azure CLI alert update](https://learn.microsoft.com/en-us/cli/azure/security/alert#az-security-alert-update) and [ARM alert activate](https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/update-subscription-level-state-to-activate?view=rest-defenderforcloud-2022-01-01).
+
 **alerts**
 
 ```
@@ -1350,6 +1353,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `rbac list --privileged` | `az role assignment list --all --query "[?roleDefinitionName=='Owner'] \| length(@)"` and the same for the other privileged roles |
 | `activity list --since 24h --status Failed` | `az monitor activity-log list --offset 24h --status Failed --query "length(@)"` |
 | `defender alerts` | Defender for Cloud portal, Security alerts blade, same filters; or `az security alert list` |
+| `security alert update` | Owner only in a disposable sandbox: compare the selected alert's status before/after in the Defender portal; repeat the action to verify a no-op |
 | `defender assessments` | Defender for Cloud portal, Recommendations blade, unhealthy counts per recommendation |
 | `defender score` | `az security secure-scores list` |
 | `exposure` | Each query from `--show-query` pasted into Resource Graph Explorer |
@@ -1428,6 +1432,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Graph directoryObject: getByIds | https://learn.microsoft.com/en-us/graph/api/directoryobject-getbyids |
 | Activity Logs - List | https://learn.microsoft.com/en-us/rest/api/monitor/activity-logs/list |
 | Defender alerts | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/list and https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/get-subscription-level |
+| Defender alert status actions | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/update-subscription-level-state-to-activate?view=rest-defenderforcloud-2022-01-01 (same stable contract for dismiss/resolve and resource-group scope) |
 | Defender assessments | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/assessments/list |
 | Defender secure scores | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/secure-scores/list |
 | Log Analytics query | https://learn.microsoft.com/en-us/rest/api/loganalytics/dataaccess/query/execute |

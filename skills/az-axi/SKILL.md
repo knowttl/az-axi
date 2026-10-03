@@ -42,6 +42,8 @@ The offline test suite checks this list against the registry.
 | `az-axi defender alerts` | native | read |
 | `az-axi security alert list` | native | read |
 | `az-axi defender alerts get` | native | read |
+| `az-axi security alert update` | native | write |
+| `az-axi defender alerts update` | native | write |
 | `az-axi defender assessments` | native | read |
 | `az-axi defender score` | native | read |
 | `az-axi security secure-scores list` | native | read |
@@ -85,6 +87,8 @@ flags:
 - `--config <path>` - one-off config file
 - `$AZ_AXI_PROFILE` / `$AZ_AXI_SUBSCRIPTION` / `$AZ_AXI_TENANT` /
   `$AZ_AXI_CONFIG` - environment overrides
+
+Native write scope restrictions are documented in [README.md#writes](../../README.md#writes).
 
 With no config file at all, az-axi uses an implicit `az` profile, so it works
 right after `az login`. `az-axi config init` manages profiles locally and never
@@ -225,7 +229,7 @@ For Resource Graph and Log Analytics queries, use the file or stdin inputs of `r
 ## Writes
 
 Writes are disabled by default.
-See [README.md#writes](../../README.md#writes) for current write support.
+See [README.md#writes](../../README.md#writes) for `security alert update`, its `defender alerts update` alias, required selectors, supported statuses, preview and no-op behavior, and concurrency limits.
 Write execution needs `--execute`; see the README reference above for `--if-match`, `--confirm`, `--timeout` and `--no-wait`.
 Show a dry run first (what would change, with the exact command to execute), and obtain human approval on every invocation - never batch, chain, or pre-approve writes.
 The human owns write access; this skill does not describe how to enable it.

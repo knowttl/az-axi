@@ -161,6 +161,7 @@ describe("command effect registry", () => {
       rbac: "read",
       activity: "read",
       defender: "read",
+      security: "write",
       exposure: "read",
       logs: "read",
       op: "read",

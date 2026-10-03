@@ -173,6 +173,7 @@ az-axi config path
 
 Every command accepts `--profile`, `--tenant`, `--subscription a,b`, `--management-group` and `--config`.
 `$AZ_AXI_TENANT` and `$AZ_AXI_SUBSCRIPTION` set the same overrides from the environment.
+Native write commands constrain scope as documented in [Writes](#writes).
 `$AZ_AXI_READ_ONLY=1` forces the whole process read-only whatever a profile says.
 
 ### Signing in
@@ -261,6 +262,7 @@ az-axi rbac list --privileged                           # role assignments for p
 az-axi activity list --since 24h --status Failed        # activity log across subscriptions, newest first
 az-axi defender alerts --severity High                  # active Defender alerts
 az-axi defender alerts get /subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Security/locations/westeurope/alerts/example-alert  # details for a full alert resource ID from the list
+az-axi security alert update -s 00000000-0000-0000-0000-000000000001 -l westeurope -n example-alert --status dismiss  # gated preview only
 az-axi defender assessments --severity High             # recommendations grouped with unhealthy counts
 az-axi defender score                                   # secure score per subscription, lowest first
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
@@ -287,7 +289,8 @@ Command paths must be complete and contiguous; put command flags after the full 
 Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
 `--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
 `rg query` continues to mean Resource Graph; resource groups use `group` when supported.
-Account/resource discovery, raw assessment lists, and alert name/location selectors are separate additions.
+Account/resource discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
+For the native alert status write and its legacy alias, see [Writes](#writes).
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
 
 `graph query` and `monitor log-analytics query` are the canonical query paths; `rg query` and `logs query` remain aliases with their existing flags and output keys.
@@ -304,7 +307,7 @@ Log Analytics accepts `--workspace` / `-w` and `--timespan` / `-t`; workspace al
 The selected timespan is included in TOON output as `timespan`.
 Additional workspaces are unsupported.
 
-Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
+Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, `-l` for location, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
 After the complete leaf path, list flags accept commas, spaces or repetition, such as `--subscription a b --subscription c` or `--severity High Medium`.
 On leaves taking positional input (`rg query`, `logs query`, `api`, `op status`, `defender alerts get`), lists consume one token per flag to preserve existing argument placement; use commas or repeated flags there.
 Canonical query paths use named query input and accept space-separated lists after the full leaf path.
@@ -407,11 +410,21 @@ For automatic polling during write execution, see [Writes](#writes).
 ## Writes
 
 Writes are disabled by default.
-To permit `api` previews and execution, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
+To permit `api` and native write previews and execution, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
 Find the selected configuration file with `az-axi config path`, then edit only the intended profile.
 No az-axi command enables writes.
 A profile with an invalid write configuration is rejected before it is used.
 Writes are limited to ARM; Graph and Log Analytics accept only reads and supported queries.
+
+`security alert update` (legacy alias `defender alerts update`) supports exactly one named Defender alert and one of `--status dismiss|resolve|activate`.
+It requires `--location / -l` and `--name / -n`, with optional `--resource-group / -g`; omission selects subscription scope.
+`--subscription / -s` requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.
+The preview reads the alert and shows its current and desired status, plus the exact native execute command.
+Execution reads again, skips matching status without a POST or log entry, and otherwise sends one bodyless `POST .../Microsoft.Security/locations/<location>/alerts/<name>/<action>?api-version=2022-01-01` through the shared pipeline.
+These Defender actions do not document ETag/If-Match support.
+An explicit `--if-match` is forwarded, but no concurrency guarantee is claimed even when the read returns an ETag.
+`--execute`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
+Only the three named actions are supported; batches, `inprogress`, body input and credential actions are refused.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 
@@ -430,6 +443,7 @@ Prefer PIM-eligible roles with temporary activation over standing Owner or Contr
 Use the [agent approval hook](#agent-integration) when an agent performs writes, and review the preview before approving execution.
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
+The following preview details apply to `api`; native alert previews are described above.
 For example, `az-axi api PATCH <resource-path> --api-version <version> --body-file body.json --profile <profile>` previews a field-level diff.
 PUT and PATCH previews show `changes[]{path,from,to}`, capped at 20 rows with `remaining` for additional changes, and `noop: true` when nothing would change.
 PUT also lists omitted fields as removals; PATCH normally compares supplied fields, but supplying `tags` replaces the tag set, so omitted tags appear as removals.
@@ -445,8 +459,9 @@ Add `--execute` to send the write after all gates pass.
 Destructive execution requires `--confirm <resource-name>`, matching the percent-decoded resource name exactly; for destructive POST actions, use the name preceding the action segment.
 DELETE, recognized disruptive POST actions, and PUT/PATCH on protected Microsoft.Authorization types require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
 Execution re-reads the resource, or the parent resource for POST actions, before sending.
-Use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
-Without it, execution uses the fresh GET's ETag when available and reports that review-to-execute protection was not used.
+For APIs supporting conditional writes, use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
+Without it, execution uses the fresh GET's ETag when available; generic `api` execution reports that review-to-execute protection was not used.
+Native execution reports its operation-specific protection limits as described above.
 An unchanged PUT/PATCH or DELETE of an already absent resource returns `result: already in desired state (no-op)` without sending or logging a write.
 
 Async writes with HTTP 201/202 and an operation URL poll automatically, preferring `Azure-AsyncOperation` over `Location`.

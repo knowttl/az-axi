@@ -14,3 +14,9 @@ export const scenarios = [
   { name: "graph-query", argv: ["graph", "query", "-q", "Resources | take 50", "--first", "50"] },
   { name: "monitor-log-analytics-query", argv: ["monitor", "log-analytics", "query", "--analytics-query", "SigninLogs | take 50", "--workspace", "benchmark"] },
 ];
+
+// Measured by test/budget.test.ts with fake transport and a synthetic writer profile.
+// Owner capture/replay stays read-only and never includes native write previews.
+export const offlineWritePreviews = [
+  { name: "security-alert-update", argv: ["security", "alert", "update", "--location", "westeurope", "--name", "example-alert", "--status", "dismiss"] },
+];

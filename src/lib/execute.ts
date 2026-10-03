@@ -27,6 +27,10 @@ export async function executeWrite(options: {
   selectors: string;
   timeoutMs: number;
   noWait: boolean;
+  /** Expected resource fields after a POST action, used only for no-op detection. */
+  desiredState?: unknown;
+  /** Operation-specific limits on review-to-execute protection. */
+  protection?: string;
 }): Promise<Record<string, unknown>> {
   const { profile, method, path, body } = options;
   const started = Date.now();
@@ -37,7 +41,7 @@ export async function executeWrite(options: {
   const help = [`Verify with \`az-axi api GET ${quoteFlagValue(verifyUrl.pathname + verifyUrl.search)}${options.selectors ? ` ${options.selectors}` : ""}\``];
   const base = {
     target: shortenResourceId(url.pathname),
-    ...(options.ifMatch === undefined ? { protection: "review-to-execute protection was not used" } : {}),
+    ...(options.protection ? { protection: options.protection } : options.ifMatch === undefined ? { protection: "review-to-execute protection was not used" } : {}),
   };
   // Token mode has no account lookup. Do not decode or log the bearer token.
   const identity = profile.auth === "az" ? (await identityOf(profile)).name : "token (identity unavailable)";
@@ -46,11 +50,12 @@ export async function executeWrite(options: {
   try {
     current = await sendRequest(profile, { path: probePath });
   } catch (error) {
-    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || (method !== "PUT" && method !== "DELETE" && method !== "POST")) throw error;
+    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || options.desiredState !== undefined || (method !== "PUT" && method !== "DELETE" && method !== "POST")) throw error;
     if (error instanceof ApiRequestError) missing = error;
   }
   const noop = method === "DELETE" ? current === undefined :
-    (method === "PUT" || method === "PATCH") && current !== undefined && body !== undefined && diffResource(current.body, body, method).noop;
+    (method === "PUT" || method === "PATCH") && current !== undefined && body !== undefined && diffResource(current.body, body, method).noop ||
+    method === "POST" && current !== undefined && options.desiredState !== undefined && diffResource(current.body, options.desiredState, "PATCH").noop;
   if (noop) {
     return { ...base, result: "already in desired state (no-op)", status: current?.status ?? 404,
       requestId: current?.requestId ?? missing?.requestId, correlationId: current?.correlationId ?? missing?.correlationId,

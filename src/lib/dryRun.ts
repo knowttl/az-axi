@@ -36,6 +36,8 @@ export interface DryRunRequest {
   full?: boolean;
   /** User-passed `--if-match`, echoed when no fresher ETag is read. */
   ifMatch?: string;
+  /** Expected resource fields after a POST action; never sent as the request body. */
+  desiredState?: unknown;
 }
 
 function barePath(path: string): string {
@@ -195,6 +197,15 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
 
   if (request.method === "PUT" && isDeploymentPut(request.method, request.path)) {
     return dryRunDeployment(request, base, help, command);
+  }
+
+  if (request.method === "POST" && request.desiredState !== undefined) {
+    const url = new URL(request.path, "https://management.azure.com");
+    url.pathname = url.pathname.slice(0, url.pathname.lastIndexOf("/"));
+    const probed = await getCurrent({ ...request, path: `${url.pathname}${url.search}` });
+    const diff = diffResource(probed.current, request.desiredState, "PATCH");
+    help.push(command({ etag: request.ifMatch }));
+    return { ...base, changes: diff.changes, ...(diff.noop ? { noop: true } : {}), help };
   }
 
   if (request.method === "PUT" || request.method === "PATCH") {
