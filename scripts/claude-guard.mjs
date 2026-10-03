@@ -27,6 +27,9 @@ function needsApproval(command) {
       while (i < command.length && command[i] !== "\n") i++;
       finishWord();
       groups.push([]);
+    } else if ((/[&|]/.test(char) && /[<>]/.test(command[i - 1] ?? "")) ||
+               (char === "&" && command[i + 1] === ">")) {
+      word += char;
     } else if (/[;|&()\n]/.test(char)) {
       finishWord();
       groups.push([]);
@@ -40,14 +43,11 @@ function needsApproval(command) {
 
   // Substitutions and incomplete quoting are ambiguous: scan the entire text,
   // including nested commands, rather than trusting the simple word grouping.
-  if (quote || /\$|`/.test(command)) {
+  if (quote || /\$|`|[<>]\(/.test(command)) {
     const normalized = command.replace(/\\\n/g, "").replace(/["'`\\]/g, "");
     return invocation.test(normalized) && execute.test(normalized);
   }
   return groups.some((words) => {
-    // Plain literal output cannot invoke a command. Shell -c, env, npx and
-    // unknown wrappers remain conservative candidates, including quoted scripts.
-    if (words[0] === "echo" || words[0] === "printf" || words[0] === "#") return false;
     const text = words.join(" ").replace(/["'\\]/g, "");
     return invocation.test(text) && execute.test(text);
   });
