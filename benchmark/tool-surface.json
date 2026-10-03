@@ -7,8 +7,8 @@
   },
   "help": {
     "topLevel": 297,
-    "home": 105,
-    "doctor": 91,
+    "home": 124,
+    "doctor": 111,
     "config": 170,
     "sub": 58,
     "rg": 186,
@@ -20,5 +20,5 @@
     "api": 282,
     "op": 98
   },
-  "helpTotal": 2406
+  "helpTotal": 2445
 }

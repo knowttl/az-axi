@@ -207,7 +207,7 @@ One example per inspection command; see [Profiles](#profiles) for `config init` 
 Every command also accepts `--help` with its full reference.
 
 ```
-az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure
+az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes
 az-axi home                                             # the same dashboard
 az-axi doctor                                           # check az, tokens, ARM reachability and write status per profile
 az-axi config list                                      # profiles with scope, write status and description
@@ -339,6 +339,36 @@ New log directories and files use user-only permissions where supported.
 Dry runs, no-ops and failures before write dispatch are not logged.
 With `--no-wait`, a successful log entry records acceptance, not eventual operation completion.
 If logging fails, execution reports `API_ERROR` with `result: write log failed`; verify the resource before retrying because the write may have succeeded.
+
+The dashboard reports the selected profile's effective write status and configured write subscriptions.
+`doctor` reports them for each inspected profile, including when authentication fails.
+Both report whether `AZ_AXI_READ_ONLY` is set and whether its value forces read-only, plus the resolved write log path.
+Read-scope overrides do not change the reported write subscriptions.
+
+The owner-only source-checkout smoke script keeps its existing checks when run without write flags.
+Build with `pnpm run build` before running it; the script imports API versions from `dist`.
+Write checks require all three flags explicitly: `--writes --subscription <id> --resource-group <rg>`.
+Select a write-enabled profile whose configured subscriptions include the sandbox subscription, with `AZ_AXI_READ_ONLY` not forcing read-only.
+The script preserves existing tags and sets the sandbox resource group's `axi-test` tag to `1` (or `2` if already `1`), then checks execution, a repeated no-op and the read-only block.
+It leaves the test tag in place.
+It never creates resources or deletes the supplied resource group.
+
+```sh
+node scripts/live-smoke.mjs --profile <profile> --writes --subscription <id> --resource-group <sandbox-rg>
+# Optional destructive check: the owner must create a throwaway account first.
+node scripts/live-smoke.mjs --profile <profile> --writes --subscription <id> --resource-group <sandbox-rg> --delete-storage-account <throwaway-account>
+```
+
+The destructive step is skipped when `--delete-storage-account` is omitted.
+When supplied, the named account must already exist in that resource group; a missing or mismatched target fails the check without deletion.
+It previews deletion, refuses detected locks or failed lock checks, checks that execution without confirmation is blocked, deletes with `--confirm <throwaway-account>`, and verifies the account is gone.
+Where a tag preview returns an ETag, execution uses `--if-match` and a subsequent write with the stale reviewed ETag must return `PRECONDITION_FAILED`.
+The storage account's tag preview is also checked; its tag round trip runs only when it returns an ETag.
+Without an ETag, resource-group execution checks the explicit notice that review-to-execute protection was not used.
+If neither target returns an ETag, the summary states `If-Match path not exercised: target returned no ETag`.
+No wildcard or fabricated ETag is used.
+The script prints and saves only check outcomes and skip reasons, never response bodies.
+Live checks belong to the owner and are never run in CI.
 
 ## Benchmark utilities
 

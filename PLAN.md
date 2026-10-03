@@ -526,6 +526,7 @@ API versions below are starting points, checked against the stable folders of `A
 Shows, with `Promise.allSettled` so one failing section degrades with a hint instead of failing the whole view:
 
 - Profile name, identity name and type, tenant, number of subscriptions in scope, and write status (`writes: disabled (default)`, `writes: disabled (AZ_AXI_READ_ONLY)` or `writes: ENABLED for <n> subscriptions`).
+- Configured write subscriptions, whether `AZ_AXI_READ_ONLY` is set and forces read-only, and the resolved write log path.
 - Defender for Cloud: active alerts by severity (counts only).
 - Secure score: average percentage across subscriptions in scope, and the lowest subscription.
 - Exposure: counts for each canned exposure check.
@@ -548,7 +549,9 @@ For each configured profile (or the implicit `az` profile):
 | TLS | Any `TLS_ERROR` from the above |
 | Writes | Report the effective write status per profile, and warn when a write-enabled profile's identity holds standing (non-PIM) Owner or Contributor at management group scope (best effort, via `rbac list`) |
 
-Output: one row per profile with `name, auth, identity, type, subscriptions, status`, plus a `help[]` aggregated from failures (prefixed with the profile name, as upstream does). Also report the package name and version (Section 2.4).
+Output: one row per profile with `name, auth, identity, type, subscriptions, writes, status, writeSubscriptions`, plus a `help[]` aggregated from failures (prefixed with the profile name, as upstream does).
+`writeSubscriptions` is the profile's configured write scope as comma-separated IDs, or `(none)`; read-scope overrides cannot change it.
+Also report the package name and version (Section 2.4), whether `AZ_AXI_READ_ONLY` is set and forces read-only, and the resolved write log path.
 
 **Reference:** `az account get-access-token` (https://learn.microsoft.com/en-us/cli/azure/account#az-account-get-access-token); `az account show` (same page); upstream pattern in ado-axi `src/commands/doctor.ts`.
 
@@ -1048,6 +1051,8 @@ Tasks:
 6. Extend `api` to the full write flow (Section 6.11).
 7. Write `scripts/claude-guard.mjs` and the README "Agent integration" and "Writes" sections (Section 4.3 and 6.13.10). The "Writes" section covers enabling writes by hand-editing a profile, the subscription restriction, every gate, the write log location, and recommended RBAC (PIM-eligible write roles scoped to the write-enabled subscriptions only).
 8. Add the write status to the dashboard and `doctor`, and add write round-trip checks to `scripts/live-smoke.mjs` that run only when `--writes --subscription <id> --resource-group <rg>` is passed explicitly.
+
+See [README.md#writes](README.md#writes) for the implemented owner-only smoke prerequisites, destructive opt-in and conditional ETag checks.
 
 Acceptance criteria:
 

@@ -10,13 +10,15 @@ vi.mock("../src/lib/client.js", () => ({ requestAll: vi.fn(), sendRequest: vi.fn
 import { run } from "../src/commands/home.js";
 import { identityOf } from "../src/lib/auth.js";
 import { requestAll, sendRequest } from "../src/lib/client.js";
+import { resolveWriteLogPath } from "../src/lib/writeLog.js";
+import { collapseHomeDirectory } from "../src/lib/paths.js";
 
 const identityMock = vi.mocked(identityOf);
 const allMock = vi.mocked(requestAll);
 const sendMock = vi.mocked(sendRequest);
 
 let dir: string;
-const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_READ_ONLY"];
+const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_READ_ONLY", "AZ_AXI_WRITE_LOG"];
 let saved: Record<string, string | undefined>;
 
 beforeEach(() => {
@@ -58,9 +60,26 @@ describe("dashboard skeleton", () => {
       type: "user",
       subscriptions: 2,
       writes: "disabled (default)",
+      writeSubscriptions: [],
+      readOnly: { set: false, forced: false },
+      writeLog: collapseHomeDirectory(resolveWriteLogPath()),
     });
     expect(allMock).toHaveBeenCalledWith(expect.anything(), { path: "/subscriptions", apiVersion: "2022-12-01" }, 100);
     expect((result.help as string[]).join("\n")).toContain("az-axi sub list");
+  });
+
+  it("reports configured write scope, environment override and log without write-enablement hints", async () => {
+    const sub = "00000000-0000-0000-0000-000000000020";
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { sandbox: { auth: "token", allowWrites: true, subscriptions: [sub] } } }));
+    process.env.AZ_AXI_WRITE_LOG = join(dir, "custom.log");
+    process.env.AZ_AXI_SUBSCRIPTION = "00000000-0000-0000-0000-000000000021";
+    const result = await run(["--subscription", "00000000-0000-0000-0000-000000000022"]);
+    expect(result).toMatchObject({ writes: "ENABLED for 1 subscription", writeSubscriptions: [sub], readOnly: { set: false, forced: false }, writeLog: join(dir, "custom.log") });
+    process.env.AZ_AXI_READ_ONLY = "true";
+    expect(await run([])).toMatchObject({ writes: "disabled (AZ_AXI_READ_ONLY)", writeSubscriptions: [sub], readOnly: { set: true, forced: true } });
+    process.env.AZ_AXI_READ_ONLY = "";
+    expect(await run([])).toMatchObject({ readOnly: { set: true, forced: false } });
+    expect(JSON.stringify(result.help)).not.toMatch(/allowWrites/);
   });
 
   it("reports token identities without calling az", async () => {

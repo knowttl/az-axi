@@ -79,8 +79,8 @@ const ok = (body: unknown) => ({ status: 200, headers: {}, body, clientRequestId
 // Measured TOON tokens plus 20 percent, rounded up. Re-measure with a failing
 // run (the assertion prints the actual size) after any output shape change.
 const CEILINGS: Record<string, number> = {
-  home: 227,
-  doctor: 102,
+  home: 256,
+  doctor: 132,
   "config list": 146,
   "sub list": 136,
   "rg query": 204,
@@ -104,6 +104,7 @@ function tokensOf(result: Record<string, unknown>): number {
     ...(typeof result.config === "string"
       ? { config: result.config.replace(collapseHomeDirectory(process.env.AZ_AXI_CONFIG!), "/config.json") }
       : {}),
+    ...(typeof result.writeLog === "string" ? { writeLog: "/writes.log" } : {}),
   };
   return encodeTokens(encodeToon(normalized)).length;
 }
