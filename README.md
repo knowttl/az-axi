@@ -1,12 +1,23 @@
 # az-axi
 
-Agent-ergonomic CLI for Azure, read-only by default.
-Resource inventory, RBAC, activity log, Defender for Cloud and Log Analytics through token-efficient TOON output.
+az-axi is a CLI for agents and analysts to inspect Azure resources, access permissions, activity, security posture and logs.
+It is read-only by default and returns compact, token-efficient TOON output with actionable hints.
+Start with `az-axi` for a dashboard, then use focused inspection commands, KQL queries or the `api` REST escape hatch to investigate a selected profile and scope.
 
-This is not [`masyanru/az-axi`](https://github.com/masyanru/az-axi), an unrelated project that owns the unscoped npm package `az-axi`.
-This package is [`@knowttl/az-axi`](https://www.npmjs.com/package/@knowttl/az-axi).
-Never install both globally on one machine: the second install overwrites the `az-axi` binary.
-`az-axi doctor` prints the package name and version it runs as.
+## How it works
+
+The backend is a local Node.js application written in TypeScript that calls Azure REST APIs directly.
+
+- **Command routing:** [the CLI entry point](src/bin/az-axi.ts) handles arguments, help and errors through `axi-sdk-js`.
+  The [registry](src/lib/registry.ts) loads command handlers and enforces their declared Azure effects.
+- **Profiles and authentication:** [config](src/lib/config.ts) resolves the profile, tenant and scope from files, flags and environment variables.
+  [Authentication](src/lib/auth.ts) obtains tokens from Azure CLI sign-in or profile-selected environment variables.
+- **Requests and output:** one [HTTP client](src/lib/client.ts) serves ARM, Resource Graph (through ARM), Log Analytics and Microsoft Graph.
+  Commands use [formatting helpers](src/lib/format.ts) to select fields and shorten output; the registry applies [secret redaction](src/lib/redact.ts) before TOON encoding.
+- **Write controls:** [policy](src/lib/policy.ts) classifies requests before [gates](src/lib/gates.ts) check the read-only override, profile write permission and subscription scope.
+  Permitted writes produce a [dry run](src/lib/dryRun.ts) unless `--execute` is supplied; [execution](src/lib/execute.ts) requires destructive confirmation where applicable and handles ETags and no-ops.
+- **Operation tracking:** [long-running operations](src/lib/lro.ts) poll Azure's operation URL during execution, or `op status` checks it once.
+  Dispatched write attempts record outcome metadata, excluding bodies and headers, in the append-only [write log](src/lib/writeLog.ts).
 
 ## Install
 

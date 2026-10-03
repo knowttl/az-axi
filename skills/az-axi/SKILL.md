@@ -11,16 +11,10 @@ Resource Graph, RBAC, activity log, Defender for Cloud, internet exposure checks
 and Log Analytics KQL queries through token-efficient TOON output, with a raw
 REST escape hatch for everything else.
 
-This is not [`masyanru/az-axi`](https://github.com/masyanru/az-axi), an unrelated
-project that owns the unscoped npm package `az-axi`. This project is
-[`@knowttl/az-axi`](https://www.npmjs.com/package/@knowttl/az-axi). Never install
-both globally on one machine: the second install overwrites the `az-axi` binary.
-
 Call the globally installed, pinned `az-axi` binary. Never use unpinned
-`npx -y`: it can fetch a different `az-axi` on a machine where this package is
-not installed. If `az-axi` is not on PATH, install
+`npx -y`. If `az-axi` is not on PATH, install
 `@knowttl/az-axi` globally first. `az-axi doctor` prints the package name and
-version it runs as, so a clash is visible.
+version it runs as.
 
 ## Orientation
 
