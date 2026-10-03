@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.1](https://github.com/knowttl/az-axi/compare/v0.1.0...v0.1.1) (2026-10-03)
+
+
+### Features
+
+* add command leaf registry with explicit capability contracts ([#36](https://github.com/knowttl/az-axi/issues/36)) ([7e4467a](https://github.com/knowttl/az-axi/commit/7e4467a6ca6418cb1c4a3cbcec53e6626ad202aa))
+
 ## [Unreleased]
 
 - README: `Install`, `Use` and `Behavior` sections (install, one example per command, error codes and exit codes).
