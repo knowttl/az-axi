@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { decode } from "@toon-format/toon";
 import { discoveryGroup, discoveryResource, discoveryWorkflow, SUB_A, subscriptionList } from "./samples.js";
 import { REDACTED } from "../src/lib/redact.js";
 
@@ -65,12 +66,25 @@ describe("built CLI ARM discovery offline", () => {
     const result = run(["resource", "show", ...flags, "--api-version", "2019-05-01"], false, discoveryWorkflow);
     expect(result.status, result.stdout).toBe(0);
     expect(result.stdout).not.toContain("opaque-header-value");
-    expect(result.stdout).toContain(REDACTED);
+    expect(decode(result.stdout)).toMatchObject({ resource: { properties: { definition: { actions: { http: { inputs: { headers: {
+      "x-api-key": REDACTED, authorization: REDACTED, Accept: "application/json",
+    } } } } } } } });
     expect(result.stdout).toContain("application/json");
+  });
+  it.each([
+    ["--name", "listKeys", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines"],
+    ["--ids", `${discoveryGroup.id}/providers/Microsoft.Compute/virtualMachines/listKeys`],
+  ])("shows a VM named listKeys through %j", (...flags) => {
+    const item = { ...discoveryResource, id: `${discoveryGroup.id}/providers/Microsoft.Compute/virtualMachines/listKeys`, name: "listKeys" };
+    const result = run(["resource", "show", ...flags], false, item);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ resource: { id: item.id, name: "listKeys" } });
+    expect(result.stderr).toContain("api-version=2025-01-01");
   });
   it.each([
     ["group", "list", "--execute"], ["group", "show"],
     ["resource", "show", "--ids", discoveryResource.id + "/config/appsettings"],
+    ["resource", "show", "--ids", discoveryResource.id + "/listKeys"],
     ["resource", "show", "--ids", discoveryResource.id, "--subscription", "00000000-0000-0000-0000-000000000021"],
     ["resource", "list", "--output", "json"],
   ])("refuses %j without transport", (...args) => {

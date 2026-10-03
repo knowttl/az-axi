@@ -58,7 +58,7 @@ function resourceId(value: string): { id: string; subscription: string; namespac
   // that can contain credentials. Neither is inventory metadata.
   // https://learn.microsoft.com/en-us/rest/api/automation/variable/get
   const automationValues = match[3]!.toLowerCase() === "microsoft.automation" && types.some((s) => ["variables", "connections"].includes(s.toLowerCase()));
-  if (automationValues || types.some((s) => unsafe.has(s.toLowerCase())) || tail.some((s) => SECRET_ACTIONS.some((action) => action.toLowerCase() === s.toLowerCase()))) {
+  if (automationValues || types.some((s) => unsafe.has(s.toLowerCase())) || types.some((s) => SECRET_ACTIONS.some((action) => action.toLowerCase() === s.toLowerCase()))) {
     throw new AxiError("blocked: resource show does not retrieve credential-bearing child resources or actions", "READ_ONLY", ["Use `az-axi resource list` for inventory metadata"]);
   }
   return { id: value.split("/").map(encodeURIComponent).join("/"), subscription: match[1]!, namespace: match[3]!, type: types.join("/") };

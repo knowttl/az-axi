@@ -7,6 +7,24 @@ import { discoveryResource, SUB_A } from "./samples.js";
 describe("resource show resolution", () => {
   describe.each(["name", "ids"])("%s selectors", (selector) => {
     it.each([
+      ["listKeys", "Microsoft.Compute/virtualMachines"],
+      ["LISTKEYS", "Microsoft.Compute/virtualMachines"],
+      ["listKeys/listSecrets", "Microsoft.Compute/virtualMachines/extensions"],
+      ["vm1/listKeys", "Microsoft.Compute/virtualMachines/extensions"],
+    ])("shows resource names resembling credential actions: %s", async (name, type) => {
+      vi.mocked(request).mockReset();
+      vi.mocked(requestAll).mockClear();
+      const [namespace, ...types] = type.split("/");
+      const names = name.split("/");
+      const id = `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/${namespace}/${types.map((t, i) => `${t}/${names[i]}`).join("/")}`;
+      const item = { ...discoveryResource, id, name, type };
+      vi.mocked(request).mockResolvedValue(item);
+      const flags = selector === "ids" ? ["--ids", id] : ["--name", name, "--resource-group", "rg-demo", "--resource-type", type];
+      expect((await run(["show", "--subscription", SUB_A, ...flags, "--api-version", "2025-01-01"])).resource).toMatchObject({ id, name });
+      expect(request).toHaveBeenCalledWith(expect.anything(), { method: "GET", path: id, apiVersion: "2025-01-01" });
+      expect(requestAll).not.toHaveBeenCalled();
+    });
+    it.each([
       ["CPU High", "rg-demo", "Microsoft.Insights/metricAlerts"],
       ["警告", "開発", "Microsoft.Insights/metricAlerts"],
       ["CPU High", "開発", "Microsoft.Insights/metricAlerts"],
@@ -37,6 +55,8 @@ describe("resource show resolution", () => {
   it.each([
     ["--ids", "https://example.com/secret"],
     ["--ids", discoveryResource.id + "/listKeys"],
+    ["--ids", discoveryResource.id + "/listKeys/default"],
+    ["--name", "vm1/default", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Compute/virtualMachines/listKeys"],
     ["--ids", discoveryResource.id + "?x=y"],
     ["--ids", discoveryResource.id + "%20"],
     ["--name", "CPU%20High", "--resource-group", "rg-demo", "--resource-type", "Microsoft.Insights/metricAlerts"],
@@ -49,7 +69,7 @@ describe("resource show resolution", () => {
     ["--ids", `/subscriptions/${SUB_A}/resourceGroups/../providers/Microsoft.Compute/virtualMachines/vm1`, "--api-version", "2024-07-01"],
     ["--ids", discoveryResource.id, "--name", "vm1"],
     ["--name", "vm1", "--resource-group", "rg-demo"],
-  ])("refuses unsafe or conflicting selectors %j before transport", async (flags) => {
+  ])("refuses unsafe or conflicting selectors %j before transport", async (...flags) => {
     vi.mocked(request).mockClear(); vi.mocked(requestAll).mockClear();
     await expect(run(["show", ...flags])).rejects.toBeDefined();
     expect(request).not.toHaveBeenCalled(); expect(requestAll).not.toHaveBeenCalled();
