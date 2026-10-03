@@ -45,6 +45,7 @@ export const COMMAND_LEAVES = [
   { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
   { path: "defender alerts", effect: "read", capability: "native", aliases: ["security alert list"], flags: { severity: "list", status: "value", since: "value" } },
   { path: "defender alerts get", effect: "read", capability: "native", positionalInput: true },
+  { path: "security alert update", effect: "write", capability: "native", aliases: ["defender alerts update"], flags: { location: "value", name: "value", "resource-group": "value", status: "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "defender assessments", effect: "read", capability: "native", flags: { severity: "list", status: "value", resource: "value", "show-query": "boolean" } },
   { path: "defender score", effect: "read", capability: "native", aliases: ["security secure-scores list"] },
   { path: "exposure", effect: "read", capability: "native", flags: { check: "value", "show-query": "boolean" } },
@@ -89,6 +90,7 @@ const LOADERS = {
   rbac: () => import("../commands/rbac.js"),
   activity: () => import("../commands/activity.js"),
   defender: () => import("../commands/defender.js"),
+  security: () => import("../commands/security.js"),
   exposure: () => import("../commands/exposure.js"),
   logs: () => import("../commands/logs.js"),
   api: () => import("../commands/api.js"),
@@ -139,6 +141,7 @@ const HELP_OVERVIEWS = {
   rbac: "az-axi rbac list [--privileged]           # role assignments with principal names",
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
   defender: "az-axi defender alerts|assessments|score  # Defender for Cloud posture",
+  security: "az-axi security alert update             # gated status update for one Defender alert",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
@@ -164,6 +167,18 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
   ].join("\n");
 }
 
+export const ALERT_UPDATE_HELP = [
+  "az-axi security alert update --location <location> --name <alert-name> --status dismiss|resolve|activate [--resource-group <name>]",
+  "Legacy alias: az-axi defender alerts update (same flags). One alert and one subscription only; no positional IDs or batches.",
+  "--subscription / -s accepts a single ID or exact name; otherwise use the sole subscription in env/profile scope.",
+  "--location / -l and --name / -n are required; --resource-group / -g is optional (default subscription scope).",
+  "Writes require the existing profile permission and subscription allowlist. Default: dry run with current/desired status; --execute sends one bodyless ARM POST.",
+  "Already in the desired status: no-op. --if-match is forwarded if supplied, but this API does not document ETag/If-Match protection; it is not a concurrency guarantee.",
+  "--timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log, LRO handling and approval hook apply.",
+  "Examples: az-axi security alert update -s <id> -l westeurope -n example-alert --status dismiss",
+  "az-axi security alert update -s <id> -g example-rg -l westeurope -n example-alert --status resolve --execute",
+].join("\n");
+
 const LEAF_HELP: Record<string, string> = {
   "graph query": 'az-axi graph query --graph-query <kql> | -q <kql> | --file <path> | piped stdin\n--subscriptions a b (or -s a b) selects subscriptions; --management-groups a b selects management groups. Explicit scope families are mutually exclusive.\n--first aliases --limit (default 50, maximum 1000); --full requests a 1000-row page, as on rg query. --skip-token continues a page.\nScope: explicit flags, then profile managementGroup, then profile subscriptions, else all accessible subscriptions. Azure CLI defaults to all accessible subscriptions.\n--skip and --allow-partial-scopes are unsupported and rejected; use --skip-token for paging. --query (JMESPath) is unsupported.\nOutput: unchanged rg query TOON, including legacy pagination hints.\nExamples: az-axi graph query -q Resources --first 5; az-axi graph query --file query.kql --subscriptions <id>',
   "monitor log-analytics query": 'az-axi monitor log-analytics query --analytics-query <kql> | --file <path> | piped stdin\n--workspace / -w <alias|guid> is required; aliases come from the profile. ARM workspace resource IDs are rejected.\n--timespan / -t defaults to P1D and intersects KQL time filters; Azure CLI defaults to all available data.\n--limit defaults to 50 displayed rows; --full expands cells and still honors --limit. Additional workspaces are unsupported.\nOutput: unchanged logs query TOON, including workspace, workspaceId, timespan, total, count, rows.\nExamples: az-axi monitor log-analytics query --analytics-query Heartbeat -w <guid>; az-axi monitor log-analytics query --file hunt.kql -w sentinel -t P7D',
@@ -172,6 +187,7 @@ const LEAF_HELP: Record<string, string> = {
   "config path": "Reports the selected config path and whether it exists.\nExamples: az-axi config path; az-axi config path --config <path>",
   "defender alerts": "Lists ARM alerts per subscription, newest first. Default --status Active; --status all includes every status.\n--severity High,Medium filters severity; --since 7d filters age (default all retained alerts); --limit defaults to 50.\nOutput: total, count, bySeverity, rows.\nExamples: az-axi security alert list --severity High; az-axi defender alerts --status all",
   "defender alerts get": "az-axi defender alerts get <alert-resource-id>\nTakes exactly one full alert ARM ID and returns alert details.\nExamples: az-axi defender alerts get <alert-resource-id>; az-axi defender alerts get <alert-resource-id> --full",
+  "security alert update": ALERT_UPDATE_HELP,
   "defender assessments": "Recommendation summaries from Resource Graph, worst severity first. --limit defaults to 25.\n--severity High and --status Unhealthy filter recommendations; --resource <name> selects per-resource rows.\n--show-query prints KQL without running it.\nExamples: az-axi defender assessments --severity High; az-axi defender assessments --resource <name>",
   "defender score": "Secure scores from Resource Graph, lowest percentage first. --limit defaults to 50.\nOutput: total, count, rows (subscription,current,max,percent).\nExamples: az-axi security secure-scores list; az-axi defender score --full",
 };
@@ -268,6 +284,7 @@ const HELP_TEXT = {
     "--show-query on assessments prints the exact KQL without running it.",
     "Examples: az-axi defender alerts --severity High; az-axi defender assessments --severity High; az-axi defender score",
   ].join("\n"),
+  security: ALERT_UPDATE_HELP,
   exposure: [
     "az-axi exposure [--check public-ips|mgmt-ports|any-any|all] [--limit 50]",
     "az-axi exposure --show-query              # print the canned Resource Graph KQL without running it",

@@ -42,6 +42,8 @@ The offline test suite checks this list against the registry.
 | `az-axi defender alerts` | native | read |
 | `az-axi security alert list` | native | read |
 | `az-axi defender alerts get` | native | read |
+| `az-axi security alert update` | native | write |
+| `az-axi defender alerts update` | native | write |
 | `az-axi defender assessments` | native | read |
 | `az-axi defender score` | native | read |
 | `az-axi security secure-scores list` | native | read |
@@ -225,6 +227,13 @@ For Resource Graph and Log Analytics queries, use the file or stdin inputs of `r
 ## Writes
 
 Writes are disabled by default.
+`security alert update --location <location> --name <alert-name> --status dismiss|resolve|activate` updates one Defender alert through the shared write gates.
+`defender alerts update` is its legacy alias with the same flags.
+Select a single subscription ID or exact name with `--subscription`; otherwise the env/profile scope must contain exactly one subscription.
+Add `--resource-group <name>` for a resource-group alert; omission selects subscription scope.
+The default preview shows the current and desired status and the exact native command to execute.
+Already matching status is a no-op without a POST or audit entry.
+Defender does not document ETag/If-Match support; supplying `--if-match` forwards the header but does not guarantee concurrency protection.
 See [README.md#writes](../../README.md#writes) for current write support.
 Write execution needs `--execute`; see the README reference above for `--if-match`, `--confirm`, `--timeout` and `--no-wait`.
 Show a dry run first (what would change, with the exact command to execute), and obtain human approval on every invocation - never batch, chain, or pre-approve writes.

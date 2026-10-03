@@ -19,6 +19,8 @@ function bash(command: string) {
 
 describe("Claude Code Bash write guard", () => {
   it.each([
+    "az-axi security alert update -l westeurope -n example-alert --status dismiss --execute",
+    "az-axi defender alerts update --location westeurope --name example-alert --status resolve --execute",
     "az-axi api PATCH /target --execute",
     "az-axi api PATCH /target --body-file 'body file.json' --execute",
     "az-axi api PATCH /target --execute < body.json",

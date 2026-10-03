@@ -261,6 +261,7 @@ az-axi rbac list --privileged                           # role assignments for p
 az-axi activity list --since 24h --status Failed        # activity log across subscriptions, newest first
 az-axi defender alerts --severity High                  # active Defender alerts
 az-axi defender alerts get /subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Security/locations/westeurope/alerts/example-alert  # details for a full alert resource ID from the list
+az-axi security alert update -s 00000000-0000-0000-0000-000000000001 -l westeurope -n example-alert --status dismiss  # gated preview only
 az-axi defender assessments --severity High             # recommendations grouped with unhealthy counts
 az-axi defender score                                   # secure score per subscription, lowest first
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
@@ -407,11 +408,22 @@ For automatic polling during write execution, see [Writes](#writes).
 ## Writes
 
 Writes are disabled by default.
-To permit `api` previews and execution, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
+To permit `api` and native write previews and execution, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
 Find the selected configuration file with `az-axi config path`, then edit only the intended profile.
 No az-axi command enables writes.
 A profile with an invalid write configuration is rejected before it is used.
 Writes are limited to ARM; Graph and Log Analytics accept only reads and supported queries.
+
+`security alert update` (legacy alias `defender alerts update`) supports exactly one named Defender alert and one of `--status dismiss|resolve|activate`.
+It requires `--location / -l` and `--name / -n`, with optional `--resource-group / -g`; omission selects subscription scope.
+`--subscription / -s` accepts a single ID or exact accessible name; without it, the env/profile scope must contain exactly one subscription.
+Name resolution is read-only and cannot widen the configured write-ID allowlist.
+The preview reads the alert and shows its current and desired status, plus the exact native execute command.
+Execution reads again, skips matching status without a POST or log entry, and otherwise sends one bodyless `POST .../Microsoft.Security/locations/<location>/alerts/<name>/<action>?api-version=2022-01-01` through the shared pipeline.
+These Defender actions do not document ETag/If-Match support.
+An explicit `--if-match` is forwarded, but no concurrency guarantee is claimed even when the read returns an ETag.
+`--execute`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
+Only the three named actions are supported; batches, `inprogress`, body input and credential actions are refused.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 

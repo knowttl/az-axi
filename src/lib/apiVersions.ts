@@ -105,6 +105,10 @@ export const ACTIVITY_LOG = "2015-04-01";
  * and https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/get-subscription-level
  * Verified: 2026-10-01
  * Reason: newest version; `Alerts_List`, `Alerts_GetSubscriptionLevel` present.
+ * Status actions verified 2026-10-03 against this spec and REST reference:
+ * https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/update-subscription-level-state-to-activate?view=rest-defenderforcloud-2022-01-01
+ * Subscription/resource-group scoped POST dismiss, resolve and activate take no body
+ * and return 204. The contract documents neither ETag nor If-Match support.
  */
 export const DEFENDER_ALERTS = "2022-01-01";
 

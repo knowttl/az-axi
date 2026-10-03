@@ -35,6 +35,7 @@ import { run as runDefender } from "../src/commands/defender.js";
 import { run as runExposure } from "../src/commands/exposure.js";
 import { run as runLogs } from "../src/commands/logs.js";
 import { run as runApi } from "../src/commands/api.js";
+import { run as runSecurity } from "../src/commands/security.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { requestAll, sendRequest } from "../src/lib/client.js";
 import { collapseHomeDirectory } from "../src/lib/paths.js";
@@ -46,6 +47,7 @@ import {
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
+import { offlineWritePreviews } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
   WORKSPACE,
@@ -55,6 +57,7 @@ import {
   apiWriteBody,
   configListProfiles,
   defenderAlertDetail,
+  defenderAlertUpdateState,
   defenderAlerts,
   defenderAssessments,
   defenderScores,
@@ -90,6 +93,7 @@ const CEILINGS: Record<string, number> = {
   "activity list": 201,
   "defender alerts": 194,
   "defender alerts get": 112,
+  "security alert update": 179,
   "defender assessments": 117,
   "defender score": 86,
   exposure: 298,
@@ -153,6 +157,14 @@ afterEach(() => {
 });
 
 describe("token budgets", () => {
+  it("security alert update preview stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+      writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
+    } }));
+    sendMock.mockResolvedValue(ok(defenderAlertUpdateState));
+    const { argv } = routeArgv(offlineWritePreviews[0]!.argv);
+    await expectUnderBudget("security alert update", await runSecurity(argv.slice(1)));
+  });
   it("home stays under its ceiling", async () => {
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
       const query = String((options["body"] as { query?: string })?.query ?? "");

@@ -13,6 +13,9 @@ export const SYN = (n: number): string =>
 
 export const TENANT = SYN(1);
 export const SUB_A = SYN(20);
+
+// source: security/resource-manager/Microsoft.Security/Security/stable/2022-01-01/examples/Alerts/GetAlertSubscriptionLocation_example.json
+export const defenderAlertUpdateState = { properties: { status: "Active" } };
 export const SUB_B = SYN(21);
 export const SUB_C = SYN(22);
 export const WORKSPACE = SYN(10);
