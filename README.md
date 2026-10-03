@@ -208,7 +208,12 @@ See [Writes](#writes) for the read-only policy.
 | `NOT_FOUND` | 2 | Subscription, workspace or resource not found |
 | `READ_ONLY` | 2 | Request class not permitted for this resource |
 | `WRITES_DISABLED` | 2 | Write or destructive request blocked because writes are disabled |
-| `PRECONDITION_FAILED` | 1 | HTTP 412: the resource changed since it was read |
+| `SUBSCRIPTION_NOT_WRITABLE` | 2 | Write target is outside the profile's configured subscriptions |
+| `CONFIRM_REQUIRED` | 2 | Destructive execution needs `--confirm <resource-name>` |
+| `CONFIRM_MISMATCH` | 2 | Confirmation does not match the target resource name |
+| `PRECONDITION_FAILED` | 1 | HTTP 412: ETag mismatch; re-run the dry run before retrying |
+| `OPERATION_FAILED` | 1 | Long-running operation reported Failed or Canceled |
+| `OPERATION_TIMEOUT` | 1 | Polling budget expired; use the suggested `op status` command |
 | `CONFLICT` | 1 | HTTP 409 from ARM |
 | `TLS_ERROR` | 1 | Certificate trust failure; see TLS-inspecting proxies in Configure |
 | `RATE_LIMITED` | 1 | HTTP 429 or throttled; the hint carries the retry delay |
@@ -231,24 +236,53 @@ A string `status` in the response body identifies the operation state; Succeeded
 Without a string body status, output adds `operation` (the URL), `state` and `status` (the HTTP status); HTTP 202 means InProgress and other successful HTTP responses mean Succeeded.
 Failed and Canceled are reported as operation states with any returned error details; a successful status lookup still exits 0.
 Returned error details remain in the response payload as `error.code` and `error.message`; request failures use the normal [error categories](#behavior).
-Automatic polling and `--timeout` are not exposed by the CLI yet.
+For automatic polling during write execution, see [Writes](#writes).
 
 ## Writes
 
 Writes are disabled by default.
-To permit `api` previews, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
-`AZ_AXI_READ_ONLY=1` still blocks previews with `WRITES_DISABLED`.
-Preview targets must belong to that profile's configured subscriptions; flag and environment overrides cannot widen this list, and tenant or management-group targets are blocked.
+To permit `api` previews and execution, a human must hand-edit the selected profile with `"allowWrites": true` and a non-empty `subscriptions` list.
+`AZ_AXI_READ_ONLY=1` still blocks both with `WRITES_DISABLED`.
+Write targets must belong to that profile's configured subscriptions; flag and environment overrides cannot widen this list, and tenant or management-group targets are blocked.
 A profile with an invalid write configuration is rejected before it is used.
+Writes are limited to ARM; Graph and Log Analytics accept only reads and supported queries.
+Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
+The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
 For example, `az-axi api PATCH <resource-path> --api-version <version> --body '<json>' --profile <profile>` previews a field-level diff.
-See [PLAN.md Section 6.13.3](PLAN.md#6133-dry-run-dryrunts-diffts) for the detailed preview output contract.
+PUT and PATCH previews show `changes[]{path,from,to}`, capped at 20 rows with `remaining` for additional changes, and `noop: true` when nothing would change.
+PUT also lists omitted fields as removals; PATCH normally compares supplied fields, but supplying `tags` replaces the tag set, so omitted tags appear as removals.
+Preview output includes the request class, method, shortened target, subscription, redacted body and available ETag; `--full` expands a truncated body.
+DELETE previews summarize the resource and warn about detected resource or resource-group locks; a failed lock check produces a hint.
+Other POST actions show the body and execution command without a current-state diff.
+Completed deployment what-if previews summarize change counts.
+Pending deployment previews return an `az-axi op status` command without polling or an execution command.
+Other previews include a shell-quoted execution command with an available ETag and destructive confirmation; redacted bodies use a `<json-body>` placeholder that must be replaced with the original body.
 
-Execution is not available in this build: `--execute` returns `API_ERROR` after the gates pass.
-Destructive execution also requires `--confirm <resource-name>`; missing or mismatched confirmation fails first.
-Pending deployment previews return a suggested `az-axi op status` command.
+Add `--execute` to send the write after all gates pass.
+Destructive execution requires `--confirm <resource-name>`, matching the percent-decoded resource name exactly; for destructive POST actions, use the name preceding the action segment.
+DELETE, recognized disruptive POST actions, and PUT/PATCH on protected Microsoft.Authorization types require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
+Execution re-reads the resource, or the parent resource for POST actions, before sending.
+Use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
+Without it, execution uses the fresh GET's ETag when available and reports that review-to-execute protection was not used.
+An unchanged PUT/PATCH or DELETE of an already absent resource returns `result: already in desired state (no-op)` without sending or logging a write.
+
+Async writes with HTTP 201/202 and an operation URL poll automatically, preferring `Azure-AsyncOperation` over `Location`.
+`--timeout <seconds>` sets a positive polling budget, defaulting to 600 seconds; it does not bound the initial resource read or write request.
+`--no-wait` returns `result: operation accepted`, the operation URL and an `op status` command instead of polling.
+HTTP 202 without an operation URL reports `API_ERROR` because completion cannot be tracked.
 See [Check an operation](#check-an-operation) for URL requirements, output and recheck behavior.
+Completed execution returns `result: done`; write failures include `result: failed` alongside the normal error code.
+Write outcomes include the target, HTTP status, available request and correlation IDs, duration in seconds and a suggested GET to verify the resource.
+
+Attempted writes, including failures, append metadata to `~/.az-axi/writes.log`, overridden by `$AZ_AXI_WRITE_LOG`.
+The append-only JSON Lines log records time, profile, identity, request class, method, URL, available request/correlation IDs, HTTP status and outcome, excluding bodies and headers.
+Token-mode identity is recorded as unavailable without decoding the token.
+New log directories and files use user-only permissions where supported.
+Dry runs, no-ops and failures before write dispatch are not logged.
+With `--no-wait`, a successful log entry records acceptance, not eventual operation completion.
+If logging fails, execution reports `API_ERROR` with `result: write log failed`; verify the resource before retrying because the write may have succeeded.
 
 ## Benchmark utilities
 

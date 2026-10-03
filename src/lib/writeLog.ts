@@ -11,7 +11,7 @@ export const WRITE_LOG_ENV = "AZ_AXI_WRITE_LOG";
  * appendWriteLog serializes only these fields, excluding bodies and headers.
  */
 export interface WriteLogEntry {
-  /** ISO-8601 timestamp of when the write completed. */
+  /** ISO-8601 timestamp of when the write attempt was recorded. */
   time: string;
   /** Profile the write ran under. */
   profile: string;
@@ -23,13 +23,13 @@ export interface WriteLogEntry {
   method: string;
   /** Full request URL, including the `api-version` query. */
   url: string;
-  /** `x-ms-request-id` of the final response, when there was one. */
+  /** `x-ms-request-id` of the write response, not a later poll response. */
   requestId?: string;
   /** `x-ms-correlation-request-id` of the final response, when present. */
   correlationId?: string;
-  /** Final HTTP status. */
+  /** Write response HTTP status, or 0 when no response was received. */
   httpStatus: number;
-  /** `success`, or the error code when the write failed. */
+  /** `success` (acceptance with no-wait), or the write/poll error code. */
   outcome: string;
 }
 

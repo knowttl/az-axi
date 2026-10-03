@@ -138,7 +138,7 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(Object.create(
     "Lists with a value[] array return count plus value; --all follows ARM nextLink (up to 10 pages).",
     "Strings truncate at 4,000 chars unless --full.",
     "Writes and destructive requests return a dry-run preview using reads or a deployment what-if query.",
-    "See README.md#writes for preview access and PLAN.md Section 6.13.3 for the output contract.",
+    "See README.md#writes for access, preview output and execution behavior.",
     "Destructive execution needs --confirm <resource-name>.",
     "--execute re-checks current state before sending; --if-match protects the reviewed ETag.",
     "Async writes poll for up to --timeout seconds (default 600); --no-wait returns an op status command.",
