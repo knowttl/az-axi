@@ -719,7 +719,7 @@ JSON transport becomes compact TOON resource-group metadata, with local `--field
 Each child has a 30-second deadline and a combined 1 MiB output cap, closed stdin, disabled prompts/dynamic extension install and cancellation including Windows tree termination.
 The fake executable suite verifies exact argv, zero-execution refusals and errors without live Azure.
 The synthetic `azResourceGroup` sample and `az group show` token ceiling cover the output budget.
-The fetch-based benchmark capture/replay harness cannot capture this child transport; use the offline fake-executable journey and token budget rather than adding a live scenario to that harness.
+The fetch-based benchmark capture/replay harness cannot capture this child transport; `offlinePassthroughReads` in `benchmark/scenarios.mjs` exercises the synthetic token budget separately from live capture scenarios.
 
 **Reference:** Pinned source/operation provenance in `src/lib/azReadCatalogue.ts`; Azure CLI 2.77.0 `util.custom.show_version`, core `util.get_az_version_json`, `cloud.custom.show_cloud` and `profile.custom.show_account`.
 

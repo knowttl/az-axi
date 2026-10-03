@@ -20,3 +20,8 @@ export const scenarios = [
 export const offlineWritePreviews = [
   { name: "security-alert-update", argv: ["security", "alert", "update", "--location", "westeurope", "--name", "example-alert", "--status", "dismiss"] },
 ];
+
+// Child transport is exercised with fake az responses in the offline budget suite.
+export const offlinePassthroughReads = [
+  { name: "az-group-show", argv: ["az", "group", "show", "--name", "rg-demo"] },
+];

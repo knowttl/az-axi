@@ -48,7 +48,7 @@ import {
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
-import { offlineWritePreviews } from "../benchmark/scenarios.mjs";
+import { offlineWritePreviews, offlinePassthroughReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
   TENANT,
@@ -103,7 +103,7 @@ const CEILINGS: Record<string, number> = {
   "logs query": 184,
   api: 135,
   "api execute": 140,
-  "az group show": 90,
+  "az group show": 60,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -176,7 +176,7 @@ describe("token budgets", () => {
       .mockResolvedValueOnce(JSON.stringify({ name: "AzureCloud", profile: "latest", endpoints: { resourceManager: "https://management.azure.com/" } }))
       .mockResolvedValueOnce(JSON.stringify({ id: SUB_A, tenantId: TENANT, environmentName: "AzureCloud", state: "Enabled", user: { name: "ada@contoso.com", type: "user" } }))
       .mockResolvedValueOnce(JSON.stringify(azResourceGroup));
-    await expectUnderBudget("az group show", await runPassthrough(["group", "show", "--name", "rg-demo", "--subscription", SUB_A]));
+    await expectUnderBudget("az group show", await runPassthrough([...offlinePassthroughReads[0]!.argv.slice(1), "--subscription", SUB_A]));
   });
   it("home stays under its ceiling", async () => {
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {

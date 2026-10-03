@@ -211,7 +211,8 @@ export function runAz(args: string[], signal?: AbortSignal, reviewedRead = false
           AZURE_EXTENSION_DEV_SOURCES: "",
           AZURE_EXTENSION_USE_DYNAMIC_INSTALL: "no",
           AZURE_CORE_OUTPUT: "json",
-          AZURE_CORE_ENABLE_BROKER_ON_WINDOWS: "false",
+          "AZURE_AUTO-UPGRADE_ENABLE": "no",
+          AZURE_LOGGING_ENABLE_LOG_FILE: "no",
         } : {}),
       },
     });

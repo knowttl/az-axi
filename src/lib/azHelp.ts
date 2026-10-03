@@ -11,7 +11,7 @@ export const AZ_HELP = [
   "Name aliases: -n, --resource-group, -g. Wrapper flags: --profile, --config, --full, --fields, --help.",
   "Default output: resourceGroup (id, name, location, state); --full adds tags. Raw properties are never returned.",
   "--fields selects default resourceGroup columns. No --query, --output, --ids, --execute, local files or data-plane commands.",
-  "Each process: 30-second deadline, 1 MiB output ceiling, closed stdin, JSON transport, no prompts or dynamic extension install.",
+  "Each process: 30-second deadline, 1 MiB output ceiling, closed stdin, JSON transport; prompts, dynamic extension install, upgrades and file logging disabled.",
   "Examples: az-axi az group show -n rg-demo --subscription <uuid> --profile work",
   "az-axi az group show --resource-group rg-demo --subscription <uuid> --full",
 ].join("\n");

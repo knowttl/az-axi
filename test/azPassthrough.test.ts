@@ -49,7 +49,7 @@ function invoke(argv = args, extraEnv: Record<string, string> = {}) {
       AZURE_EXTENSION_SYS_DIR: child.AZURE_EXTENSION_DIR,
       AZURE_EXTENSION_DEV_SOURCES: "", AZURE_EXTENSION_USE_DYNAMIC_INSTALL: "no",
       AZURE_CORE_OUTPUT: "json", AZURE_CORE_COLLECT_TELEMETRY: "no", AZURE_CORE_ONLY_SHOW_ERRORS: "true",
-      AZURE_CORE_DISABLE_CONFIRM_PROMPT: "1", AZURE_CORE_ENABLE_BROKER_ON_WINDOWS: "false", extensionFiles: [],
+      AZURE_CORE_DISABLE_CONFIRM_PROMPT: "1", "AZURE_AUTO-UPGRADE_ENABLE": "no", AZURE_LOGGING_ENABLE_LOG_FILE: "no", extensionFiles: [],
     });
     expect(existsSync(child.AZURE_EXTENSION_DIR)).toBe(false);
   }
@@ -84,6 +84,7 @@ describe("built CLI reviewed passthrough", () => {
     expect(invoke(args, {
       AZURE_EXTENSION_DIR: "untrusted", AZURE_EXTENSION_SYS_DIR: "untrusted-system",
       AZURE_EXTENSION_DEV_SOURCES: "untrusted-dev", AZURE_EXTENSION_USE_DYNAMIC_INSTALL: "yes_without_prompt",
+      "AZURE_AUTO-UPGRADE_ENABLE": "yes", AZURE_LOGGING_ENABLE_LOG_FILE: "yes",
     })).toMatchObject({ status: 0, calls: [...probes, read] });
   });
   it.each([

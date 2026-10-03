@@ -347,6 +347,7 @@ The read receives only canonical catalogue flags plus forced JSON output.
 `--query`, `--output`, `--debug`, `--ids`, `--execute`, credential retrieval, local destinations, data-plane reads and all child-process writes are unavailable.
 
 Every process has closed stdin, a 30-second deadline and a combined stdout/stderr ceiling of 1 MiB.
+Per-process overrides disable automatic upgrades and file logging even when enabled in saved Azure CLI configuration.
 Cancellation terminates the process, including the Windows shim tree.
 The child inherits only platform/path, selected Azure config directory, locale and proxy/CA environment settings; token and logging overrides are stripped.
 Before every probe and read, `AZURE_EXTENSION_DIR` and `AZURE_EXTENSION_SYS_DIR` point to a fresh empty temporary directory and `AZURE_EXTENSION_DEV_SOURCES` is cleared.
