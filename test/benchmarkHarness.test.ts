@@ -104,16 +104,20 @@ describe("benchmark surface", () => {
         responses = [response("POST", { totalRecords: count, data: Array.from({ length: count }, (_, index) => ({
           id, name: `contoso-vm-${index}`, type: "Microsoft.Compute/virtualMachines", location: "contoso-region",
         })) }), subscriptions()];
-      } else if (scenario.name === "rbac-privileged") {
+      } else if (scenario.name === "rbac-privileged" || scenario.name === "role-assignment-privileged") {
         responses = [response("POST", { totalRecords: 1, data: [{
           principalId: principal, principalType: "User", roleName: "contoso-role", roleDefinitionId: OWNER_ROLE_ID,
           scope: id, createdOn: "2026-10-02T12:34:56Z",
         }] }), response("POST", { value: [{ id: principal, displayName: "contoso-user" }] }, "graph.microsoft.com"), subscriptions()];
-      } else if (scenario.name === "defender-alerts") {
+      } else if (scenario.name === "defender-alerts" || scenario.name === "security-alerts") {
         responses = [response("GET", { value: [{ id, properties: {
           alertDisplayName: "contoso-alert", severity: "High", status: "Active", timeGeneratedUtc: "2026-10-02T12:34:56Z",
           resourceIdentifiers: [{ azureResourceId: id }],
         } }] }), subscriptions()];
+      } else if (scenario.name === "monitor-activity") {
+        responses = [response("GET", { value: [] })];
+      } else if (scenario.name === "security-scores") {
+        responses = [response("POST", { totalRecords: 0, data: [] })];
       } else if (scenario.name === "exposure") {
         responses = [subscriptions(), ...Array.from({ length: 3 }, () => response("POST", {
           totalRecords: 1, data: [{ resource: "contoso-vm", resourceGroup: "contoso-team", subscriptionId: sub, detail: "contoso-detail" }],
@@ -125,7 +129,7 @@ describe("benchmark surface", () => {
     }
     const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
-    expect(child.stdout).toContain("rows[7]");
+    expect(child.stdout).toContain("rows[11]");
     expect(child.stdout).toContain("rbac-privileged");
     expect(child.stdout).toContain("logs-query");
     expect(child.stdout).not.toContain("benchmark-dummy");
@@ -147,7 +151,7 @@ describe("benchmark surface", () => {
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "defender-alerts", "exposure", "logs-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");

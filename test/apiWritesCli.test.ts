@@ -21,7 +21,8 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 function cli(scenario: string, extra: string[] = [], profile = "writer", readOnly = "", method = "PATCH") {
   return spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.mjs")).href,
     join(ROOT, "dist/bin/az-axi.js"), "api", method, TARGET, "--api-version", "1",
-    "--body", '{"tags":{"env":"prod"}}', "--profile", profile, "--execute", ...extra], {
+    "--body", '{"tags":{"env":"prod"}}', "--profile", profile,
+    ...(extra.includes("--execute=false") ? [] : ["--execute"]), ...extra], {
     cwd: ROOT, encoding: "utf8", env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"),
       AZ_AXI_ARM_TOKEN: "offline-execute-test-token", AZ_AXI_PROFILE: "", AZ_AXI_TENANT: "",
       AZ_AXI_SUBSCRIPTION: "", AZ_AXI_READ_ONLY: readOnly, AZ_AXI_WRITE_LOG: join(dir, "writes.log"),

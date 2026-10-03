@@ -2,11 +2,12 @@
 import { encode } from "@toon-format/toon";
 import { AxiError, runAxiCli } from "axi-sdk-js";
 import { normalizeArgv } from "../lib/argv.js";
+import { routeArgv } from "../lib/router.js";
 import { WriteExecutionError } from "../lib/execute.js";
 import { redact } from "../lib/redact.js";
 import { COMMANDS, runCommand } from "../lib/registry.js";
 import { packageInfo } from "../lib/version.js";
-import { COMMAND_HELP, DESCRIPTION, TOP_LEVEL_HELP } from "../help.js";
+import { DESCRIPTION, TOP_LEVEL_HELP } from "../help.js";
 
 const USAGE_CODES = new Set([
   "VALIDATION_ERROR",
@@ -56,7 +57,19 @@ function unknownCommand(command: string): string {
 
 const homeHandler = (args: string[]) => runCommand("home", args);
 
-const normalized = normalizeArgv(process.argv.slice(2));
+let normalized: string[];
+try {
+  const route = routeArgv(normalizeArgv(process.argv.slice(2)));
+  if (route.help !== undefined) {
+    process.stdout.write(`${route.help}\n`);
+    process.exit(0);
+  }
+  normalized = route.argv;
+} catch (error) {
+  const formatted = formatError(error);
+  process.stdout.write(formatted.output);
+  process.exit(formatted.exitCode);
+}
 const first = normalized[0];
 if (
   first !== undefined &&
@@ -72,8 +85,8 @@ await runAxiCli({
   version: packageInfo().version,
   argv: normalized,
   topLevelHelp: TOP_LEVEL_HELP,
-  getCommandHelp: (command) =>
-    Object.hasOwn(COMMAND_HELP, command) ? COMMAND_HELP[command] ?? null : null,
+  // The router owns leaf help and respects literal --help after `--`.
+  getCommandHelp: () => null,
   renderUnknownCommand: unknownCommand,
   formatError,
   home: homeHandler,

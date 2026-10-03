@@ -35,16 +35,34 @@ The offline test suite checks this list against the registry.
 | `az-axi sub list` | native | read |
 | `az-axi rg query` | native | read |
 | `az-axi rbac list` | native | read |
+| `az-axi role assignment list` | native | read |
 | `az-axi activity list` | native | read |
+| `az-axi monitor activity-log list` | native | read |
 | `az-axi defender alerts` | native | read |
+| `az-axi security alert list` | native | read |
 | `az-axi defender alerts get` | native | read |
 | `az-axi defender assessments` | native | read |
 | `az-axi defender score` | native | read |
+| `az-axi security secure-scores list` | native | read |
 | `az-axi exposure` | native | read |
 | `az-axi logs query` | native | read |
 | `az-axi api` | native | dynamic |
 | `az-axi op status` | native | read |
 <!-- command-registry:end -->
+
+Az-shaped paths share the legacy native operations and their TOON output, defaults and scope.
+`role assignment list --assignee` accepts the same object ID or UPN as `rbac list --principal`, including inherited assignments by default.
+`monitor activity-log list --offset` accepts the same duration as `activity list --since` (default 24h).
+`security alert list` defaults to active alerts; `security secure-scores list` returns the existing per-subscription score view.
+`rg query` remains Resource Graph; resource groups use `group` when supported.
+Query paths and account/resource discovery are separate additions.
+
+Use `-h` for help, `-s` for subscription, `-g` for resource-group, `-n` for name, and `-w`/`-t` for workspace/timespan wherever the leaf accepts the long flag.
+List flags accept commas, spaces, or repeated flags after the complete command path.
+Leaves taking positional input (`rg query`, `logs query`, `api`, `op status`, `defender alerts get`) preserve one-token list values; use commas or repetition there.
+Booleans accept bare flags, `true`, or `false`; conflicting scalar or boolean repetitions fail before requests.
+Use `--` before literal positional input that begins with a dash.
+Leaf help lists the supported flags; unknown flags, ambiguous short forms, and missing values are usage errors.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest

@@ -1,6 +1,7 @@
 import { AxiError } from "axi-sdk-js";
 import { redact } from "./redact.js";
 import type { RequestClass } from "./policy.js";
+import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
 
 /**
  * What a command may do to Azure (PLAN.md Section 6.13.9). `config init` writes a
@@ -21,31 +22,41 @@ export interface CommandLeaf {
   path: string;
   effect: Effect;
   capability: Capability;
+  flags?: FlagSchema;
+  aliases?: readonly string[];
+  aliasFlags?: Readonly<Record<string, string>>;
+  positionalInput?: boolean;
 }
 
 /** Current executable leaves. API methods are arguments of the dynamic `api` leaf. */
 export const COMMAND_LEAVES = [
   { path: "home", effect: "read", capability: "native" },
   { path: "doctor", effect: "read", capability: "native" },
-  { path: "config init", effect: "read", capability: "native" },
+  { path: "config init", effect: "read", capability: "native", flags: { name: "value", auth: "value", workspace: "list", "token-env": "list", default: "boolean" } },
   { path: "config list", effect: "read", capability: "native" },
   { path: "config path", effect: "read", capability: "native" },
   { path: "sub list", effect: "read", capability: "native" },
-  { path: "rg query", effect: "read", capability: "native" },
-  { path: "rbac list", effect: "read", capability: "native" },
-  { path: "activity list", effect: "read", capability: "native" },
-  { path: "defender alerts", effect: "read", capability: "native" },
-  { path: "defender alerts get", effect: "read", capability: "native" },
-  { path: "defender assessments", effect: "read", capability: "native" },
-  { path: "defender score", effect: "read", capability: "native" },
-  { path: "exposure", effect: "read", capability: "native" },
-  { path: "logs query", effect: "read", capability: "native" },
-  { path: "api", effect: "dynamic", capability: "native" },
-  { path: "op status", effect: "read", capability: "native" },
+  { path: "rg query", effect: "read", capability: "native", positionalInput: true, flags: { "skip-token": "value", file: "value" } },
+  { path: "rbac list", effect: "read", capability: "native", aliases: ["role assignment list"], aliasFlags: { assignee: "principal" }, flags: { principal: "value", role: "value", scope: "value", privileged: "boolean", "show-query": "boolean" } },
+  { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
+  { path: "defender alerts", effect: "read", capability: "native", aliases: ["security alert list"], flags: { severity: "list", status: "value", since: "value" } },
+  { path: "defender alerts get", effect: "read", capability: "native", positionalInput: true },
+  { path: "defender assessments", effect: "read", capability: "native", flags: { severity: "list", status: "value", resource: "value", "show-query": "boolean" } },
+  { path: "defender score", effect: "read", capability: "native", aliases: ["security secure-scores list"] },
+  { path: "exposure", effect: "read", capability: "native", flags: { check: "value", "show-query": "boolean" } },
+  { path: "logs query", effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" } },
+  { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
+  { path: "op status", effect: "read", capability: "native", positionalInput: true },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
 type CommandName = GroupOf<(typeof COMMAND_LEAVES)[number]["path"]>;
+
+export function commandFlags(path: string): string[] {
+  const leaf: CommandLeaf | undefined = COMMAND_LEAVES.find((leaf) => leaf.path === path);
+  if (!leaf) throw new Error(`Missing command metadata for ${path}`);
+  return Object.keys(leaf.flags ?? {});
+}
 
 export function commandMeta(name: string): CommandMeta {
   const leaf = COMMAND_LEAVES.find((leaf) => leaf.path.split(" ")[0] === name);
@@ -128,6 +139,34 @@ const HELP_OVERVIEWS = {
   api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
   op: "az-axi op status <operation-url>         # check a long-running operation",
 } satisfies Record<CommandName, string>;
+
+/** Exact leaf help retains the legacy reference and names the selected route. */
+export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
+  const group = leaf.path.split(" ")[0] as CommandName;
+  const flags = Object.keys({ ...GLOBAL_FLAG_SCHEMA, ...leaf.flags });
+  return [
+    `Command: az-axi ${path}`,
+    `Native operation: az-axi ${leaf.path}; existing scope, defaults and TOON output apply.`,
+    `Flags: ${flags.map((name) => `--${name}`).join(", ")}`,
+    "Short flags where accepted: -h help, -s subscription, -g resource-group, -n name, -w workspace, -t timespan.",
+    leaf.positionalInput ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
+    "Booleans accept bare flags or true/false. Conflicting scalar values are refused.",
+    ...(path === "role assignment list" ? ["--assignee aliases --principal; inherited assignments are always included."] : []),
+    ...(path === "monitor activity-log list" ? ["--offset aliases --since (default 24h)."] : []),
+    "",
+    LEAF_HELP[leaf.path] ?? HELP_TEXT[group],
+  ].join("\n");
+}
+
+const LEAF_HELP: Record<string, string> = {
+  "config init": "az-axi config init --name <name> --auth az|token [--default]\n--workspace alias=<guid>,... and --token-env arm=VAR,logs=VAR,graph=VAR configure auth.\nWrites a local profile only. No Azure writes.\nExamples: az-axi config init --name work --auth az; az-axi config init --name ci --auth token --default",
+  "config list": "Lists profiles, scope and write status.\nExamples: az-axi config list; az-axi config list --config <path>",
+  "config path": "Reports the selected config path and whether it exists.\nExamples: az-axi config path; az-axi config path --config <path>",
+  "defender alerts": "Lists ARM alerts per subscription, newest first. Default --status Active; --status all includes every status.\n--severity High,Medium filters severity; --since 7d filters age (default all retained alerts); --limit defaults to 50.\nOutput: total, count, bySeverity, rows.\nExamples: az-axi security alert list --severity High; az-axi defender alerts --status all",
+  "defender alerts get": "az-axi defender alerts get <alert-resource-id>\nTakes exactly one full alert ARM ID and returns alert details.\nExamples: az-axi defender alerts get <alert-resource-id>; az-axi defender alerts get <alert-resource-id> --full",
+  "defender assessments": "Recommendation summaries from Resource Graph, worst severity first. --limit defaults to 25.\n--severity High and --status Unhealthy filter recommendations; --resource <name> selects per-resource rows.\n--show-query prints KQL without running it.\nExamples: az-axi defender assessments --severity High; az-axi defender assessments --resource <name>",
+  "defender score": "Secure scores from Resource Graph, lowest percentage first. --limit defaults to 50.\nOutput: total, count, rows (subscription,current,max,percent).\nExamples: az-axi security secure-scores list; az-axi defender score --full",
+};
 
 const HELP_FOOTER = [
   "",
@@ -288,13 +327,18 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(
   Object.fromEntries(commandNames.map((name) => [name, HELP_TEXT[name]])),
 );
 
-export const TOP_LEVEL_HELP = [...commandNames.map((name) => HELP_OVERVIEWS[name]), ...HELP_FOOTER].join("\n");
+export const TOP_LEVEL_HELP = [
+  ...commandNames.map((name) => HELP_OVERVIEWS[name]),
+  ...COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => (leaf.aliases ?? []).map((alias) => `az-axi ${alias}  # alias of ${leaf.path}`)),
+  ...HELP_FOOTER,
+].join("\n");
 
 /** Static agent command list, checked against the committed skill by the offline suite. */
 export function commandListMarkdown(): string {
   return [
     "| Command | Capability | Azure effect |",
     "|---|---|---|",
-    ...COMMAND_LEAVES.map((leaf) => `| \`az-axi ${leaf.path}\` | ${leaf.capability} | ${leaf.effect} |`),
+    ...COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => [leaf.path, ...leaf.aliases ?? []]
+      .map((path) => `| \`az-axi ${path}\` | ${leaf.capability} | ${leaf.effect} |`)),
   ].join("\n");
 }
