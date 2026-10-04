@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -183,6 +184,31 @@ describe("sentinel incident list", () => {
     expect(byId).toMatchObject({ number: 3177, id: INCIDENT_A.id });
     const fields = await run(["incident", "list", ...SELECTORS, "--fields", "number,owner"]);
     expect(fields.rows).toEqual([{ number: 3177, owner: "Casey Hunter" }, { number: 3176, owner: "" }]);
+  });
+
+  it.each([
+    { excluded: { status: "Closed" }, fields: ["--fields", "number"] },
+    { excluded: { severity: "Low" }, fields: [] },
+    { excluded: { owner: { assignedTo: "Other team" } }, fields: [] },
+    { excluded: { createdTimeUtc: "2026-09-29T00:00:00Z" }, fields: [] },
+  ])("preserves filters when following the expansion hint: $excluded", async ({ excluded, fields }) => {
+    const properties = { ...INCIDENT_A.properties, owner: { assignedTo: "-Casey's team" } };
+    mockTransport({ incidents: [
+      { ...INCIDENT_A, properties },
+      { ...INCIDENT_B, properties: { ...properties, incidentNumber: 3176 } },
+      { ...INCIDENT_B, properties: { ...properties, incidentNumber: 3175, ...excluded } },
+    ] });
+    const result = await run(["incident", "list", ...SELECTORS, ...fields, "--status", "Active", "--severity", "High",
+      "--owner=-Casey's team", "--since", "2026-09-30T00:00:00Z", "--limit", "1"]);
+    expect(result).toMatchObject({ total: 2, rows: [expect.objectContaining({ number: 3177 })] });
+    const command = (result.help as string[]).find((hint) => hint.includes("--full"))!.split("`")[1]!;
+    const argv = execFileSync("sh", ["-s"], {
+      encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}`,
+    }).split("\0").slice(0, -1);
+    const expanded = await run(argv.slice(1));
+    expect(expanded).toMatchObject({ total: 2, rows: [
+      expect.objectContaining({ number: 3177 }), expect.objectContaining({ number: 3176 }),
+    ] });
   });
 
   it.each([

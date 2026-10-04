@@ -260,6 +260,9 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
   if (ids.length !== 1) invalid("incident list needs exactly one subscription; use --subscription <id>");
   const target = await resolveWorkspace(profile, args, ids[0]!);
   const suffix = selectorSuffix(args, ids[0]!, target);
+  const filterSuffix = ["status", "severity", "owner"]
+    .filter((key) => typeof args.flags[key] === "string")
+    .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 
   const page = await requestAll<Incident>(profile,
     { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS });
@@ -283,7 +286,7 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
       count: countLine(0, 0, "incidents"),
       rows: emptyState("incidents", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
-        `Widen the window: \`az-axi sentinel incident list${suffix} --since 30d\``,
+        `Widen the window: \`az-axi sentinel incident list${suffix}${filterSuffix} --since 30d\``,
         `Drop a filter: \`az-axi sentinel incident list${suffix}\``,
         ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --status, --severity, --owner or --since."] : []),
       ],
@@ -309,7 +312,7 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     `Run \`az-axi sentinel incident show ${firstSelector}${suffix}\` for the newest incident in detail`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel incident list${suffix} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi sentinel incident list${suffix}${filterSuffix}${sinceRaw ? ` ${formatFlagValue("since", sinceRaw)}` : ""} --full\` to show every fetched row`);
   }
   if (page.nextLink) {
     help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --status, --severity, --owner or --since.");

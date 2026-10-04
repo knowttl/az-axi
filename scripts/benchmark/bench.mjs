@@ -40,9 +40,11 @@ try {
           if (account.id === `/subscriptions/${selectedId}`) account.id = `/subscriptions/${subscription}`;
         }
       } else {
-        const selectedId = items[0]?.properties?.customerId;
         for (const item of items) {
-          if (selectedId && item.properties?.customerId === selectedId) item.properties.customerId = workspace;
+          if (item.properties?.customerId && items.some((incident) =>
+            incident.properties?.incidentNumber !== undefined && incident.id?.startsWith(`${item.id}/providers/`))) {
+            item.properties.customerId = workspace;
+          }
         }
       }
       replayFile = join(scratch, `${scenario.name}.json`);

@@ -209,6 +209,10 @@ describe("benchmark surface", () => {
         } }] }), subscriptions()];
       } else if (scenario.name === "sentinel-incidents") {
         const workspaceList = response("GET", { value: [{
+          id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/other-ws`,
+          name: "other-ws",
+          properties: { customerId: "00000000-0000-0000-0000-000000000021" },
+        }, {
           id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws`,
           name: "contoso-ws",
           properties: { customerId: "00000000-0000-0000-0000-000000000020" },
@@ -263,6 +267,7 @@ describe("benchmark surface", () => {
     expect(output.subscriptions).toEqual([{ id: sub, name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }]);
     expect(readFileSync(accountCapture, "utf8")).toBe(persistedAccount);
     expect(decode(readFileSync(sentinelOutput, "utf8"))).toMatchObject({
+      workspace: scrub("contoso-ws"),
       total: 1,
       rows: [{ number: 7, title: scrub("contoso-title"), severity: "High", status: "Active", time: expect.stringMatching(/^2026-10-02(?: 12:34)?$/) }],
     });
