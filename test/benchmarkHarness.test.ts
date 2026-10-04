@@ -152,9 +152,11 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[21]", notes: [] },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[18]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"] },
-  ])("runs available scenarios through offline replay with omitted $omitted captures", ({ omitted, rows, notes }) => {
+    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[18]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false },
+    { omitted: [], rows: "rows[21]", notes: [], duplicate: true, capped: false },
+    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: true },
+  ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped", ({ omitted, rows, notes, duplicate, capped }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
@@ -162,6 +164,7 @@ describe("benchmark surface", () => {
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
     mkdirSync(join(dir, "benchmark/fixtures"), { recursive: true });
     const sub = "00000000-0000-0000-0000-000000000001";
+    const capturedSub = "11111111-1111-1111-1111-111111111111";
     const tenantId = "00000000-0000-0000-0000-000000000003";
     const principal = "00000000-0000-0000-0000-000000000002";
     const id = `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.Compute/virtualMachines/contoso-vm`;
@@ -171,9 +174,10 @@ describe("benchmark surface", () => {
       if (omitted.includes(scenario.name)) continue;
       let responses;
       if (scenario.name === "account-list") {
-        responses = [response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId }],
-          nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=contoso-page",
-        }), response("GET", { value: [{ subscriptionId: principal, displayName: "other-sub", state: "Enabled", tenantId }] })];
+        const nextLink = "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=contoso-page";
+        responses = [response("GET", { value: [{ id: `/subscriptions/${capturedSub}`, subscriptionId: capturedSub, displayName: "contoso-sub", state: "Enabled", tenantId }], nextLink }),
+          response("GET", { value: [{ subscriptionId: principal, displayName: duplicate ? "contoso-sub" : "other-sub", state: "Disabled", tenantId }], ...(capped ? { nextLink } : {}) }),
+          ...Array.from({ length: capped ? 98 : 0 }, () => response("GET", { value: [], nextLink }))];
       } else if (scenario.name === "account-show") {
         responses = [response("GET", { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId })];
       } else if (scenario.name === "workspace-list") {
@@ -216,6 +220,8 @@ describe("benchmark surface", () => {
       }
       writeFileSync(join(dir, `benchmark/fixtures/${scenario.name}.json`), JSON.stringify({ responses }));
     }
+    const accountCapture = join(dir, "benchmark/fixtures/account-list.json");
+    const persistedAccount = readFileSync(accountCapture, "utf8");
     const bootstrap = join(dir, "bootstrap.mjs");
     const accountOutput = join(dir, "account-output.toon");
     writeFileSync(bootstrap, [
@@ -232,10 +238,14 @@ describe("benchmark surface", () => {
     ].join("\n"));
     const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
-    expect(decode(readFileSync(accountOutput, "utf8"))).toMatchObject({
-      total: 1, count: "1 of 1 subscriptions",
-      subscriptions: [{ id: scrub(sub), name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }],
+    const output = decode(readFileSync(accountOutput, "utf8")) as Record<string, unknown>;
+    expect(output).toMatchObject({
+      total: capped ? "1+" : 1, count: capped ? "1 of 1+ subscriptions" : "1 of 1 subscriptions",
     });
+    expect(output.subscriptions).toEqual([{ id: sub, name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }]);
+    expect(readFileSync(accountCapture, "utf8")).toBe(persistedAccount);
+    expect(JSON.parse(persistedAccount).responses[0].body.value[0].subscriptionId).toBe(scrub(capturedSub));
+    expect(persistedAccount).not.toContain(capturedSub);
     expect(child.stdout).toContain(rows);
     for (const note of notes) expect(child.stderr).toContain(note);
     expect(child.stdout).toContain("rbac-privileged");
