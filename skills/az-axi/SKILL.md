@@ -35,6 +35,13 @@ The offline test suite checks this list against the registry.
 | `az-axi account show` | native | read |
 | `az-axi monitor log-analytics workspace list` | native | read |
 | `az-axi monitor log-analytics workspace show` | native | read |
+| `az-axi monitor metrics alert list` | native | read |
+| `az-axi monitor metrics alert show` | native | read |
+| `az-axi monitor action-group list` | native | read |
+| `az-axi monitor action-group show` | native | read |
+| `az-axi monitor diagnostic-settings list` | native | read |
+| `az-axi monitor diagnostic-settings show` | native | read |
+| `az-axi monitor metrics list` | native | read |
 | `az-axi group list` | native | read |
 | `az-axi group show` | native | read |
 | `az-axi resource list` | native | read |
@@ -195,6 +202,14 @@ az-axi account list
 az-axi account show -s <subscription> --full
 az-axi monitor log-analytics workspace list -g rg-demo
 az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
+az-axi monitor metrics alert list -g rg-demo
+az-axi monitor metrics alert show --name high-cpu -g rg-demo
+az-axi monitor action-group list -g rg-demo
+az-axi monitor action-group show --name ag-demo -g rg-demo
+az-axi monitor diagnostic-settings list --resource <ARM-id>
+az-axi monitor diagnostic-settings show --resource <ARM-id> --name to-hub
+az-axi monitor metrics list --resource <ARM-id>
+az-axi monitor metrics list --resource <ARM-id> --metric "Percentage CPU"
 ```
 
 See [README.md#use](../../README.md#use) for discovery subscription scope, including `resource show --ids`.

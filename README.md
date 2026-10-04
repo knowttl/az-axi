@@ -253,6 +253,14 @@ az-axi account list
 az-axi account show -s <subscription> --full
 az-axi monitor log-analytics workspace list -g rg-demo
 az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
+az-axi monitor metrics alert list -g rg-demo
+az-axi monitor metrics alert show --name high-cpu -g rg-demo
+az-axi monitor action-group list -g rg-demo
+az-axi monitor action-group show --name ag-demo -g rg-demo
+az-axi monitor diagnostic-settings list --resource <ARM-id>
+az-axi monitor diagnostic-settings show --resource <ARM-id> --name to-hub
+az-axi monitor metrics list --resource <ARM-id>
+az-axi monitor metrics list --resource <ARM-id> --metric "Percentage CPU"
 az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscription>
 az-axi sentinel incident show --name 3177 --workspace sentinel
 az-axi sentinel incident list-alert --name 3177 --workspace sentinel
@@ -330,6 +338,18 @@ Connector views project safelisted metadata only: secrets, keys and credential f
 There is no rule or connector mutation command; query workspace tables with `logs query` to investigate further.
 For the native incident update and comment create writes, see [Writes](#writes).
 Management-group scope is unsupported; select one subscription explicitly.
+
+Monitor reads (`monitor metrics alert list|show`, `monitor action-group list|show`, `monitor diagnostic-settings list|show`, `monitor metrics list`) use read-only ARM GETs against Microsoft.Insights: metric alert rules use api-version 2026-01-01; action groups use api-version 2023-01-01; diagnostic settings use api-version 2021-05-01-preview (the only version); metric definitions and values use api-version 2024-02-01.
+Alert and action-group lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `bySeverity`/`byEnabled` aggregates (alerts) and `byEnabled` plus receiver counts (action groups).
+Show by name needs `--name` with `--resource-group` in exactly one subscription; `--ids` takes exactly one ARM ID of the same collection.
+Alert rows default to name, severity, enabled, scopes and criteria (metric, operator, threshold); webhook action properties arrive as names only.
+Action-group rows default to name, enabled, short name and receiver type counts; detail projects safelisted receiver metadata only (webhook URLs without query or fragment, webhook property names without values; logic-app callback URLs and function trigger URLs never shown).
+Diagnostic settings and metrics target exactly one `--resource <ARM-id>` (a resource, resource group or subscription ID for settings; a resource ID for metrics).
+Setting rows default to name, enabled log and metric categories and destinations (storage account, workspace, event hub); show returns every category with enabled flags and retention plus the destination IDs.
+Without `--metric`, metrics list returns the resource's metric definitions (metric, unit, supported aggregations) with a hint for the first metric's values; with `--metric <name>`, it returns values over a bounded window (`--start-time`/`--end-time`, default last hour, at most 31 days) with optional `--interval` and `--aggregation` (Average, Minimum, Maximum, Total, Count).
+Value rows default to metric, unit, point count, latest value and time; `--full` expands every returned point (capped at `--limit` per metric with disclosure).
+Rule, action-group and setting mutations, subscription-scope metric batch queries, dimension filters and Application Insights data-plane queries stay out of scope.
+Management-group scope is unsupported; select subscriptions explicitly.
 
 Network reads (`network nsg|nic|vnet|public-ip|private-endpoint list|show`, `network dns zone list|show`, `network dns record-set list`, and `network dns record-set <type> list|show`) use read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01.
 Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `byLocation` aggregates (record sets add `byType`).

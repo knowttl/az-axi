@@ -2,17 +2,17 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 79,
-    "body": 5491,
-    "total": 5569
+    "body": 5718,
+    "total": 5796
   },
   "help": {
-    "topLevel": 923,
+    "topLevel": 987,
     "home": 244,
     "doctor": 231,
     "config": 171,
     "sub": 58,
     "account": 231,
-    "monitor": 350,
+    "monitor": 2097,
     "group": 178,
     "resource": 327,
     "tag": 428,
@@ -36,5 +36,5 @@
     "deny-assignment": 514,
     "role": 449
   },
-  "helpTotal": 12205
+  "helpTotal": 14016
 }
