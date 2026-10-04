@@ -66,6 +66,7 @@ const DENIES: GovernanceCollection = {
     const actions = permissionStrings(permissions, ["actions", "dataActions"]);
     const excluded = permissionStrings(permissions, ["notActions", "notDataActions"]);
     const principals = arrOf(props.principals).map((principal) => str(principal.id) || str(principal.displayName));
+    const excludePrincipals = arrOf(props.excludePrincipals).map((principal) => str(principal.id) || str(principal.displayName));
     return {
       body: {
         name: item.name,
@@ -75,6 +76,7 @@ const DENIES: GovernanceCollection = {
         actions: full ? actions : [joined(actions, full)],
         excluded: full ? excluded : [joined(excluded, full)],
         principals: full ? principals : [joined(principals, full)],
+        excludePrincipals: full ? excludePrincipals : [joined(excludePrincipals, full)],
         totalPrincipals: principals.length,
         doNotApplyToChildScopes: props.doNotApplyToChildScopes ?? "",
         systemProtected: props.isSystemProtected ?? "",

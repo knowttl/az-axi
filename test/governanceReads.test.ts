@@ -484,6 +484,27 @@ describe("deny-assignment list and show", () => {
     expect(sub).toMatchObject({ name: "sub-deny", doNotApplyToChildScopes: true });
     expect(sub.excluded).toEqual(["Microsoft.Resources/subscriptions/resourceGroups/read"]);
   });
+
+  it.each([
+    { mode: "compact", flags: [], expected: [`${SYN(32)}, ${SYN(33)}`] },
+    { mode: "full", flags: ["--full"], expected: [SYN(32), SYN(33)] },
+    { mode: "selected", flags: ["--fields", "excludePrincipals"], expected: [`${SYN(32)}, ${SYN(33)}`] },
+    { mode: "selected full", flags: ["--fields", "excludePrincipals", "--full"], expected: [SYN(32), SYN(33)] },
+  ])("preserves excluded principals in $mode detail output", async ({ flags, expected }) => {
+    requestMock.mockResolvedValueOnce({
+      ...denyAssignment,
+      properties: { ...denyAssignment.properties, excludePrincipals: [
+        { id: SYN(32), type: "Group" }, { id: SYN(33), type: "User" },
+      ] },
+    } as never);
+    const show = await runDeny(["show", "--ids", denyAssignment.id, ...flags]);
+    expect(show.excludePrincipals).toEqual(expected);
+  });
+
+  it("shows empty principal exclusions by name", async () => {
+    const show = await runDeny(["show", "--name", "sub-deny", "--fields", "excludePrincipals", "--full"]);
+    expect(show.excludePrincipals).toEqual([]);
+  });
 });
 
 describe("governance reads stay read-only and validate before transport", () => {

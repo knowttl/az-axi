@@ -23,7 +23,7 @@ const DETAIL: Record<string, string> = {
   "lock list": "Rows default to name, level (CanNotDelete or ReadOnly) and scope, with byLevel counts. Resource-level locks are not enumerated: point queries need --ids.",
   "lock show": "Show returns the level, scope, notes and owner application IDs. Lock creation, update and deletion stay out of scope: they are destructive under policy.",
   "deny-assignment list": "Rows default to name, scope and actions (the denied control-plane actions), with byScopeKind counts. Resource-level denies are not enumerated: point queries need --ids.",
-  "deny-assignment show": "Show returns the scope, description, denied actions and data actions, excluded actions, principals, and whether the deny skips child scopes or is system-protected. Deny-assignment mutations stay out of scope: they are destructive under policy.",
+  "deny-assignment show": "Show returns the scope, description, denied actions and data actions, excluded actions, principals, excluded principals, and whether the deny skips child scopes or is system-protected. Deny-assignment mutations stay out of scope: they are destructive under policy.",
 }
 
 const FIELDS: Record<string, string> = {
@@ -37,7 +37,7 @@ const FIELDS: Record<string, string> = {
   "lock list": "--fields: name, level, scope.",
   "lock show": "--fields: name, id, level, scope, notes, owners.",
   "deny-assignment list": "--fields: name, scope, actions.",
-  "deny-assignment show": "--fields: name, id, scope, description, actions, excluded, principals, totalPrincipals, doNotApplyToChildScopes, systemProtected.",
+  "deny-assignment show": "--fields: name, id, scope, description, actions, excluded, principals, excludePrincipals, totalPrincipals, doNotApplyToChildScopes, systemProtected.",
 }
 
 export function governanceLeafHelp(path: string): string {
