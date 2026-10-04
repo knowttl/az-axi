@@ -13,12 +13,18 @@ import { buildExecuteCommand } from "../src/lib/dryRun.js";
 import { enforceGates } from "../src/lib/gates.js";
 import { formatFlagValue, quoteFlagValue } from "../src/lib/shell.js";
 import { parseArgs } from "../src/lib/args.js";
+import { routeArgv } from "../src/lib/router.js";
 
 function argumentsOf(shell: string, command: string): string[] {
   return execFileSync(shell, ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
 }
 
 describe.each(["sh", "bash"])("command hints in %s", (shell) => {
+  it.each(["profile", "tenant", "config"])("routes a single-dash %s selector from a hint", (name) => {
+    const value = "-name & 'quoted'";
+    const command = `az-axi storage container list --account-name stexample ${formatFlagValue(name, value)}`;
+    expect(parseArgs(routeArgv(argumentsOf(shell, command)).argv).flags[name]).toBe(value);
+  });
   it("preserves a body-file path in execute hints", () => {
     const bodyFile = "body '$() ` file.json";
     const command = buildExecuteCommand({ method: "PATCH", path: "/target", resource: "arm", bodyFile });

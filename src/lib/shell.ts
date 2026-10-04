@@ -4,5 +4,5 @@ export function quoteFlagValue(value: string): string {
 }
 
 export function formatFlagValue(name: string, value: string): string {
-  return `--${name}${value.startsWith("--") ? "=" : " "}${quoteFlagValue(value)}`;
+  return `--${name}${value.startsWith("-") ? "=" : " "}${quoteFlagValue(value)}`;
 }

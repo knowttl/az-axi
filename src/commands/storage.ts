@@ -1,5 +1,5 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
+import { assertKnownFlags, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
 import { requestStorageMetadata } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { emptyState, pickFields } from "../lib/format.js";
@@ -22,11 +22,15 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError("storage supports only --auth-mode login", "VALIDATION_ERROR", ["Remove --auth-mode or use --auth-mode login"]);
   }
   const literal = (flag: string): string | undefined => {
-    flagText(args, flag);
-    return flagString(args, flag);
+    if (!(flag in args.flags)) return undefined;
+    const value = args.flags[flag];
+    if (typeof value !== "string" || !value.length) {
+      throw new AxiError(`flag --${flag} needs a non-empty value`, "VALIDATION_ERROR", [storageLeafHelp(path)]);
+    }
+    return value;
   };
   const required = (flag: string): string => {
-    const value = flag === "name" ? literal(flag) : flagText(args, flag);
+    const value = kind === "blob" && flag === "name" ? literal(flag) : flagText(args, flag);
     if (!value) throw new AxiError(`--${flag} is required`, "VALIDATION_ERROR", [storageLeafHelp(path)]);
     return value;
   };

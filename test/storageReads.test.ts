@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/lib/client.js", () => ({ requestStorageMetadata: vi.fn() }));
 import { requestStorageMetadata } from "../src/lib/client.js";
 import { run } from "../src/commands/storage.js";
+import { routeArgv } from "../src/lib/router.js";
 const read = vi.mocked(requestStorageMetadata);
 let dir: string;
 const args = ["blob", "list", "--account-name", "stexample", "--container-name", "example"];
@@ -39,16 +41,37 @@ describe("storage read commands", () => {
     expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ prefix: " report ", marker: " current page " }));
     expect(result.help).toEqual([expect.stringContaining("--prefix ' report ' --limit 50 --marker ' next page '")]);
   });
-  it("blob show preserves a literal name", async () => {
-    await run(["blob", "show", "--account-name", "stexample", "--container-name", "example", "--name", " report "]);
-    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: " report " }));
+  it.each([" report ", " ", "-report"])("blob show preserves literal name %j through routing", async (name) => {
+    await run(routeArgv(["storage", "blob", "show", "--account-name", "stexample", "--container-name", "example", `--name=${name}`]).argv.slice(1));
+    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name }));
   });
-  it.each([["--prefix"], ["--prefix", ""], ["--marker"], ["--marker", " "]])("rejects missing or blank literal values %j", async (...flags) => {
+  it.each([["--prefix"], ["--prefix", ""], ["--marker"], ["--marker", ""]])("rejects missing or empty literal values %j", async (...flags) => {
     await expect(run([...args, ...flags])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(read).not.toHaveBeenCalled();
   });
-  it.each([[], [""], [" "]])("rejects missing or blank blob names %j", async (...values) => {
+  it.each([[], [""]])("rejects missing or empty blob names %j", async (...values) => {
     await expect(run(["blob", "show", "--account-name", "stexample", "--container-name", "example", "--name", ...values])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(read).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["container", " "], ["blob", " "], ["container", "-reports"], ["blob", "-reports"],
+    ["container", "--reports"], ["blob", "--reports"],
+  ])("%s pagination preserves literal %j through shell and routing", async (kind, value) => {
+    read.mockResolvedValue({ rows: [], nextMarker: value });
+    const result = await run(routeArgv(["storage", kind, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), `--prefix=${value}`, `--marker=${value}`]).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ prefix: value, marker: value }));
+    const command = (result.help as string[])[0]!.split("`")[1]!;
+    const argv = execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
+    await run(routeArgv(argv).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ prefix: value, marker: value }));
+  });
+  it.each([
+    ["storage", "blob", "list", "--account-name= "],
+    ["storage", "blob", "list", "--account-name=stexample", "--container-name= "],
+    ["storage", "container", "show", "--account-name=stexample", "--name= "],
+    ["resource", "list", "--name= "],
+  ])("keeps nonliteral routing validation for %j", (...argv) => {
+    expect(() => routeArgv(argv)).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
     expect(read).not.toHaveBeenCalled();
   });
   it.each([

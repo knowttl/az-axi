@@ -5,7 +5,7 @@ export interface ParsedArgs {
   positionals: string[];
 }
 
-export type FlagSchema = Readonly<Record<string, "value" | "boolean" | "list">>;
+export type FlagSchema = Readonly<Record<string, "value" | "literal" | "boolean" | "list">>;
 export const GLOBAL_FLAG_SCHEMA: FlagSchema = {
   profile: "value", tenant: "value", subscription: "list", "management-group": "value",
   config: "value", help: "boolean", full: "boolean", fields: "list", limit: "value",
@@ -52,10 +52,10 @@ export function parseLeafArgs(argv: readonly string[], schema: FlagSchema, comma
       if (!inline.length) {
         while (argv[i + 1] !== undefined && (!argv[i + 1]!.startsWith("-") || /^-\d/.test(argv[i + 1]!))) {
           values.push(argv[++i]!);
-          if (kind === "value" || positionalInput) break;
+          if (kind !== "list" || positionalInput) break;
         }
       }
-      if (!values.length || values.some((v) => !v.trim())) {
+      if (!values.length || values.some((v) => !(kind === "literal" ? v : v.trim()))) {
         throw new AxiError(`flag --${name} needs a non-empty value`, "VALIDATION_ERROR", [help]);
       }
       value = kind === "list" ? values.join(",") : values[0]!;

@@ -60,10 +60,10 @@ export const COMMAND_LEAVES = [
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "op status", effect: "read", capability: "native", positionalInput: true },
   { path: "az group show", effect: "read", capability: "passthrough", flags: { name: "value", "resource-group": "value" } },
-  { path: "storage container list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", prefix: "value", marker: "value" } },
+  { path: "storage container list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", prefix: "literal", marker: "literal" } },
   { path: "storage container show", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", name: "value" } },
-  { path: "storage blob list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", prefix: "value", marker: "value" } },
-  { path: "storage blob show", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", name: "value" } },
+  { path: "storage blob list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", prefix: "literal", marker: "literal" } },
+  { path: "storage blob show", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", name: "literal" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
