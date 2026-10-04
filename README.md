@@ -274,7 +274,7 @@ az-axi network private-endpoint show --name pe-storage -g rg-demo
 az-axi network dns zone list -g rg-demo
 az-axi network dns zone show --name example.com -g rg-demo
 az-axi network dns record-set list -g rg-demo --zone-name example.com
-az-axi network dns record-set show -g rg-demo --zone-name example.com --name www --record-type A
+az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
 ```
 
 Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -313,11 +313,12 @@ There is no rule or connector mutation command; query workspace tables with `log
 For the native incident update and comment create writes, see [Writes](#writes).
 Management-group scope is unsupported; select one subscription explicitly.
 
-Network reads (`network nsg|nic|vnet|public-ip|private-endpoint list|show` and `network dns zone|record-set list|show`) use read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01.
+Network reads (`network nsg|nic|vnet|public-ip|private-endpoint list|show`, `network dns zone list|show`, `network dns record-set list`, and `network dns record-set <type> list|show`) use read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01.
 Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `byLocation` aggregates (record sets add `byType`).
 Show by name needs `--name` with `--resource-group` in exactly one subscription; `--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
-Record-set list needs `--zone-name` with `--resource-group`, with optional `--record-type` (A, AAAA, CAA, CNAME, MX, NS, PTR, SOA, SRV, TXT) and `--name` filters; record-set show needs `--zone-name`, `--resource-group`, `--name` and `--record-type`, or one record-set `--ids` alone.
-Azure CLI spells record sets per record type (`record-set a list`, `record-set a show`); az-axi uses one `record-set list|show` with `--record-type` instead.
+Record-set list needs `--zone-name` with `--resource-group`, with an optional exact `--name` filter.
+Type subgroups (`a`, `aaaa`, `caa`, `cname`, `mx`, `ns`, `ptr`, `soa`, `srv`, `txt`) provide typed list and show commands following Azure CLI grammar; the all-types `record-set list` is also available.
+Typed show needs `--zone-name`, `--resource-group` and `--name`, or one record-set `--ids` of the selected type alone.
 NSG show returns every rule (name, priority, direction, access, protocol, source, destination, ports) plus attached subnets and NICs; VNet show returns the address space, every subnet (prefix, NSG, route table) and every peering (state, remote VNet); NIC show returns every IP configuration plus NSG, virtual machine and MAC address; public-IP show returns the address, allocation, association, FQDN, SKU and zones; private-endpoint show returns the target service, connection state, subnet, NICs and custom DNS configs; zone show returns record counts and name servers; record-set show returns the TTL, FQDN and every routed value.
 Long nested rule, subnet, peering and IP-configuration lists are capped at `--limit` with their totals disclosed; `--full` shows every nested row.
 List rows default to compact fields (NSGs add the rule count, NICs the private IP and VM, VNets the prefixes and subnet count, public IPs the address and attachment, private endpoints the service and status, zones the record and name-server counts, record sets the type, TTL and first targets); `--full` shows every fetched row with untruncated values, and `--fields` selects the documented row or show fields.

@@ -5,7 +5,7 @@ import { request, requestAll } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { subscriptions } from "../lib/discovery.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
-import { networkLeafHelp } from "../lib/networkHelp.js";
+import { NETWORK_RECORD_TYPES, networkLeafHelp } from "../lib/networkHelp.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
@@ -16,9 +16,6 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 1000;
 const CELL_TRUNCATE = 200;
-
-/** DNS record types with an az `network dns record-set <type>` subgroup. */
-const RECORD_TYPES = ["A", "AAAA", "CAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"] as const;
 
 type AnyObj = Record<string, unknown>;
 
@@ -144,7 +141,9 @@ function recordValues(type: string, properties: AnyObj): string[] {
     case "PTR": return arrOf(properties.PTRRecords).map((record) => str(record.ptrdname)).filter(Boolean);
     case "SOA": {
       const soa = objOf(properties.SOARecord);
-      const text = `${str(soa.host)} ${str(soa.email)} ${num(soa.serialNumber) || str(soa.serialNumber)}`.trim();
+      const text = [str(soa.host), str(soa.email),
+        ...["serialNumber", "refreshTime", "retryTime", "expireTime", "minimumTTL"].map((key) => num(soa[key]) || str(soa[key])),
+      ].join(" ").trim();
       return text ? [text] : [];
     }
     case "SRV": return arrOf(properties.SRVRecords)
@@ -173,7 +172,7 @@ interface Collection {
   listPath(subscription: string, group: string | undefined, zone: string | undefined, recordType: string | undefined, path: string): string;
   compact(item: ArmItem, full: boolean): AnyObj;
   fields: string[];
-  detail(item: ArmItem, full: boolean, limit: number, includeMetadata?: boolean): { body: AnyObj; capped: boolean };
+  detail(item: ArmItem, full: boolean, limit: number, includeMetadata?: boolean): { body: AnyObj };
 }
 
 function basePath(subscription: string, group: string | undefined, arm: string): string {
@@ -202,7 +201,6 @@ const COLLECTIONS: Collection[] = [
           nics: arrOf(properties.networkInterfaces).map((nic) => tail(str(nic.id))),
           ...(includeMetadata ? { tags: item.tags ?? {}, provisioningState: str(properties.provisioningState) } : {}),
         },
-        capped: shown.length < rules.length,
       };
     },
   },
@@ -246,7 +244,6 @@ const COLLECTIONS: Collection[] = [
             dnsLabel: str(objOf(properties.dnsSettings).internalDnsNameLabel),
           } : {}),
         },
-        capped: shown.length < configs.length,
       };
     },
   },
@@ -290,7 +287,6 @@ const COLLECTIONS: Collection[] = [
             dnsServers: strArr(objOf(properties.dhcpOptions).dnsServers),
           } : {}),
         },
-        capped: shownSubnets.length < subnets.length || shownPeerings.length < peerings.length,
       };
     },
   },
@@ -321,7 +317,6 @@ const COLLECTIONS: Collection[] = [
             idleTimeout: num(properties.idleTimeoutInMinutes) || str(properties.idleTimeoutInMinutes),
           } : {}),
         },
-        capped: false,
       };
     },
   },
@@ -361,7 +356,6 @@ const COLLECTIONS: Collection[] = [
             groupIds: strArr(first.groupIds).join(", "),
           } : {}),
         },
-        capped: false,
       };
     },
   },
@@ -385,7 +379,6 @@ const COLLECTIONS: Collection[] = [
           nameServers: strArr(properties.nameServers),
           ...(includeMetadata ? { tags: item.tags ?? {} } : {}),
         },
-        capped: false,
       };
     },
   },
@@ -415,7 +408,6 @@ const COLLECTIONS: Collection[] = [
           records: full ? values : values.map((value) => truncate(value, CELL_TRUNCATE).text),
           ...(includeMetadata ? { metadata: objOf(properties.metadata) } : {}),
         },
-        capped: false,
       };
     },
   },
@@ -425,7 +417,7 @@ function collectionFor(words: string[], path: string): Collection {
   const found = COLLECTIONS.find((collection) =>
     collection.words.length === words.length && collection.words.every((word, index) => words[index] === word));
   if (!found) {
-    invalid("expected network nsg|nic|vnet|public-ip|private-endpoint list|show or network dns zone|record-set list|show", path);
+    invalid("expected network nsg|nic|vnet|public-ip|private-endpoint list|show, dns zone list|show, or dns record-set [a|aaaa|caa|cname|mx|ns|ptr|soa|srv|txt] list|show", path);
   }
   return found;
 }
@@ -440,7 +432,7 @@ function limitValue(args: ReturnType<typeof parseArgs>, path: string): number {
   return limit;
 }
 
-function selectorSuffix(args: ReturnType<typeof parseArgs>, keys = ["profile", "config", "tenant", "subscription", "resource-group", "zone-name", "record-type", "name", "ids"]): string {
+function selectorSuffix(args: ReturnType<typeof parseArgs>, keys = ["profile", "config", "tenant", "subscription", "resource-group", "zone-name", "name", "ids"]): string {
   return keys
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
@@ -456,7 +448,7 @@ async function runList(
   args: ReturnType<typeof parseArgs>,
   collection: Collection,
   path: string,
-  words: string[],
+  recordType: string | undefined,
 ): Promise<Record<string, unknown>> {
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
@@ -467,19 +459,14 @@ async function runList(
   const groupFlag = flagText(args, "resource-group");
   const group = groupFlag ? segment(groupFlag, "resource-group", path) : undefined;
   const name = flagText(args, "name");
-  const zoneFlag = collection.words[0] === "dns" && words[1] === "record-set" ? flagText(args, "zone-name") : undefined;
-  const zone = collection.words[0] === "dns" && words[1] === "record-set"
+  const isRecordSet = collection.words.join(" ") === "dns record-set";
+  const zoneFlag = isRecordSet ? flagText(args, "zone-name") : undefined;
+  const zone = isRecordSet
     ? segment(zoneFlag ?? invalid("dns record-set list needs --zone-name with --resource-group", path), "zone-name", path)
     : undefined;
-  if (collection.words[0] === "dns" && words[1] === "record-set" && !groupFlag) {
+  if (isRecordSet && !groupFlag) {
     invalid("dns record-set list needs --zone-name with --resource-group", path);
   }
-  const recordTypeFlag = flagText(args, "record-type");
-  const recordType = recordTypeFlag
-    ? (RECORD_TYPES as readonly string[]).includes(recordTypeFlag.toUpperCase())
-      ? recordTypeFlag.toUpperCase()
-      : invalid(`--record-type must be ${RECORD_TYPES.join("|")}, got '${recordTypeFlag}'`, path)
-    : undefined;
   const subs = await subscriptions(profile);
   const suffix = selectorSuffix(args);
   const collected: ArmItem[] = [];
@@ -527,18 +514,20 @@ async function runList(
     aggregates.byType = byType;
   }
 
-  const shown = (full ? collected : collected.slice(0, limit)).map((item) => collection.compact(item, full));
+  const displayed = full ? collected : collected.slice(0, limit);
+  const shown = displayed.map((item) => collection.compact(item, full));
   const picked = pickFields(shown, fields);
+  const shortened = !full && JSON.stringify(picked) !== JSON.stringify(pickFields(displayed.map((item) => collection.compact(item, true)), fields));
   const first = collected[0]!;
   const firstSub = parseSubscriptionId(first.id) ?? subs[0]!;
   const firstGroup = /\/resourceGroups\/([^/]+)/i.exec(first.id)?.[1];
   const firstSelector = collection.words.join(" ") === "dns record-set"
-    ? `${formatFlagValue("zone-name", zoneFlag!)} ${formatFlagValue("resource-group", groupFlag!)} ${formatFlagValue("name", first.name)} ${formatFlagValue("record-type", recordTypeOf(first.id))}`
+    ? `${formatFlagValue("zone-name", zoneFlag!)} ${formatFlagValue("resource-group", groupFlag!)} ${formatFlagValue("name", first.name)}`
     : `${formatFlagValue("name", first.name)}${firstGroup ? ` ${formatFlagValue("resource-group", firstGroup)}` : ""}`;
   const help: string[] = [
-    `Run \`az-axi network ${collection.words.join(" ")} show ${firstSelector} ${formatFlagValue("subscription", firstSub)}${selectorSuffix(args, ["profile", "config", "tenant"])}\` for the first row in detail`,
+    `Run \`az-axi network ${collection.words.join(" ")}${isRecordSet ? ` ${recordTypeOf(first.id).toLowerCase()}` : ""} show ${firstSelector} ${formatFlagValue("subscription", firstSub)}${selectorSuffix(args, ["profile", "config", "tenant"])}\` for the first row in detail`,
   ];
-  if (shown.length < collected.length) {
+  if (shown.length < collected.length || shortened) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
   }
   if (incomplete) {
@@ -559,7 +548,7 @@ async function runShow(
   args: ReturnType<typeof parseArgs>,
   collection: Collection,
   path: string,
-  words: string[],
+  recordType: string | undefined,
 ): Promise<Record<string, unknown>> {
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
@@ -575,22 +564,16 @@ async function runShow(
   if (name && ids) invalid(`${path} takes --name or --ids, not both`, path);
   if (!name && !ids) {
     invalid(isRecordSet
-      ? `${path} needs --zone-name, --resource-group, --name and --record-type, or --ids <record-set-ARM-id>`
+      ? `${path} needs --zone-name, --resource-group and --name, or --ids <record-set-ARM-id>`
       : `${path} needs --name with --resource-group, or --ids <ARM-id>`, path);
   }
   const zoneFlag = isRecordSet ? flagText(args, "zone-name") : undefined;
-  const recordTypeFlag = flagText(args, "record-type");
-  const recordType = recordTypeFlag
-    ? (RECORD_TYPES as readonly string[]).includes(recordTypeFlag.toUpperCase())
-      ? recordTypeFlag.toUpperCase()
-      : invalid(`--record-type must be ${RECORD_TYPES.join("|")}, got '${recordTypeFlag}'`, path)
-    : undefined;
-  if (ids && (groupFlag || name || zoneFlag || recordTypeFlag)) {
+  if (ids && (groupFlag || name || zoneFlag)) {
     invalid("--ids selects the resource itself; name and scope selectors are not accepted with --ids", path);
   }
   if (!ids && !groupFlag) invalid(`${path} by name needs --resource-group`, path);
-  if (isRecordSet && !ids && (!zoneFlag || !recordType)) {
-    invalid("dns record-set show by name needs --zone-name, --name and --record-type with --resource-group", path);
+  if (isRecordSet && !ids && !zoneFlag) {
+    invalid("dns record-set show by name needs --zone-name and --name with --resource-group", path);
   }
   const suffix = selectorSuffix(args);
 
@@ -602,8 +585,8 @@ async function runShow(
     const subMatch = /^\/subscriptions\/([^/]+)\//i.exec(id);
     if (!subMatch || !GUID.test(subMatch[1]!)) invalid("--ids must carry a subscription GUID", path);
     if (isRecordSet) {
-      if (!(RECORD_TYPES as readonly string[]).includes(recordTypeOf(id))) {
-        invalid("--ids must be one record-set ARM ID: .../dnszones/{zone}/{A|AAAA|CAA|CNAME|MX|NS|PTR|SOA|SRV|TXT}/{name}", path);
+      if (recordTypeOf(id) !== recordType) {
+        invalid(`--ids must be one ${recordType} record-set ARM ID: .../dnszones/{zone}/${recordType}/{name}`, path);
       }
     } else if (!collection.idTail.test(id)) {
       invalid(`--ids must be one ${collection.noun.slice(0, -1)} ARM ID under Microsoft.Network/${collection.arm}`, path);
@@ -625,9 +608,11 @@ async function runShow(
   }
 
   const item = await request<ArmItem>(profile, { method: "GET", path: getPath, apiVersion: collection.apiVersion });
-  const { body, capped } = collection.detail(item, full, limit, full || !!fields);
+  const { body } = collection.detail(item, full, limit, full || !!fields);
+  const shortened = !full && JSON.stringify(pickFields([body], fields)) !==
+    JSON.stringify(pickFields([collection.detail(item, true, limit, full || !!fields).body], fields));
   const help: string[] = [];
-  if (capped) {
+  if (shortened) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` for every nested row`);
   }
   const picked = pickFields([{ ...body, profile: profile.name, subscription: parseSubscriptionId(item.id ?? "") ?? subscription }], fields)[0]!;
@@ -640,13 +625,21 @@ async function runShow(
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const args = parseArgs(argv);
-  const positionalWords = args.positionals.slice(0, 3);
+  const positionalWords = args.positionals.slice(0, args.positionals[0] === "dns" ? 4 : 2);
   const verb = positionalWords[positionalWords.length - 1];
   const words = positionalWords.slice(0, -1);
   const path = `network ${words.join(" ")} ${verb}`;
-  const collection = collectionFor(words, path);
+  const isRecordSet = words[0] === "dns" && words[1] === "record-set";
+  const recordType = isRecordSet && words.length === 3 ? words[2]!.toUpperCase() : undefined;
+  if (recordType && !(NETWORK_RECORD_TYPES as readonly string[]).includes(words[2]!)) {
+    invalid(`expected DNS record type ${NETWORK_RECORD_TYPES.join("|")}`, path);
+  }
+  if (isRecordSet && verb === "show" && !recordType) {
+    invalid("record-set show needs a type subgroup, for example: network dns record-set a show", path);
+  }
+  const collection = collectionFor(recordType ? words.slice(0, 2) : words, path);
   if (verb !== "list" && verb !== "show") {
-    invalid("expected network nsg|nic|vnet|public-ip|private-endpoint list|show or network dns zone|record-set list|show", path);
+    invalid("expected network nsg|nic|vnet|public-ip|private-endpoint list|show, dns zone list|show, or dns record-set [a|aaaa|caa|cname|mx|ns|ptr|soa|srv|txt] list|show", path);
   }
   if (args.positionals.length !== words.length + 1) {
     invalid(`unexpected argument \`${args.positionals[words.length + 1]}\` for \`${path}\``, path);
@@ -657,6 +650,6 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     invalid("management-group scope is unsupported for network reads; select subscriptions explicitly", path);
   }
   return verb === "list"
-    ? runList(profile, args, collection, path, words)
-    : runShow(profile, args, collection, path, words);
+    ? runList(profile, args, collection, path, recordType)
+    : runShow(profile, args, collection, path, recordType);
 }

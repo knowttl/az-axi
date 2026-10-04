@@ -37,7 +37,17 @@ describe("exact leaf contracts", () => {
       "network vnet list", "network vnet show", "network public-ip list", "network public-ip show",
       "network private-endpoint list", "network private-endpoint show",
       "network dns zone list", "network dns zone show",
-      "network dns record-set list", "network dns record-set show",
+      "network dns record-set list",
+      "network dns record-set a list", "network dns record-set a show",
+      "network dns record-set aaaa list", "network dns record-set aaaa show",
+      "network dns record-set caa list", "network dns record-set caa show",
+      "network dns record-set cname list", "network dns record-set cname show",
+      "network dns record-set mx list", "network dns record-set mx show",
+      "network dns record-set ns list", "network dns record-set ns show",
+      "network dns record-set ptr list", "network dns record-set ptr show",
+      "network dns record-set soa list", "network dns record-set soa show",
+      "network dns record-set srv list", "network dns record-set srv show",
+      "network dns record-set txt list", "network dns record-set txt show",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);

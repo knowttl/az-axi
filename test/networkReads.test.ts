@@ -9,6 +9,7 @@ vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn(), request: vi.fn(),
 import { run } from "../src/commands/network.js";
 import { request, requestAll } from "../src/lib/client.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
+import { routeArgv } from "../src/lib/router.js";
 import {
   SUB_A, SUB_B, discoveryGroup,
   networkDnsRecordSetDetail, networkDnsRecordSets, networkDnsZone, networkDnsZones,
@@ -275,20 +276,20 @@ describe("network dns zone and record-set reads", () => {
     });
     const listOptions = listCalls().find((call) => /\/dnszones\/[^/]+\/recordsets$/i.test(String(call["path"] ?? "")))!;
     expect(listOptions["apiVersion"]).toBe("2018-05-01");
-    const typed = await run(["dns", "record-set", "list", ...selectors, "--record-type", "a"]);
+    const typed = await run(["dns", "record-set", "a", "list", ...selectors]);
     expect(typed).toMatchObject({ total: 1, count: "1 DNS record sets" });
     const typedOptions = listCalls().find((call) => /\/dnszones\/[^/]+\/A$/i.test(String(call["path"] ?? "")))!;
     expect(typedOptions).toBeDefined();
   });
 
   it("shows one record set with every routed value by name and ARM ID", async () => {
-    const selectors = ["--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www", "--record-type", "A"];
-    const show = await run(["dns", "record-set", "show", ...selectors]);
+    const selectors = ["--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www"];
+    const show = await run(["dns", "record-set", "a", "show", ...selectors]);
     expect(show).toMatchObject({
       name: "www", type: "A", ttl: "3600", fqdn: "www.example.com.",
       records: ["203.0.113.10"], subscription: SUB_A,
     });
-    await expect(run(["dns", "record-set", "show", "--ids", networkDnsRecordSetDetail.id]))
+    await expect(run(["dns", "record-set", "a", "show", "--ids", networkDnsRecordSetDetail.id]))
       .resolves.toMatchObject({ name: "www", type: "A" });
     const options = requestMock.mock.calls[0]![1] as Record<string, unknown>;
     expect(options["apiVersion"]).toBe("2018-05-01");
@@ -331,8 +332,8 @@ describe("network reads stay read-only and validate before transport", () => {
     await expect(run(["dns", "record-set", "list", ...selectors]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--zone-name") });
     await expect(run(["dns", "record-set", "list", "--zone-name", "example.com", ...selectors, "--record-type", "BOGUS"]))
-      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--record-type must be") });
-    await expect(run(["dns", "record-set", "show", "--ids", `${networkDnsZone.id}/A`]))
+      .rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
+    await expect(run(["dns", "record-set", "a", "show", "--ids", `${networkDnsZone.id}/A`]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("record-set ARM ID") });
     await expect(run(["nsg", "list", ...selectors, "--zone-name", "example.com"]))
       .rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
@@ -365,6 +366,99 @@ describe("network reads stay read-only and validate before transport", () => {
 });
 
 describe("network projection regressions", () => {
+  it.each([
+    { type: "a", properties: { ARecords: [{ ipv4Address: "203.0.113.10" }] }, values: ["203.0.113.10"] },
+    { type: "aaaa", properties: { AAAARecords: [{ ipv6Address: "2001:db8::1" }] }, values: ["2001:db8::1"] },
+    { type: "caa", properties: { CAARecords: [{ flags: 0, tag: "issue", value: "example.com" }] }, values: ['0 issue "example.com"'] },
+    { type: "cname", properties: { CNAMERecord: { cname: "example.com." } }, values: ["example.com."] },
+    { type: "mx", properties: { MXRecords: [{ preference: 10, exchange: "mail.example.com." }] }, values: ["10 mail.example.com."] },
+    { type: "ns", properties: { NSRecords: [{ nsdname: "ns.example.com." }] }, values: ["ns.example.com."] },
+    { type: "ptr", properties: { PTRRecords: [{ ptrdname: "host.example.com." }] }, values: ["host.example.com."] },
+    { type: "soa", properties: { SOARecord: { host: "ns.example.com.", email: "hostmaster.example.com.",
+      serialNumber: 1, refreshTime: 3600, retryTime: 300, expireTime: 2419200, minimumTTL: 0 } },
+      values: ["ns.example.com. hostmaster.example.com. 1 3600 300 2419200 0"] },
+    { type: "srv", properties: { SRVRecords: [{ priority: 0, weight: 10, port: 443, target: "host.example.com." }] }, values: ["0 10 443 host.example.com."] },
+    { type: "txt", properties: { TXTRecords: [{ value: ["one", " record"] }] }, values: ["one record"] },
+  ])("routes $type list and show to the matching ARM type", async ({ type, properties, values }) => {
+    const record = { name: "record", id: `${networkDnsZone.id}/${type.toUpperCase()}/record`, properties };
+    allMock.mockResolvedValue({ items: [record] });
+    requestMock.mockResolvedValue(record as never);
+    const list = routeArgv(["network", "dns", "record-set", type, "list", "--zone-name", "example.com", "-g", "rg-demo"]);
+    await expect(run(list.argv.slice(1))).resolves.toMatchObject({ rows: [{ type: type.toUpperCase(), target: values.join(", ") }] });
+    expect(listCalls()[0]).toMatchObject({ path: `${networkDnsZone.id}/${type.toUpperCase()}` });
+    const show = routeArgv(["network", "dns", "record-set", type, "show", "--zone-name", "example.com", "-g", "rg-demo", "-n", "record"]);
+    await expect(run(show.argv.slice(1))).resolves.toMatchObject({ records: values });
+    expect(requestMock.mock.calls[0]![1]).toMatchObject({ path: record.id });
+    await expect(run(["dns", "record-set", type, "show", "--ids", record.id, "--full"]))
+      .resolves.toMatchObject({ records: values });
+    await expect(run(["dns", "record-set", type, "show", "--ids", `${networkDnsZone.id}/BOGUS/record`]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("rejects a record ID from a different type subgroup before transport", async () => {
+    await expect(run(["dns", "record-set", "txt", "show", "--ids", networkDnsRecordSets[0]!.id]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { field: "sourceAddressPrefixes", projected: "source", direction: "Inbound" },
+    { field: "sourceAddressPrefixes", projected: "source", direction: "Outbound" },
+    { field: "destinationAddressPrefixes", projected: "destination", direction: "Inbound" },
+    { field: "destinationAddressPrefixes", projected: "destination", direction: "Outbound" },
+    { field: "destinationPortRanges", projected: "ports", direction: "Inbound" },
+    { field: "destinationPortRanges", projected: "ports", direction: "Outbound" },
+  ])("discloses truncated $direction NSG $projected content", async ({ field, projected, direction }) => {
+    const item = { ...networkNsg, properties: { securityRules: [{ name: "long", properties: { direction, [field]: ["x".repeat(250)] } }] } };
+    requestMock.mockResolvedValue(item as never);
+    const result = await run(["nsg", "show", "--ids", item.id]);
+    expect(result.rules).toEqual([expect.objectContaining({ [projected]: expect.stringContaining("truncated, 250 chars total") })]);
+    expect(result.help).toEqual([`Run \`az-axi network nsg show --ids ${item.id} --full\` for every nested row`]);
+    const full = await run(["nsg", "show", "--ids", item.id, "--full"]);
+    expect(full.rules).toEqual([expect.objectContaining({ [projected]: "x".repeat(250) })]);
+    expect(full).not.toHaveProperty("help");
+    await expect(run(["nsg", "show", "--ids", item.id, "--fields", "name"]))
+      .resolves.toEqual({ profile: "ci", name: item.name });
+  });
+
+  it("discloses truncated VNet prefixes in list and nested show", async () => {
+    const item = { ...networkVnet, properties: {
+      addressSpace: { addressPrefixes: ["x".repeat(250)] },
+      subnets: [{ name: "default", properties: { addressPrefixes: ["x".repeat(250)] } }],
+    } };
+    allMock.mockResolvedValueOnce({ items: [item] });
+    requestMock.mockResolvedValue(item as never);
+    const list = await run(["vnet", "list"]);
+    expect(list.help).toEqual(expect.arrayContaining(["Run `az-axi network vnet list --full` to show every fetched row"]));
+    const show = await run(["vnet", "show", "--ids", item.id, "--fields", "subnets"]);
+    expect(show.help).toEqual([`Run \`az-axi network vnet show --ids ${item.id} --full\` for every nested row`]);
+    const full = await run(["vnet", "show", "--ids", item.id, "--fields", "subnets", "--full"]);
+    expect(full.subnets).toEqual([{ name: "default", prefix: "x".repeat(250), nsg: "", routeTable: "" }]);
+    expect(full).not.toHaveProperty("help");
+  });
+
+  it("discloses truncated DNS values in list and typed show", async () => {
+    const record = { name: "long", id: `${networkDnsZone.id}/TXT/long`, properties: { TXTRecords: [{ value: ["x".repeat(250)] }] } };
+    allMock.mockResolvedValue({ items: [record] });
+    requestMock.mockResolvedValue(record as never);
+    const selectors = ["--resource-group", "rg-demo", "--zone-name", "example.com"];
+    const list = await run(["dns", "record-set", "list", ...selectors]);
+    expect(list.help).toEqual(expect.arrayContaining([
+      "Run `az-axi network dns record-set list --resource-group rg-demo --zone-name example.com --full` to show every fetched row",
+    ]));
+    const typed = await run(["dns", "record-set", "txt", "list", ...selectors]);
+    expect(typed.help).toEqual(expect.arrayContaining([
+      "Run `az-axi network dns record-set txt list --resource-group rg-demo --zone-name example.com --full` to show every fetched row",
+    ]));
+    const show = await run(["dns", "record-set", "txt", "show", "--ids", record.id]);
+    expect(show.records).toEqual([expect.stringContaining("truncated, 250 chars total")]);
+    expect(show.help).toEqual([`Run \`az-axi network dns record-set txt show --ids ${record.id} --full\` for every nested row`]);
+    const full = await run(["dns", "record-set", "txt", "show", "--ids", record.id, "--full"]);
+    expect(full.records).toEqual(["x".repeat(250)]);
+    expect(full).not.toHaveProperty("help");
+  });
+
   it("projects manually approved endpoint connections in list and show", async () => {
     const endpoint = { ...networkPrivateEndpoint, properties: { ...networkPrivateEndpoint.properties,
       privateLinkServiceConnections: [],
@@ -387,9 +481,9 @@ describe("network projection regressions", () => {
     requestMock.mockResolvedValue(record as never);
     await expect(run(["dns", "record-set", "list", "--resource-group", "rg-demo", "--zone-name", "example.com"]))
       .resolves.toMatchObject({ rows: [{ type, target: networkPublicIp.id }] });
-    await expect(run(["dns", "record-set", "show", "--ids", record.id]))
+    await expect(run(["dns", "record-set", type.toLowerCase(), "show", "--ids", record.id]))
       .resolves.toMatchObject({ records: [networkPublicIp.id] });
-    await expect(run(["dns", "record-set", "show", "--ids", record.id, "--full"]))
+    await expect(run(["dns", "record-set", type.toLowerCase(), "show", "--ids", record.id, "--full"]))
       .resolves.toMatchObject({ records: [networkPublicIp.id] });
   });
 
@@ -401,9 +495,9 @@ describe("network projection regressions", () => {
     requestMock.mockResolvedValue(record as never);
     await expect(run(["dns", "record-set", "list", "--resource-group", "rg-demo", "--zone-name", "example.com"]))
       .resolves.toMatchObject({ rows: [{ target: "v=spf1 include:example.com ~all, second record" }] });
-    await expect(run(["dns", "record-set", "show", "--ids", record.id]))
+    await expect(run(["dns", "record-set", "txt", "show", "--ids", record.id]))
       .resolves.toMatchObject({ records: ["v=spf1 include:example.com ~all", "second record"] });
-    await expect(run(["dns", "record-set", "show", "--ids", record.id, "--full"]))
+    await expect(run(["dns", "record-set", "txt", "show", "--ids", record.id, "--full"]))
       .resolves.toMatchObject({ records: ["v=spf1 include:example.com ~all", "second record"] });
   });
 
@@ -414,9 +508,9 @@ describe("network projection regressions", () => {
     requestMock.mockResolvedValue(record as never);
     await expect(run(["dns", "record-set", "list", "--resource-group", "dnszones", "--zone-name", "example.com"]))
       .resolves.toMatchObject({ byType: { A: 1 }, rows: [{ type: "A", target: "203.0.113.10" }] });
-    await expect(run(["dns", "record-set", "list", "--resource-group", "dnszones", "--zone-name", "example.com", "--record-type", "A"]))
+    await expect(run(["dns", "record-set", "a", "list", "--resource-group", "dnszones", "--zone-name", "example.com"]))
       .resolves.toMatchObject({ total: 1 });
-    await expect(run(["dns", "record-set", "show", "--ids", record.id]))
+    await expect(run(["dns", "record-set", "a", "show", "--ids", record.id]))
       .resolves.toMatchObject({ type: "A", records: ["203.0.113.10"] });
   });
 
@@ -448,7 +542,7 @@ describe("network projection regressions", () => {
     { words: ["public-ip"], item: networkPublicIp, fields: "tags,provisioningState,idleTimeout", expected: { tags: {}, provisioningState: "Succeeded", idleTimeout: "4" } },
     { words: ["private-endpoint"], item: networkPrivateEndpoint, fields: "tags,provisioningState,groupIds", expected: { tags: {}, provisioningState: "Succeeded", groupIds: "blob" } },
     { words: ["dns", "zone"], item: networkDnsZone, fields: "tags", expected: { tags: { env: "test" } } },
-    { words: ["dns", "record-set"], item: networkDnsRecordSets[0]!, fields: "metadata", expected: { metadata: { env: "prod" } } },
+    { words: ["dns", "record-set", "a"], item: networkDnsRecordSets[0]!, fields: "metadata", expected: { metadata: { env: "prod" } } },
   ])("selects safe metadata without full for $words", async ({ words, item, fields, expected }) => {
     await expect(run([...words, "show", "--ids", item.id, "--fields", fields]))
       .resolves.toEqual({ profile: "ci", ...expected });
@@ -457,7 +551,7 @@ describe("network projection regressions", () => {
   it.each([
     { words: ["nic"], id: networkNic.id, field: "privateIp" },
     { words: ["vnet"], id: networkVnet.id, field: "prefixes" },
-    { words: ["dns", "record-set"], id: networkDnsRecordSets[0]!.id, field: "target" },
+    { words: ["dns", "record-set", "a"], id: networkDnsRecordSets[0]!.id, field: "target" },
   ])("rejects list-only field $field before transport", async ({ words, id, field }) => {
     await expect(run([...words, "show", "--ids", id, "--fields", field]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
@@ -493,7 +587,7 @@ describe("network projection regressions", () => {
     const result = await run(["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo",
       "--profile", "ci", "--config", join(dir, "config.json"), "--tenant", SUB_B]);
     expect(result.help).toEqual([
-      `Run \`az-axi network dns record-set show --zone-name example.com --resource-group rg-demo --name '*' --record-type A --subscription ${SUB_A} --profile ci --config ${join(dir, "config.json")} --tenant ${SUB_B}\` for the first row in detail`,
+      `Run \`az-axi network dns record-set a show --zone-name example.com --resource-group rg-demo --name '*' --subscription ${SUB_A} --profile ci --config ${join(dir, "config.json")} --tenant ${SUB_B}\` for the first row in detail`,
     ]);
   });
 });

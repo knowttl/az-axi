@@ -111,8 +111,8 @@ describe("built CLI network reads offline", () => {
     expect(records.status, records.stdout).toBe(0);
     expect(records.stdout).toContain("203.0.113.10");
     expect(records.stderr).toContain("dnszones/example.com/recordsets?api-version=2018-05-01");
-    const record = run(["network", "dns", "record-set", "show", ...selectors,
-      "--zone-name", "example.com", "--name", "www", "--record-type", "A"]);
+    const record = run(["network", "dns", "record-set", "a", "show", ...selectors,
+      "--zone-name", "example.com", "--name", "www"]);
     expect(record.status, record.stdout).toBe(0);
     expect(decode(record.stdout)).toMatchObject({ type: "A", ttl: "3600" });
   });
@@ -121,7 +121,7 @@ describe("built CLI network reads offline", () => {
     const short = run(["network", "nsg", "list", "-g", "rg-demo", "-s", SUB_A]);
     expect(short.status, short.stdout).toBe(0);
     expect(short.stdout).toContain("total: 2");
-    const typed = run(["network", "dns", "record-set", "list", ...selectors, "--zone-name", "example.com", "--record-type", "CNAME"]);
+    const typed = run(["network", "dns", "record-set", "cname", "list", ...selectors, "--zone-name", "example.com"]);
     expect(typed.status, typed.stdout).toBe(0);
     expect(typed.stdout).toContain("shop.contoso.com.");
     expect(typed.stdout).not.toContain("203.0.113.10");
@@ -146,6 +146,8 @@ describe("built CLI network reads offline", () => {
     ["network", "dns", "record-set", "list", ...selectors],
     ["network", "dns", "record-set", "list", ...selectors, "--zone-name", "example.com", "--record-type", "BOGUS"],
     ["network", "dns", "record-set", "show", "--zone-name", "example.com", ...selectors, "--name", "www"],
+    ["network", "dns", "record-set", "a", "show", "--ids", networkDnsRecordSets[1]!.id],
+    ["network", "dns", "record-set", "a", "show", ...selectors, "--name", "www"],
     ["network", "nic", "show", "--name", networkNic.id],
   ])("refuses %j without network transport", (...argv) => {
     const result = run(argv);

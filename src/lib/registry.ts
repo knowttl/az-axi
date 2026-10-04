@@ -4,7 +4,7 @@ import type { RequestClass } from "./policy.js";
 import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
 import { AZ_HELP } from "./azHelp.js";
 import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
-import { NETWORK_HELP, networkLeafHelp } from "./networkHelp.js";
+import { NETWORK_HELP, NETWORK_RECORD_TYPES, networkLeafHelp } from "./networkHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 import { KEYVAULT_HELP, keyvaultLeafHelp } from "./keyvaultHelp.js";
 
@@ -102,8 +102,11 @@ export const COMMAND_LEAVES = [
   { path: "network private-endpoint show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "network dns zone list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "network dns zone show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
-  { path: "network dns record-set list", effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", "record-type": "value", name: "value" } },
-  { path: "network dns record-set show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", "zone-name": "value", name: "value", "record-type": "value" } },
+  { path: "network dns record-set list", effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
+  ...NETWORK_RECORD_TYPES.flatMap((type) => [
+    { path: `network dns record-set ${type} list`, effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
+    { path: `network dns record-set ${type} show`, effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", "zone-name": "value", name: "value" } },
+  ] as const),
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -219,7 +222,7 @@ const HELP_OVERVIEWS = {
   storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",
   keyvault: "az-axi keyvault secret|key|certificate list  # Entra-only vault property listings",
   acr: "az-axi acr repository list|show-tags        # Entra-only registry catalog and tags",
-  network: "az-axi network nsg|nic|vnet|public-ip|private-endpoint list|show  # NSG rules, NICs, VNets/subnets, public IPs, private endpoints\naz-axi network dns zone|record-set list|show  # public DNS zones and record sets",
+  network: `az-axi network nsg|nic|vnet|public-ip|private-endpoint list|show  # NSG rules, NICs, VNets/subnets, public IPs, private endpoints\naz-axi network dns zone list|show\naz-axi network dns record-set list\naz-axi network dns record-set ${NETWORK_RECORD_TYPES.join("|")} list|show  # public DNS record sets`,
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */

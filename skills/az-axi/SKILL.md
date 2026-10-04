@@ -95,7 +95,26 @@ The offline test suite checks this list against the registry.
 | `az-axi network dns zone list` | native | read |
 | `az-axi network dns zone show` | native | read |
 | `az-axi network dns record-set list` | native | read |
-| `az-axi network dns record-set show` | native | read |
+| `az-axi network dns record-set a list` | native | read |
+| `az-axi network dns record-set a show` | native | read |
+| `az-axi network dns record-set aaaa list` | native | read |
+| `az-axi network dns record-set aaaa show` | native | read |
+| `az-axi network dns record-set caa list` | native | read |
+| `az-axi network dns record-set caa show` | native | read |
+| `az-axi network dns record-set cname list` | native | read |
+| `az-axi network dns record-set cname show` | native | read |
+| `az-axi network dns record-set mx list` | native | read |
+| `az-axi network dns record-set mx show` | native | read |
+| `az-axi network dns record-set ns list` | native | read |
+| `az-axi network dns record-set ns show` | native | read |
+| `az-axi network dns record-set ptr list` | native | read |
+| `az-axi network dns record-set ptr show` | native | read |
+| `az-axi network dns record-set soa list` | native | read |
+| `az-axi network dns record-set soa show` | native | read |
+| `az-axi network dns record-set srv list` | native | read |
+| `az-axi network dns record-set srv show` | native | read |
+| `az-axi network dns record-set txt list` | native | read |
+| `az-axi network dns record-set txt show` | native | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
@@ -259,10 +278,10 @@ az-axi network public-ip list -g rg-demo
 az-axi network private-endpoint show --name pe-storage -g rg-demo
 az-axi network dns zone list -g rg-demo
 az-axi network dns record-set list -g rg-demo --zone-name example.com
-az-axi network dns record-set show -g rg-demo --zone-name example.com --name www --record-type A
+az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
 ```
 
-See [network reads](../../README.md#use) for collection scope, name and ARM ID selectors, zone and record-type selectors, output fields, paging limits and the effective-rule, watcher, DNSSEC and private-DNS exclusions.
+See [network reads](../../README.md#use) for collection scope, name and ARM ID selectors, DNS zone selectors and type subgroups, output fields, paging limits and the effective-rule, watcher, DNSSEC and private-DNS exclusions.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,

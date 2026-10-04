@@ -1,19 +1,4 @@
-const LEAVES = [
-  "network nsg list",
-  "network nsg show",
-  "network nic list",
-  "network nic show",
-  "network vnet list",
-  "network vnet show",
-  "network public-ip list",
-  "network public-ip show",
-  "network private-endpoint list",
-  "network private-endpoint show",
-  "network dns zone list",
-  "network dns zone show",
-  "network dns record-set list",
-  "network dns record-set show",
-];
+export const NETWORK_RECORD_TYPES = ["a", "aaaa", "caa", "cname", "mx", "ns", "ptr", "soa", "srv", "txt"] as const;
 
 const SELECTORS: Record<string, string> = {
   "network nsg list": "--resource-group / -g scopes the list; --name / -n filters one exact NSG name.",
@@ -28,8 +13,8 @@ const SELECTORS: Record<string, string> = {
   "network private-endpoint show": "--name / -n with --resource-group / -g in one subscription, or --ids <endpoint-ARM-id> alone.",
   "network dns zone list": "--resource-group / -g scopes the list; --name / -n filters one exact zone name.",
   "network dns zone show": "--name / -n with --resource-group / -g in one subscription, or --ids <zone-ARM-id> alone.",
-  "network dns record-set list": "Requires --zone-name with --resource-group / -g; --record-type A|AAAA|CAA|CNAME|MX|NS|PTR|SOA|SRV|TXT filters one type, --name / -n filters one record name.",
-  "network dns record-set show": "--zone-name with --resource-group / -g, --name / -n and --record-type, or --ids <record-set-ARM-id> alone.",
+  "network dns record-set list": "Requires --zone-name with --resource-group / -g; a type subgroup filters one type, --name / -n filters one record name.",
+  "network dns record-set show": "--zone-name with --resource-group / -g and --name / -n, or --ids <record-set-ARM-id> of the selected type alone.",
 };
 
 const DETAIL: Record<string, string> = {
@@ -45,8 +30,8 @@ const DETAIL: Record<string, string> = {
   "network private-endpoint show": "Show returns the target service, connection state, subnet, NICs and custom DNS configs.",
   "network dns zone list": "Rows default to name, id, records (the record-set count) and nameServers (the name-server count).",
   "network dns zone show": "Show returns the record-set counts and every name server.",
-  "network dns record-set list": "Rows default to name, type, ttl and target (the first routed values). Azure CLI spells these per record type (record-set a list, ...); this one list covers every type with an optional --record-type filter.",
-  "network dns record-set show": "Show returns the TTL, FQDN and every routed value for the record type. Azure CLI spells these per record type (record-set a show, ...); --record-type selects the type here.",
+  "network dns record-set list": "Rows default to name, type, ttl and target. The all-types record-set list and typed record-set a|aaaa|caa|cname|mx|ns|ptr|soa|srv|txt list follow Azure CLI grammar.",
+  "network dns record-set show": "Show returns the TTL, FQDN and every routed value for the selected type subgroup.",
 };
 
 const FIELDS: Record<string, string> = {
@@ -68,15 +53,16 @@ const FIELDS: Record<string, string> = {
 
 export function networkLeafHelp(path: string): string {
   const show = path.endsWith(" show");
+  const key = path.replace(/^(network dns record-set) [^ ]+ (list|show)$/, "$1 $2");
   return [
     `Command: az-axi ${path}`,
-    `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
+    `az-axi ${path} ${SELECTORS[key] ?? ""}`.trimEnd(),
     "Read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01. Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC keys, private DNS zones and any mutation stay out of scope.",
     "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. Lists follow up to 100 pages per subscription and disclose incomplete counts as lower bounds.",
     "Show by name needs exactly one subscription; --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when no scope is configured. --management-group scope is unsupported; select subscriptions explicitly.",
-    DETAIL[path] ?? "",
+    DETAIL[key] ?? "",
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, provisioningState, SKU details) and shows every fetched row. No view returns secrets, keys or credential fields.",
-    FIELDS[path] ?? "",
+    FIELDS[key] ?? "",
     "Globals: --profile, --tenant, --subscription / -s, --management-group, --config, --fields, --full, --limit, --help / -h.",
     `Examples: az-axi ${path}${show ? " --ids <ARM-id> --full" : ""}`,
   ].join("\n");
@@ -89,8 +75,7 @@ export const NETWORK_HELP = [
   "az-axi network public-ip list|show",
   "az-axi network private-endpoint list|show",
   "az-axi network dns zone list|show",
-  "az-axi network dns record-set list|show",
+  "az-axi network dns record-set list",
+  `az-axi network dns record-set ${NETWORK_RECORD_TYPES.join("|")} list|show`,
   networkLeafHelp("network nsg show"),
 ].join("\n");
-
-export const NETWORK_LEAVES = LEAVES;

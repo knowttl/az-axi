@@ -184,7 +184,7 @@ const CEILINGS: Record<string, number> = {
   "network dns zone list": 154,
   "network dns zone show": 126,
   "network dns record-set list": 144,
-  "network dns record-set show": 117,
+  "network dns record-set a show": 117,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -302,7 +302,7 @@ describe("token budgets", () => {
     { key: "network dns zone list", run: runNetwork, sample: networkDnsZone, argv: ["dns", "zone", "list"] },
     { key: "network dns zone show", run: runNetwork, sample: networkDnsZone, argv: ["dns", "zone", "show", "--name", "example.com", "--resource-group", "rg-demo"] },
     { key: "network dns record-set list", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo"] },
-    { key: "network dns record-set show", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "show", "--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www", "--record-type", "A"] },
+    { key: "network dns record-set a show", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "a", "show", "--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www"] },
   ])("$key stays under its ceiling", async ({ key, run, sample, argv }) => {
     allMock.mockResolvedValue({ items: [sample] } as never);
     vi.mocked(request).mockResolvedValue(sample);
