@@ -275,6 +275,8 @@ describe("benchmark surface", () => {
     const bootstrap = join(dir, "bootstrap.mjs");
     const accountOutput = join(dir, "account-output.toon");
     const sentinelOutput = join(dir, "sentinel-output.toon");
+    const ruleOutput = join(dir, "rule-output.toon");
+    const connectorOutput = join(dir, "connector-output.toon");
     writeFileSync(bootstrap, [
       'import childProcess from "node:child_process";',
       'import { syncBuiltinESMExports } from "node:module";',
@@ -284,6 +286,8 @@ describe("benchmark surface", () => {
       '  const child = spawnSync(command, argv, options);',
       `  if (argv.includes("account") && argv.includes("list")) writeFileSync(${JSON.stringify(accountOutput)}, child.stdout);`,
       `  if (argv.includes("sentinel") && argv.includes("incident")) writeFileSync(${JSON.stringify(sentinelOutput)}, child.stdout);`,
+      `  if (argv.includes("sentinel") && argv.includes("alert-rule")) writeFileSync(${JSON.stringify(ruleOutput)}, child.stdout);`,
+      `  if (argv.includes("sentinel") && argv.includes("data-connector")) writeFileSync(${JSON.stringify(connectorOutput)}, child.stdout);`,
       '  return child;',
       '};',
       'syncBuiltinESMExports();',
@@ -302,6 +306,17 @@ describe("benchmark surface", () => {
       rows: sentinelEmpty ? `0 incidents found in workspace ${scrub("contoso-ws")}` : [{ number: 7, title: scrub("contoso-title"), severity: "High", status: "Active", time: expect.stringMatching(/^2026-10-02(?: 12:34)?$/) }],
     });
     expect(readFileSync(sentinelCapture, "utf8")).toBe(persistedSentinel);
+    expect(decode(readFileSync(ruleOutput, "utf8"))).toMatchObject({
+      total: 1,
+      byKind: { [scrub("Scheduled")]: 1 },
+      byEnabled: { Enabled: 1 },
+      rows: [{ name: scrub("contoso-rule"), rule: scrub("contoso-rule"), kind: scrub("Scheduled"), enabled: true, severity: "High" }],
+    });
+    expect(decode(readFileSync(connectorOutput, "utf8"))).toMatchObject({
+      total: 1,
+      byKind: { [scrub("AzureActiveDirectory")]: 1 },
+      rows: [{ name: scrub("contoso-connector"), kind: scrub("AzureActiveDirectory"), types: `alerts:${scrub("Connected")}` }],
+    });
     expect(persistedSentinel).not.toContain("00000000-0000-0000-0000-000000000020");
     expect(JSON.parse(persistedAccount).responses[0].body.value[0].subscriptionId).toBe(scrub(capturedSub));
     expect(persistedAccount).not.toContain(capturedSub);

@@ -42,6 +42,7 @@ export const PUBLIC_VOCABULARY = Object.freeze([
   "status", "current", "max", "percent", "recommendation", "severity", "resourceId", "resource", "detail",
   "alertDisplayName", "description", "timeGeneratedUtc", "remediationSteps", "compromisedEntity",
   "incidentNumber", "createdTimeUtc", "title",
+  "kind", "enabled", "dataTypes",
   "resourceIdentifiers", "azureResourceId", "entities",
   "eventDataId", "eventTimestamp", "caller", "operationName", "localizedValue", "resourceGroupName", "correlationId",
   "Microsoft.Insights", "eventtypes", "management", "values", "customerId",
