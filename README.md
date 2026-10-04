@@ -348,7 +348,8 @@ For show, `--full` also adds safe metadata; `--fields` can select that metadata 
 `--fields` selects only the list or show fields advertised by that leaf's `--help`, even when combined with `--full`; list and show field sets differ.
 DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of literal records; TXT chunks concatenate within each record, and SOA values include all seven components in host, email, serial, refresh, retry, expiry and minimum TTL order.
 `--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
-Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys, private DNS zones and any network mutation stay out of scope; `exposure` keeps its canned checks unchanged.
+Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys and private DNS zones stay out of scope; native network writes are limited to [`network nsg rule create`](#writes).
+`exposure` keeps its canned checks unchanged.
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Governance inventory reads (`policy assignment|definition|set-definition list|show`, `lock list|show`, `deny-assignment list|show`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01.

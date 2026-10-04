@@ -298,6 +298,7 @@ az-axi network dns record-set a show -g rg-demo --zone-name example.com --name w
 ```
 
 See [network reads](../../README.md#use) for collection scope, name and ARM ID selectors, DNS zone selectors and type subgroups, output fields, paging limits and the effective-rule, watcher, DNSSEC and private-DNS exclusions.
+For the native network write, see [Writes](../../README.md#writes).
 
 ```sh
 az-axi policy assignment list -g rg-demo
