@@ -5,6 +5,8 @@ import type { ResolvedProfile } from "./config.js";
 import { subscriptions } from "./discovery.js";
 import { countLine, emptyState, pickFields } from "./format.js";
 import { governanceLeafHelp } from "./governanceHelp.js";
+import { roleLeafHelp } from "./roleHelp.js";
+import { securityReadLeafHelp } from "./securityHelp.js";
 import { parseSubscriptionId, shortenResourceId } from "./scope.js";
 import { formatFlagValue } from "./shell.js";
 import { redact } from "./redact.js";
@@ -62,7 +64,10 @@ export interface GovernanceCollection {
 }
 
 export function governanceInvalid(message: string, path: string): never {
-  throw new AxiError(message, "VALIDATION_ERROR", [governanceLeafHelp(path)]);
+  const help = path.startsWith("role ") ? roleLeafHelp(path)
+    : path.startsWith("security ") ? securityReadLeafHelp(path)
+    : governanceLeafHelp(path);
+  throw new AxiError(message, "VALIDATION_ERROR", [help]);
 }
 
 export function governanceSegment(value: string, flag: string, path: string): string {
@@ -117,7 +122,7 @@ async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOpt
 
 export function governanceLimit(args: ParsedArgs, path: string): number {
   if (args.flags["limit"] === true || args.flags["limit"] === "") {
-    throw new AxiError("flag --limit needs a number", "VALIDATION_ERROR", [governanceLeafHelp(path)]);
+    governanceInvalid("flag --limit needs a number", path);
   }
   const limit = flagNumber(args, "limit") ?? DEFAULT_LIMIT;
   if (!Number.isInteger(limit) || limit <= 0) governanceInvalid("--limit must be a positive integer", path);

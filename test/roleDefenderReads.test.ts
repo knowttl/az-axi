@@ -319,6 +319,23 @@ describe("security sub-assessment list and show", () => {
 
 describe("role and Defender reads stay read-only and validate before transport", () => {
   it.each([
+    { command: "role", argv: ["definition", "show"], guidance: "definition GUID" },
+    { command: "security", argv: ["pricing", "show"], guidance: "--name / -n takes the plan name" },
+    { command: "security", argv: ["sub-assessment", "show"], guidance: "--assessment-name <assessment> plus --name" },
+    { command: "role", argv: ["definition", "list", "--limit"], guidance: "--custom-role-only" },
+    { command: "security", argv: ["pricing", "list", "--limit"], guidance: "--name / -n filters one exact plan name" },
+    { command: "security", argv: ["sub-assessment", "list", "--limit"], guidance: "--assessment-name filters one parent assessment" },
+  ])("provides command-specific recovery guidance for $command $argv", async ({ command, argv, guidance }) => {
+    const run = command === "role" ? runRole : runSecurity;
+    await expect(run(argv)).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      suggestions: [expect.stringContaining(guidance)],
+    });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ["--assessment-name", "other-assessment"],
     ["--assessed-resource-id", `/subscriptions/${SUB_A}/resourceGroups/other`],
     ["--assessment-name", "other-assessment", "--assessed-resource-id", `/subscriptions/${SUB_A}/resourceGroups/other`],
