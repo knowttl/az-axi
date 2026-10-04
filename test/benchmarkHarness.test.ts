@@ -92,11 +92,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 19, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 20, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
+    { details: {}, count: 21, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 22, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 20, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 22, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -152,11 +152,11 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[19]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
+    { omitted: [], rows: "rows[24]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[21]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[24]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[24]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
+    { omitted: [], rows: "rows[24]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
   ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped, empty Sentinel $sentinelEmpty", ({ omitted, rows, notes, duplicate, capped, sentinelEmpty }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
@@ -227,6 +227,34 @@ describe("benchmark surface", () => {
             properties: { incidentNumber: 7, title: "contoso-title", severity: "High", status: "Active", createdTimeUtc: "2026-10-02T12:34:56Z" },
           }] }),
         ];
+      } else if (scenario.name === "sentinel-alert-rules") {
+        responses = [
+          response("GET", { value: [{
+            id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws`,
+            name: "contoso-ws",
+            properties: { customerId: "00000000-0000-0000-0000-000000000020" },
+          }] }),
+          response("GET", { value: [{
+            id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws/providers/Microsoft.SecurityInsights/alertRules/contoso-rule`,
+            name: "contoso-rule",
+            kind: "Scheduled",
+            properties: { displayName: "contoso-rule", severity: "High", enabled: true },
+          }] }),
+        ];
+      } else if (scenario.name === "sentinel-data-connectors") {
+        responses = [
+          response("GET", { value: [{
+            id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws`,
+            name: "contoso-ws",
+            properties: { customerId: "00000000-0000-0000-0000-000000000020" },
+          }] }),
+          response("GET", { value: [{
+            id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws/providers/Microsoft.SecurityInsights/dataConnectors/contoso-connector`,
+            name: "contoso-connector",
+            kind: "AzureActiveDirectory",
+            properties: { tenantId, dataTypes: { alerts: { state: "Connected" } } },
+          }] }),
+        ];
       } else if (scenario.name === "monitor-activity") {
         responses = [response("GET", { value: [] })];
       } else if (scenario.name === "security-scores") {
@@ -255,7 +283,7 @@ describe("benchmark surface", () => {
       'childProcess.spawnSync = (command, argv, options) => {',
       '  const child = spawnSync(command, argv, options);',
       `  if (argv.includes("account") && argv.includes("list")) writeFileSync(${JSON.stringify(accountOutput)}, child.stdout);`,
-      `  if (argv.includes("sentinel")) writeFileSync(${JSON.stringify(sentinelOutput)}, child.stdout);`,
+      `  if (argv.includes("sentinel") && argv.includes("incident")) writeFileSync(${JSON.stringify(sentinelOutput)}, child.stdout);`,
       '  return child;',
       '};',
       'syncBuiltinESMExports();',
@@ -302,7 +330,7 @@ describe("benchmark surface", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
       "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "sentinel-alert-rules", "sentinel-data-connectors", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");

@@ -66,6 +66,10 @@ import {
   sentinelIncidentDetail,
   sentinelIncidentEntities,
   sentinelIncidents,
+  sentinelAlertRuleDetail,
+  sentinelAlertRules,
+  sentinelDataConnectorDetail,
+  sentinelDataConnectors,
   storageMetadataRows,
   keyvaultMetadataRows,
   TENANT,
@@ -134,6 +138,10 @@ const CEILINGS: Record<string, number> = {
   "sentinel incident list-entity": 221,
   "sentinel incident update": 797,
   "sentinel incident comment create": 288,
+  "sentinel alert-rule list": 244,
+  "sentinel alert-rule show": 442,
+  "sentinel data-connector list": 218,
+  "sentinel data-connector show": 204,
   exposure: 298,
   "logs query": 184,
   api: 135,
@@ -353,6 +361,34 @@ describe("token budgets", () => {
     vi.mocked(request).mockResolvedValue(sentinelIncidentEntities as never);
     await expectUnderBudget("sentinel incident list-entity", await runSentinel(["incident", "list-entity",
       "--name", sentinelIncidents[0]!.name as string,
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel alert-rule list stays under its ceiling", async () => {
+    allMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) =>
+      String(options["path"] ?? "") === "/subscriptions" ? { items: subItems() } : { items: sentinelAlertRules });
+    await expectUnderBudget("sentinel alert-rule list", await runSentinel(["alert-rule", "list",
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel alert-rule show stays under its ceiling", async () => {
+    vi.mocked(request).mockResolvedValue(sentinelAlertRuleDetail as never);
+    await expectUnderBudget("sentinel alert-rule show", await runSentinel(["alert-rule", "show",
+      "--name", sentinelAlertRules[0]!.name as string,
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel data-connector list stays under its ceiling", async () => {
+    allMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) =>
+      String(options["path"] ?? "") === "/subscriptions" ? { items: subItems() } : { items: sentinelDataConnectors });
+    await expectUnderBudget("sentinel data-connector list", await runSentinel(["data-connector", "list",
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel data-connector show stays under its ceiling", async () => {
+    vi.mocked(request).mockResolvedValue(sentinelDataConnectorDetail as never);
+    await expectUnderBudget("sentinel data-connector show", await runSentinel(["data-connector", "show",
+      "--name", sentinelDataConnectors[0]!.name as string,
       "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
   });
 
