@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { decode } from "@toon-format/toon";
+import { quoteFlagValue } from "../src/lib/shell.js";
 
 const SUB = "00000000-0000-0000-0000-000000000021";
 const OTHER = "00000000-0000-0000-0000-000000000022";
@@ -15,7 +16,7 @@ const RULE_URL = `https://management.azure.com${NSG_ID}/securityRules/${RULE}?ap
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "az-axi-nsg-rule-"));
+  dir = mkdtempSync(join(tmpdir(), "az-axi nsg-rule-"));
   writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
     reader: { auth: "token", subscriptions: [SUB] },
     writer: { auth: "token", allowWrites: true, subscriptions: [SUB] },
@@ -118,7 +119,7 @@ describe("built NSG deny-rule create, offline only", () => {
       expect(result.status, result.stdout + result.stderr).toBe(status);
       const output = decode(result.stdout) as { help: string[] };
       expect(output.help).toContain(
-        `Run \`az-axi network nsg show --profile writer --tenant ${OTHER} --config ${config} ${selector} --subscription ${SUB} --full\` for ${reason}`,
+        `Run \`az-axi network nsg show --profile writer --tenant ${OTHER} --config ${quoteFlagValue(config)} ${selector} --subscription ${SUB} --full\` for ${reason}`,
       );
       expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL }]);
       expect(records("writes.log")).toEqual([]);
@@ -240,7 +241,7 @@ describe("built NSG deny-rule create, offline only", () => {
       const output = decode(result.stdout) as { help: string[] };
       expect(output).toMatchObject({ code, status, operationUrl: "https://management.azure.com/operations/test?api-version=1" });
       expect(output.help).toContain(
-        `az-axi op status 'https://management.azure.com/operations/test?api-version=1' --config ${join(dir, "config.json")} --profile writer`,
+        `az-axi op status 'https://management.azure.com/operations/test?api-version=1' --config ${quoteFlagValue(join(dir, "config.json"))} --profile writer`,
       );
       expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PUT", "GET"]);
       expect(records("writes.log")).toEqual([expect.objectContaining({ outcome: code, httpStatus: status })]);
