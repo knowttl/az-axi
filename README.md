@@ -344,7 +344,7 @@ Monitor reads (`monitor metrics alert list|show`, `monitor action-group list|sho
 Alert and action-group lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `bySeverity`/`byEnabled` aggregates (alerts) and `byEnabled` plus receiver counts (action groups).
 Show by name needs `--name` with `--resource-group` in exactly one subscription; `--ids` takes exactly one ARM ID of the same collection.
 Alert rows default to name, severity, enabled, scopes and criteria (metric, operator, threshold); webhook action properties arrive as names only.
-Action-group rows default to name, enabled, short name and receiver type counts; detail projects safelisted receiver metadata only (webhook URLs without query or fragment, webhook property names without values; logic-app callback URLs and function trigger URLs never shown).
+Action-group rows default to name, enabled, short name and receiver type counts; detail projects safelisted receiver metadata only (webhook URLs without userinfo, query or fragment, webhook property names without values; logic-app callback URLs and function trigger URLs never shown).
 Diagnostic settings and metrics target exactly one `--resource <ARM-id>` (a resource, resource group or subscription ID for settings; a resource ID for metrics).
 Setting rows default to name, enabled log and metric categories and destinations (storage account, workspace, event hub); show returns every category with enabled flags and retention plus the destination IDs.
 Without `--metric`, metrics list returns the resource's metric definitions (metric, unit, supported aggregations) with a hint for the first metric's values; with `--metric <name>`, it returns values over a bounded window (`--start-time`/`--end-time`, default last hour, at most 31 days) with optional `--interval` and `--aggregation` (Average, Minimum, Maximum, Total, Count).
@@ -694,6 +694,7 @@ Paging hints retain `--body-file` paths; for stdin bodies, replace the hint's `<
 Use each command's `--help` for its defaults and paging limits.
 
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
+Shared redaction strips userinfo, query and fragment from URI values before projection.
 Parameter values, defaults and allowed values are redacted when their parameter name is recognized as secret or their declaration uses `secureString` or `secureObject`.
 Supplied deployment parameter values are also matched against secure declarations in the paired inline template, including nested deployments.
 Errors render as TOON with a `code` and `help[]` suggestions when available.

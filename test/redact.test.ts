@@ -7,6 +7,21 @@ const FAKE_JWT = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln";
 
 describe("redact", () => {
   it.each([
+    ["https://private-user:private-password@hooks.example.com/alerts?code=private-query#private-fragment", "https://hooks.example.com/alerts"],
+    ["HTTPS://private-user@hooks.example.com:8443/alerts", "HTTPS://hooks.example.com:8443/alerts"],
+    ["https://private%40user:private%3Apassword@[::1]:8443/alerts?code=private-query", "https://[::1]:8443/alerts"],
+    ["//private-user:private-password@hooks.example.com/alerts#private-fragment", "//hooks.example.com/alerts"],
+    ["sb://private-user:private-password@bus.example.com/queue?code=private-query", "sb://bus.example.com/queue"],
+    ["https://hooks.example.com/alerts?code=private-query#private-fragment", "https://hooks.example.com/alerts"],
+    ["mailto:oncall@example.com?subject=private-query#private-fragment", "mailto:oncall@example.com"],
+  ])("strips URI credentials, query and fragment recursively from %s", (uri, safeUri) => {
+    const input = { serviceUri: uri, receivers: [{ endpoint: uri }], uris: [uri] };
+    expect(redact(input)).toEqual({ serviceUri: safeUri, receivers: [{ endpoint: safeUri }], uris: [safeUri] });
+    expect(input.serviceUri).toBe(uri);
+    expect(redact(uri)).toBe(safeUri);
+  });
+
+  it.each([
     { type: "secureString", value: "private-value" },
     { type: "secureObject", value: { field: "private-value" } },
   ])("redacts supplied $type values using inline template declarations", ({ type, value }) => {
@@ -119,7 +134,7 @@ describe("redact", () => {
       tokenEnv: { arm: "AZ_AXI_ARM_TOKEN" },
       passwordRequired: true,
       maxTokens: 5,
-      url: "https://management.azure.com/subscriptions?api-version=2022-12-01",
+      url: "https://management.azure.com/subscriptions",
       nothing: null,
       rows: [{ resource: "a" }, { resource: "b" }],
     };

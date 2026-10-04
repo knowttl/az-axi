@@ -62,7 +62,7 @@ describe("built CLI Monitor reads offline", () => {
         data.monitorAlertRules[0].properties.actions = [{ actionGroupId: data.monitorAlertRules[0].properties.actions[0].actionGroupId,
           webHookProperties: { token: 'never-output-this-value', password: 'never-output-this-value' } }];
         data.monitorActionGroups[0].properties.webhookReceivers = [{ name: 'hook',
-          serviceUri: 'https://hooks.contoso.com/alerts?code=never-output-this-value#never-output-this-value',
+          serviceUri: 'https://never-output-this-user:never-output-this-password@hooks.contoso.com/alerts?code=never-output-this-value#never-output-this-value',
           properties: { token: 'never-output-this-value' } }];
         data.monitorActionGroups[0].properties.logicAppReceivers = [{ name: 'logic',
           resourceId: '/subscriptions/xxx/resourceGroups/rg/providers/Microsoft.Logic/workflows/wf',
@@ -235,7 +235,7 @@ describe("built CLI Monitor reads offline", () => {
     expect(decode(shown.stdout)).toMatchObject({ shortName: "agdemo", enabled: true });
   });
 
-  it("keeps webhook secrets out of compact and full alert and action-group output", () => {
+  it("keeps webhook URI credentials and secrets out of compact and full alert and action-group output", () => {
     for (const argv of [
       ["monitor", "metrics", "alert", "list"],
       ["monitor", "metrics", "alert", "list", "--full"],
@@ -249,6 +249,8 @@ describe("built CLI Monitor reads offline", () => {
       const result = run(argv, "secrets");
       expect(result.status, `${argv.join(" ")}: ${result.stdout}`).toBe(0);
       expect(result.stdout, argv.join(" ")).not.toContain("never-output-this-value");
+      expect(result.stdout, argv.join(" ")).not.toContain("never-output-this-user");
+      expect(result.stdout, argv.join(" ")).not.toContain("never-output-this-password");
     }
     const shown = decode(run(["monitor", "action-group", "show", "--ids", monitorActionGroup.id, "--full"], "secrets").stdout) as {
       receivers: Array<{ type: string; uri?: string; properties?: string[] }>;

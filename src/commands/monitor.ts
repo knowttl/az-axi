@@ -176,12 +176,6 @@ function receiverSummary(props: AnyObj): string {
   return parts.join(", ") || "none";
 }
 
-/** Webhook and function URLs without query or fragment; trigger URLs and
- * callback URLs can carry codes and SAS tokens and are never shown. */
-function safeUri(value: unknown): string {
-  return str(value).split(/[?#]/, 1)[0] ?? "";
-}
-
 function receiverDetails(props: AnyObj): AnyObj[] {
   const details: AnyObj[] = [];
   for (const entry of arrOf(props.emailReceivers)) {
@@ -191,7 +185,7 @@ function receiverDetails(props: AnyObj): AnyObj[] {
     details.push({ type: "sms", name: str(entry.name), country: str(entry.countryCode), number: str(entry.phoneNumber) });
   }
   for (const entry of arrOf(props.webhookReceivers)) {
-    details.push({ type: "webhook", name: str(entry.name), uri: safeUri(entry.serviceUri),
+    details.push({ type: "webhook", name: str(entry.name), uri: str(entry.serviceUri),
       properties: Object.keys(objOf(entry.properties)) });
   }
   for (const entry of arrOf(props.itsmReceivers)) {
