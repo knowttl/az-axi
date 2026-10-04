@@ -748,13 +748,15 @@ async function runNsgRuleCreate(
   if (flagText(args, "priority") === undefined || !Number.isInteger(priority) || priority < 100 || priority > 4096) {
     invalid("--priority must be an integer 100-4096", path);
   }
-  const direction = NSG_RULE_DIRECTIONS[flagText(args, "direction")?.toLowerCase() ?? "inbound"];
-  if (!direction) invalid("--direction must be Inbound or Outbound", path);
+  const directionKey = flagText(args, "direction")?.toLowerCase() ?? "inbound";
+  if (!Object.hasOwn(NSG_RULE_DIRECTIONS, directionKey)) invalid("--direction must be Inbound or Outbound", path);
+  const direction = NSG_RULE_DIRECTIONS[directionKey]!;
   if ((flagText(args, "access")?.toLowerCase() ?? "deny") !== "deny") {
     invalid("--access takes Deny alone; Allow rules are out of scope", path);
   }
-  const protocol = NSG_RULE_PROTOCOLS[flagText(args, "protocol")?.toLowerCase() ?? "*"];
-  if (!protocol) invalid("--protocol must be Tcp, Udp, Icmp, Esp, Ah or *", path);
+  const protocolKey = flagText(args, "protocol")?.toLowerCase() ?? "*";
+  if (!Object.hasOwn(NSG_RULE_PROTOCOLS, protocolKey)) invalid("--protocol must be Tcp, Udp, Icmp, Esp, Ah or *", path);
+  const protocol = NSG_RULE_PROTOCOLS[protocolKey]!;
   const description = flagText(args, "description");
   if (description !== undefined && description.length > 140) invalid("--description is restricted to 140 chars", path);
   const sourceAddresses = selectorList(args, "source-address-prefixes", path);
@@ -808,14 +810,14 @@ async function runNsgRuleCreate(
     name: ruleName,
     properties: {
       ...(description === undefined ? {} : { description }),
-      protocol: protocol!,
+      protocol,
       ...ranged(sourcePorts, "sourcePortRange", "sourcePortRanges"),
       ...ranged(destPorts, "destinationPortRange", "destinationPortRanges"),
       ...ranged(sourceAddresses, "sourceAddressPrefix", "sourceAddressPrefixes"),
       ...ranged(destAddresses, "destinationAddressPrefix", "destinationAddressPrefixes"),
       access: "Deny",
       priority,
-      direction: direction!,
+      direction,
     },
   };
   const full = flagBool(args, "full");
@@ -839,9 +841,9 @@ async function runNsgRuleCreate(
       ...scopeFlags,
       formatFlagValue("name", ruleName),
       formatFlagValue("priority", String(priority)),
-      formatFlagValue("direction", direction!),
+      formatFlagValue("direction", direction),
       formatFlagValue("access", "Deny"),
-      formatFlagValue("protocol", protocol!),
+      formatFlagValue("protocol", protocol),
       ...listFlags.map(([flag, values]) => formatFlagValue(flag, values.join(","))),
       ...(description === undefined ? [] : [formatFlagValue("description", description)]),
       formatFlagValue("subscription", subscription),
