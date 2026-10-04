@@ -744,10 +744,10 @@ async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseAr
 }
 
 /**
- * Native incident writes (slice 10b). Both verbs are PUTs through the merged
- * write pipeline: dry-run preview with a field-level diff by default,
- * compare-and-swap execution with ETag/If-Match, no-op detection, the write
- * log, LRO handling and the approval hook. No generic write escape.
+ * Native incident writes (slice 10b). Both verbs are PUTs through the shared
+ * write pipeline so the write log, LRO handling and approval hook apply.
+ * Incident updates merge against the same read used for the diff and ETag;
+ * comment creation uses a new generated ID on every invocation.
  */
 const UPDATE_STATUSES: Record<string, string> = { new: "New", active: "Active", closed: "Closed" };
 const UPDATE_SEVERITIES: Record<string, string> = {

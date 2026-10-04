@@ -604,10 +604,12 @@ Closing (`--status Closed`) requires `--classification`; a concrete classificati
 `--owner` takes one identity: a GUID becomes `objectId`, text with `@` becomes email, anything else becomes the assigned-to name.
 The preview re-reads the incident and shows the field-level diff plus the exact native execute command.
 Execution re-reads again, returns a no-op without a PUT or log entry when nothing would change, and otherwise sends one merged `PUT .../Microsoft.SecurityInsights/incidents/<incident-id>?api-version=2025-09-01` (GET-merge-PUT, as az does) through the shared pipeline.
-Compare-and-swap uses the fresh re-read ETag; pass `--if-match <etag>` from the reviewed preview to pin a reviewed value.
+The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
+Without `--if-match`, execution uses the fresh re-read ETag when available, protecting only against changes between that read and the PUT.
 
 `sentinel incident comment create` appends one comment to exactly one Sentinel incident, selected with `--incident-id` (GUID or number, with workspace selectors) or `--ids`.
-`--message` is required; each invocation generates a new comment GUID.
+`--message` is required; each invocation generates a new comment GUID, so executing the preview's command uses a fresh ID rather than the previewed ID.
+Existing comments cannot be edited with this command; repeated execution adds another comment.
 The preview reports the new comment resource; execution sends one `PUT .../incidents/<incident-id>/comments/<comment-id>?api-version=2025-09-01` with `{properties:{message}}` through the shared pipeline.
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
 `--if-match` applies to incident updates.
