@@ -146,6 +146,20 @@ describe("offline catalogue maintenance and CLI boundary", () => {
     expect(built).toEqual(AZ_READ_CATALOGUE);
   });
 
+  it("emits a structured CLI refusal when generation metadata is missing", () => {
+    const catalogueUrl = new URL("../dist/lib/azReadCatalogue.js", import.meta.url).href;
+    const preload = `${guard}\nconst { AZ_READ_CATALOGUE } = await import(${JSON.stringify(catalogueUrl)}); delete AZ_READ_CATALOGUE.generatedFrom;`;
+    const result = spawnSync(process.execPath, [
+      "--import", `data:text/javascript,${encodeURIComponent(preload)}`,
+      "dist/bin/az-axi.js", "az", "group", "show", "--name", "demo",
+    ], { encoding: "utf8" });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toBe("");
+    expect(decode(result.stdout)).toMatchObject({
+      code: "VALIDATION_ERROR", error: expect.stringContaining("catalogue version drift"),
+    });
+  });
+
   it("never enables passthrough writes through the built CLI", () => {
     const result = spawnSync(process.execPath, [...guardedArgs, "dist/bin/az-axi.js", "az", "group", "show", "--name", "demo", "--execute"], {
       encoding: "utf8", env: { ...process.env, AZ_AXI_READ_ONLY: "1" },

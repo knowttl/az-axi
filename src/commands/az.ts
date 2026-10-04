@@ -19,9 +19,8 @@ interface DriftCheckCatalogue {
   entries: ReadonlyArray<{ effect?: unknown; runtime?: { version?: unknown } }>;
 }
 
-/** Fail closed when the shipped catalogue disagrees with what it was generated from.
- * Installed-runtime drift is refused later against the version probe; this refuses
- * stale or hand-edited catalogue data before any probe or child execution. */
+/** Refuse schema, read-effect and generation-version inconsistencies before any probe.
+ * Installed-runtime drift is refused later against the version probe. */
 export function assertNoCatalogueDrift(catalogue: DriftCheckCatalogue = AZ_READ_CATALOGUE): void {
   const generated = catalogue.generatedFrom;
   if (catalogue.schemaVersion !== 1 || typeof generated?.azureCliVersion !== "string") {

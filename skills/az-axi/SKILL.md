@@ -141,7 +141,7 @@ See [key vault metadata reads](../../README.md#key-vault-metadata-reads) for the
 
 See [ACR metadata reads](../../README.md#acr-metadata-reads) for the registry commands, required flags, Entra-only token exchange, safe properties and paging limits.
 
-See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
+See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, catalogue and runtime drift refusals, credential exclusions and maintenance workflow.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
