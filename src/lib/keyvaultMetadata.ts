@@ -18,8 +18,8 @@ export interface KeyVaultRead {
 
 export interface KeyVaultPage {
   rows: Array<Record<string, string | boolean>>;
-  /** The service reported more pages after the returned rows. */
   truncated: boolean;
+  truncationReason?: "limit" | "scan";
 }
 
 const COLLECTIONS: Record<KeyVaultKind, string> = {
@@ -61,7 +61,7 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
   if (read.verb === "show" && (!read.name || !/^[0-9A-Za-z-]{1,127}$/.test(read.name))) {
     fail("--name requires a key vault object name (letters, digits and hyphens, up to 127 characters)");
   }
-  const host = `${read.vault}.vault.azure.net`;
+  const host = `${read.vault.toLowerCase()}.vault.azure.net`;
   assertEffectAllows("read");
   const signal = AbortSignal.timeout(30_000);
   const credential = await resolveCredential(profile, "vault", signal);
@@ -71,7 +71,8 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
   let url: string | undefined =
     `https://${host}/${collection}?api-version=${KEYVAULT_DATA_PLANE}&maxresults=${Math.min(PAGE_SIZE, read.limit)}`;
   let truncated = false;
-  for (let page = 0; page < MAX_PAGES && url && rows.length < read.limit; page++) {
+  let page = 0;
+  for (; page < MAX_PAGES && url && rows.length < read.limit; page++) {
     let response: Response;
     try {
       response = await fetch(url, { method: "GET", redirect: "error", signal, headers });
@@ -90,14 +91,15 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
       const row = toRow(read.kind, item);
       if (read.verb === "show" && row.name !== read.name) continue;
       if (read.expiringWithinMs !== undefined && !expiresWithin(row, read.expiringWithinMs, Date.now())) continue;
-      rows.push(row);
-      if (rows.length >= read.limit || read.verb === "show") break;
+      if (rows.length < read.limit) rows.push(row);
+      else truncated = true;
+      if (read.verb === "show") break;
     }
     if (read.verb === "show" && rows.length) return { rows, truncated: false };
     url = nextPage(host, collection, body);
   }
   if (url) truncated = true;
-  return { rows: rows.slice(0, read.limit), truncated };
+  return { rows, truncated, ...(truncated ? { truncationReason: url && page === MAX_PAGES ? "scan" as const : "limit" as const } : {}) };
 }
 
 function failBody(): never {
@@ -143,8 +145,7 @@ function toRow(kind: KeyVaultKind, item: unknown): Record<string, string | boole
   const id = typeof record.id === "string" ? record.id : typeof record.kid === "string" ? record.kid : undefined;
   const segments = typeof id === "string" ? id.split("/") : [];
   const at = segments.findIndex((part) => part === "secrets" || part === "keys" || part === "certificates");
-  // List identifiers always carry a version segment after the name.
-  const name = at >= 0 && segments.length === at + 3 ? segments[at + 1] : undefined;
+  const name = at >= 0 && (segments.length === at + 2 || segments.length === at + 3) ? segments[at + 1] : undefined;
   const attributes = record.attributes && typeof record.attributes === "object"
     ? record.attributes as Record<string, unknown>
     : {};

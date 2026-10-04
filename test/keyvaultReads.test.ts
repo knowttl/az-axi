@@ -41,6 +41,26 @@ describe("key vault read commands", () => {
     read.mockResolvedValue({ rows: [], truncated: true });
     expect(await run([...args, "--profile", "ci"])).toMatchObject({ count: "0+ secrets", help: [expect.stringContaining("--limit 100")] });
   });
+  it.each([
+    ["secret", "secrets"], ["key", "keys"], ["certificate", "certificates"],
+  ] as const)("%s discloses an incomplete empty scan of %s", async (kind, noun) => {
+    read.mockResolvedValue({ rows: [], truncated: true, truncationReason: "scan" });
+    expect(await run([kind, "list", "--vault-name", "kvexample", "--expiring-within", "30d"]))
+      .toMatchObject({
+        count: `0+ ${noun} expiring within 30d`,
+        [noun]: `No matching ${noun} in scanned pages of kvexample expiring within 30d; listing incomplete`,
+        help: ["Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"],
+      });
+  });
+  it("reports partial rows when the scan cap stops a nonempty list", async () => {
+    read.mockResolvedValue({ rows: [{ name: "example", enabled: true, expiresOn: "" }], truncated: true, truncationReason: "scan" });
+    expect(await run(args)).toMatchObject({ count: "1+ secrets", secrets: [{ name: "example" }], help: [expect.stringContaining("40-page scan cap")] });
+  });
+  it("does not suggest raising the row limit beyond its maximum", async () => {
+    read.mockResolvedValue({ rows: [{ name: "example" }], truncated: true, truncationReason: "limit" });
+    expect(await run([...args, "--limit", "1000"]))
+      .toMatchObject({ count: "1+ secrets", help: ["Listing incomplete at the maximum --limit of 1000"] });
+  });
   it("passes an expiry window through and scopes the count", async () => {
     const result = await run([...args, "--expiring-within", "30d"]);
     expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ expiringWithinMs: 30 * 86_400_000 }));

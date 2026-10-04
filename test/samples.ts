@@ -32,17 +32,17 @@ export const storageMetadataRows = {
 // certificates/get-certificates (synthetic). Epoch attributes are 2026-10-04T00:00:00Z (created),
 // +30d (expiresOn) and -1d (notBefore). Unexpected members must never reach output rows.
 export const keyvaultSecrets = JSON.stringify({ value: [{
-  id: "https://kvexample.vault.azure.net/secrets/example-secret/abc123", contentType: "text/plain",
+  id: "https://kvexample.vault.azure.net/secrets/example-secret", contentType: "text/plain",
   attributes: { enabled: true, created: 1791072000, updated: 1791072000, exp: 1793664000, nbf: 1790985600 },
   tags: { owner: "never-output-this-value" }, managed: false, value: "never-output-this-value",
 }] });
 export const keyvaultKeys = JSON.stringify({ value: [{
-  kid: "https://kvexample.vault.azure.net/keys/example-key/abc123",
+  kid: "https://kvexample.vault.azure.net/keys/example-key",
   attributes: { enabled: true, created: 1791072000, updated: 1791072000, exp: 1793664000 },
   tags: { owner: "never-output-this-value" }, managed: true, key: { kty: "never-output-this-value" },
 }] });
 export const keyvaultCertificates = JSON.stringify({ value: [{
-  id: "https://kvexample.vault.azure.net/certificates/example-cert/abc123", x5t: "dGVzdA",
+  id: "https://kvexample.vault.azure.net/certificates/example-cert", x5t: "dGVzdA",
   attributes: { enabled: false, created: 1791072000, updated: 1791072000 },
   tags: { owner: "never-output-this-value" }, managed: false, cer: "never-output-this-value",
 }] });

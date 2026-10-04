@@ -126,6 +126,73 @@ describe("key vault metadata transport", () => {
     expect(result.rows).toHaveLength(1);
   });
 
+  it.each([
+    ["secret", "secrets", "id"], ["secret", "secrets", "kid"],
+    ["key", "keys", "id"], ["key", "keys", "kid"],
+    ["certificate", "certificates", "id"], ["certificate", "certificates", "kid"],
+  ] as const)("%s accepts base identifiers through %s/%s", async (kind, collection, field) => {
+    fetchMock.mockImplementation(async () => json(JSON.stringify({ value: [
+      { [field]: `https://kvexample.vault.azure.net/${collection}/example` },
+    ] })));
+    expect((await requestKeyVaultMetadata(profile, { kind, verb: "list", vault: "kvexample", limit: 50 })).rows)
+      .toEqual([expect.objectContaining({ name: "example" })]);
+    expect((await requestKeyVaultMetadata(profile, { kind, verb: "show", vault: "kvexample", name: "example", limit: 50 })).rows)
+      .toEqual([expect.objectContaining({ name: "example" })]);
+  });
+
+  it.each([
+    ["secret", "secrets", "list"], ["secret", "secrets", "show"],
+    ["key", "keys", "list"], ["key", "keys", "show"],
+    ["certificate", "certificates", "list"], ["certificate", "certificates", "show"],
+  ] as const)("%s %s %s follows continuations for uppercase vault names", async (kind, collection, verb) => {
+    fetchMock
+      .mockResolvedValueOnce(json(JSON.stringify({ value: [], nextLink: `https://kvexample.vault.azure.net/${collection}?api-version=7.4&$skiptoken=abc` })))
+      .mockResolvedValueOnce(json(JSON.stringify({ value: [{ id: `https://kvexample.vault.azure.net/${collection}/example` }] })));
+    expect((await requestKeyVaultMetadata(profile, { kind, verb, vault: "KVEXAMPLE", name: "example", limit: 50 })).rows)
+      .toEqual([expect.objectContaining({ name: "example" })]);
+    expect(new URL(firstUrl()).hostname).toBe("kvexample.vault.azure.net");
+    expect(allPaths()).toEqual([`/${collection}`, `/${collection}`]);
+  });
+
+  it.each([
+    ["secret", "secrets", undefined], ["key", "keys", undefined], ["certificate", "certificates", undefined],
+    ["secret", "secrets", 86_400_000], ["key", "keys", 86_400_000], ["certificate", "certificates", 86_400_000],
+  ] as const)("%s marks omitted final-page matches with expiry window %s/%s", async (kind, collection, expiringWithinMs) => {
+    vi.spyOn(Date, "now").mockReturnValue(1791072000000);
+    const value = Array.from({ length: 25 }, (_, i) => ({
+      id: `https://kvexample.vault.azure.net/${collection}/example-${i}`, attributes: { exp: 1791072060 },
+    }));
+    fetchMock
+      .mockResolvedValueOnce(json(JSON.stringify({ value, nextLink: `https://kvexample.vault.azure.net/${collection}?api-version=7.4&$skiptoken=abc` })))
+      .mockResolvedValueOnce(json(JSON.stringify({ value })));
+    const result = await requestKeyVaultMetadata(profile, { kind, verb: "list", vault: "kvexample", limit: 30, expiringWithinMs });
+    expect(result.rows).toHaveLength(30);
+    expect(result).toMatchObject({ truncated: true, truncationReason: "limit" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not mark truncation for final-page items excluded by expiry", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1791072000000);
+    fetchMock.mockResolvedValue(json(JSON.stringify({ value: [
+      { id: "https://kvexample.vault.azure.net/secrets/soon", attributes: { exp: 1791072060 } },
+      { id: "https://kvexample.vault.azure.net/secrets/never" },
+    ] })));
+    expect(await requestKeyVaultMetadata(profile, { kind: "secret", verb: "list", vault: "kvexample", limit: 1, expiringWithinMs: 86_400_000 }))
+      .toMatchObject({ rows: [expect.objectContaining({ name: "soon" })], truncated: false });
+  });
+
+  it.each([
+    ["secret", "secrets"], ["key", "keys"], ["certificate", "certificates"],
+  ] as const)("%s distinguishes the scan cap on %s from the row limit", async (kind, collection) => {
+    fetchMock.mockImplementation(async () => json(JSON.stringify({
+      value: [{ id: `https://kvexample.vault.azure.net/${collection}/never` }],
+      nextLink: `https://kvexample.vault.azure.net/${collection}?api-version=7.4&$skiptoken=abc`,
+    })));
+    expect(await requestKeyVaultMetadata(profile, { kind, verb: "list", vault: "kvexample", limit: 50, expiringWithinMs: 86_400_000 }))
+      .toEqual({ rows: [], truncated: true, truncationReason: "scan" });
+    expect(fetchMock).toHaveBeenCalledTimes(40);
+  });
+
   it.each([401, 403, 404])("HTTP %s never falls back or reads an error body", async (status) => {
     fetchMock.mockResolvedValue(new Response("credential-value", { status }));
     await expect(requestKeyVaultMetadata(profile, { kind: "secret", verb: "list", vault: "kvexample", limit: 50 }))
@@ -157,7 +224,7 @@ describe("key vault metadata transport", () => {
     },
   );
 
-  it.each(["not json", JSON.stringify({}), JSON.stringify({ value: {} }), JSON.stringify({ value: [{ id: "https://kvexample.vault.azure.net/secrets/no-version" }] })])(
+  it.each(["not json", JSON.stringify({}), JSON.stringify({ value: {} }), JSON.stringify({ value: [{ id: "https://kvexample.vault.azure.net/secrets/" }] })])(
     "refuses malformed bodies", async (body) => {
       fetchMock.mockResolvedValue(json(body));
       await expect(requestKeyVaultMetadata(profile, { kind: "secret", verb: "list", vault: "kvexample", limit: 50 }))
