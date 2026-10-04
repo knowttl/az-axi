@@ -854,10 +854,16 @@ function enumFlag(
 }
 
 /** One identity: a GUID becomes objectId, text with @ becomes email, else the assigned-to name. */
-function ownerInfo(raw: string): IncidentOwner {
+function ownerInfo(raw: string, current: IncidentOwner | undefined): IncidentOwner {
   const value = raw.trim();
-  if (GUID.test(value)) return { objectId: value };
-  if (value.includes("@")) return { email: value, userPrincipalName: value };
+  if (GUID.test(value)) {
+    return current?.objectId?.toLowerCase() === value.toLowerCase() ? current : { objectId: value };
+  }
+  if (value.includes("@")) {
+    if (current && [current.email, current.userPrincipalName].some((identity) => identity?.toLowerCase() === value.toLowerCase())) return current;
+    return { email: value, userPrincipalName: value };
+  }
+  if (current?.assignedTo === value) return current;
   return { assignedTo: value };
 }
 
@@ -925,7 +931,6 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
   const overlay: IncidentProperties = {};
   if (status) overlay.status = status;
   if (severity) overlay.severity = severity;
-  if (owner) overlay.owner = ownerInfo(owner);
   if (classification) {
     overlay.classification = classification;
     if (classificationReason) overlay.classificationReason = classificationReason;
@@ -933,7 +938,8 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
   }
   const mergeBody = (value: unknown) => {
     const current = value as Incident;
-    return { ...current, properties: { ...(current.properties ?? {}), ...overlay } };
+    return { ...current, properties: { ...(current.properties ?? {}), ...overlay,
+      ...(owner ? { owner: ownerInfo(owner, current.properties?.owner) } : {}) } };
   };
 
   const shape = { resource: "arm" as const, method: "PUT", path: selection.path };
@@ -964,7 +970,7 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
       selectors, timeoutMs, noWait: flagBool(args, "no-wait") });
   }
   const preview = await dryRun({ profile, resource: "arm", method: "PUT", path: selection.path, cls,
-    body: undefined, mergeBody, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
+    body: undefined, mergeBody, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors, full: flagBool(args, "full") });
   return { ...preview, protection: UPDATE_PROTECTION,
     help: [`\`${command(typeof preview.etag === "string" ? preview.etag : ifMatch)}\``] };
 }
@@ -1011,7 +1017,7 @@ async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeo
       selectors, timeoutMs, noWait: flagBool(args, "no-wait") });
   }
   const preview = await dryRun({ profile, resource: "arm", method: "PUT", path, cls,
-    body, apiVersion: SENTINEL_INCIDENTS, selectors });
+    body, apiVersion: SENTINEL_INCIDENTS, selectors, full: flagBool(args, "full") });
   return { ...preview, protection: COMMENT_PROTECTION,
     help: [`\`${command}\``] };
 }

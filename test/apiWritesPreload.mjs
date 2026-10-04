@@ -21,6 +21,8 @@ const incidentBody = (name, incidentNumber) => ({
     status: process.env.AZ_AXI_TEST_INCIDENT_STATUS ?? "Active",
     severity: process.env.AZ_AXI_TEST_INCIDENT_SEVERITY ?? "High",
     classification: process.env.AZ_AXI_TEST_INCIDENT_CLASSIFICATION ?? "Undetermined",
+    ...(process.env.AZ_AXI_TEST_INCIDENT_OWNER === undefined ? {} : { owner: JSON.parse(process.env.AZ_AXI_TEST_INCIDENT_OWNER) }),
+    ...(process.env.AZ_AXI_TEST_INCIDENT_DESCRIPTION === undefined ? {} : { description: process.env.AZ_AXI_TEST_INCIDENT_DESCRIPTION }),
     incidentNumber,
   },
 });

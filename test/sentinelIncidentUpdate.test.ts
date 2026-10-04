@@ -11,6 +11,12 @@ const OTHER = "00000000-0000-0000-0000-000000000022";
 const INCIDENT = "00000000-0000-0000-0000-000000000063";
 const INCIDENT_ID = `/subscriptions/${SUB}/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/${INCIDENT}`;
 const WORKSPACE_ID = "00000000-0000-0000-0000-000000000010";
+const EXPANDED_OWNER = {
+  objectId: "00000000-0000-0000-0000-0000000000a0",
+  email: "owner@contoso.com",
+  userPrincipalName: "owner-login@contoso.com",
+  assignedTo: "Existing Owner",
+};
 let dir: string;
 
 beforeEach(() => {
@@ -43,6 +49,8 @@ interface CliOptions {
   incidentStatus?: string;
   incidentSeverity?: string;
   incidentClassification?: string;
+  incidentOwner?: Record<string, string>;
+  incidentDescription?: string;
 }
 
 function cli(extra: string[] = [], options: CliOptions = {}) {
@@ -95,6 +103,8 @@ function cli(extra: string[] = [], options: CliOptions = {}) {
   if (options.incidentStatus !== undefined) env.AZ_AXI_TEST_INCIDENT_STATUS = options.incidentStatus;
   if (options.incidentSeverity !== undefined) env.AZ_AXI_TEST_INCIDENT_SEVERITY = options.incidentSeverity;
   if (options.incidentClassification !== undefined) env.AZ_AXI_TEST_INCIDENT_CLASSIFICATION = options.incidentClassification;
+  if (options.incidentOwner !== undefined) env.AZ_AXI_TEST_INCIDENT_OWNER = JSON.stringify(options.incidentOwner);
+  if (options.incidentDescription !== undefined) env.AZ_AXI_TEST_INCIDENT_DESCRIPTION = options.incidentDescription;
   return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
     "dist/bin/az-axi.js", ...argv], { encoding: "utf8", env });
 }
@@ -205,9 +215,9 @@ describe("built Sentinel incident update, offline only", () => {
     ["hunter@contoso.com", { email: "hunter@contoso.com", userPrincipalName: "hunter@contoso.com" }],
     ["Casey Hunter", { assignedTo: "Casey Hunter" }],
   ])("maps --owner %s to its owner shape", (owner, shape) => {
-    const result = cli(["--execute"], { status: "active", owner, classification: null, reason: null });
+    const result = cli(["--execute"], { status: "active", owner, classification: null, reason: null, incidentOwner: EXPANDED_OWNER });
     expect(result.status, result.stdout + result.stderr).toBe(0);
-    expect((putCall()?.body as { properties?: unknown })?.properties).toMatchObject({ owner: shape });
+    expect((putCall()?.body as { properties?: { owner?: unknown } })?.properties?.owner).toEqual(shape);
   });
 
   it.each([
@@ -273,6 +283,65 @@ describe("built Sentinel incident update, offline only", () => {
     expect(result.stdout).toContain(scenario === "precondition" ? "PRECONDITION_FAILED" : scenario === "failure" ? "OPERATION_FAILED" : scenario === "no-wait" ? "operation accepted" : "result: done");
     expect(records("writes.log")).toHaveLength(1);
     expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toHaveLength(1);
+  });
+});
+
+describe.each([
+  { flags: [], output: "noop: true" },
+  { flags: ["--execute"], output: "already in desired state (no-op)" },
+])("Sentinel expanded owner no-op with $flags", ({ flags, output }) => {
+  it.each([
+    EXPANDED_OWNER.objectId,
+    EXPANDED_OWNER.objectId.toUpperCase(),
+    EXPANDED_OWNER.email,
+    EXPANDED_OWNER.email.toUpperCase(),
+    EXPANDED_OWNER.userPrincipalName,
+    EXPANDED_OWNER.assignedTo,
+  ])("keeps the current owner for --owner %s", (owner) => {
+    const result = cli(flags, { status: null, classification: null, reason: null,
+      owner, incidentOwner: EXPANDED_OWNER });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(output);
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toEqual([]);
+    expect(records("writes.log")).toEqual([]);
+  });
+});
+
+describe("Sentinel owner metadata preservation", () => {
+  it.each([
+    EXPANDED_OWNER.objectId,
+    EXPANDED_OWNER.email,
+    EXPANDED_OWNER.userPrincipalName,
+    EXPANDED_OWNER.assignedTo,
+  ])("preserves a matching owner when changing severity with --owner %s", (owner) => {
+    const result = cli(["--execute"], { status: null, classification: null, reason: null,
+      severity: "low", owner, incidentOwner: EXPANDED_OWNER });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect((putCall()?.body as { properties?: unknown })?.properties).toMatchObject({
+      severity: "Low", owner: EXPANDED_OWNER,
+    });
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toHaveLength(1);
+  });
+});
+
+describe.each([
+  { route: "update" as const, field: "description" },
+  { route: "comment" as const, field: "message" },
+])("Sentinel $route preview body", ({ route, field }) => {
+  it("shows the complete body with --full", () => {
+    const text = "x".repeat(5000);
+    const result = cli(["--full"], { route, incidentDescription: text, message: text });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect((decode(result.stdout) as { body: unknown }).body).toMatchObject({ properties: { [field]: text } });
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toEqual([]);
+  });
+
+  it("truncates the body by default", () => {
+    const text = "x".repeat(5000);
+    const result = cli([], { route, incidentDescription: text, message: text });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect((decode(result.stdout) as { body: unknown }).body).toEqual(expect.any(String));
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toEqual([]);
   });
 });
 
