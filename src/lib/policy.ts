@@ -80,6 +80,7 @@ const SECRET_SET = lower(SECRET_ACTIONS);
 const SECRET_PARAMETER_SET = lower(SECRET_PARAMETER_ACTIONS);
 const DESTRUCTIVE_SET = lower(DESTRUCTIVE_ACTIONS);
 const PROTECTED_SET = lower(PROTECTED_AUTHORIZATION_TYPES);
+const GUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Lower-cased, percent-decoded, non-empty path segments; ARM decodes segments before routing. */
 function segmentsOf(path: string): string[] {
@@ -119,6 +120,24 @@ function isQueryPost(resource: Resource, s: string[]): boolean {
   );
 }
 
+/**
+ * Reviewed read POSTs: Sentinel incident related alerts and entities.
+ * Both operations are bodyless management-plane POSTs that only return data
+ * (`Incidents_ListAlerts` on `.../incidents/{id}/alerts`, `Incidents_ListEntities`
+ * on `.../incidents/{id}/entities`, api-version 2025-09-01). The rule names the
+ * exact actions, never a generic POST-is-read shape: the provider, the
+ * `incidents` collection, one GUID incident and the terminal action must all
+ * match, so sibling actions (comments, relations, bookmarks) stay writes.
+ */
+function isSentinelIncidentRelatedRead(s: string[]): boolean {
+  if (s.length < 5) return false;
+  const action = s[s.length - 1];
+  if (action !== "alerts" && action !== "entities") return false;
+  if (s[s.length - 3] !== "incidents") return false;
+  if (!GUID_SEGMENT.test(s[s.length - 2] ?? "")) return false;
+  return s.includes("microsoft.securityinsights");
+}
+
 function touchesProtectedAuthorizationType(s: string[]): boolean {
   return s.some((segment, i) => segment === "microsoft.authorization" && PROTECTED_SET.has(s[i + 1] ?? ""));
 }
@@ -130,6 +149,7 @@ export function classifyRequest({ resource, method, path }: RequestShape): Reque
   const last = s[s.length - 1] ?? "";
   if (verb === "POST") {
     if (isQueryPost(resource, s)) return "query";
+    if (resource === "arm" && isSentinelIncidentRelatedRead(s)) return "query";
     if (SECRET_SET.has(last)) return "secret";
     if (s[s.length - 6] === "providers" && s[s.length - 5] === "microsoft.search" &&
         s[s.length - 4] === "searchservices" && SECRET_PARAMETER_SET.has(s[s.length - 2] ?? "")) return "secret";

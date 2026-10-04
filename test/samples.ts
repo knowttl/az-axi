@@ -296,6 +296,79 @@ export const sentinelIncidents = [
 
 export const sentinelIncidentDetail = sentinelIncidents[0];
 
+// source: securityinsights stable/2025-09-01 examples/incidents/GetAllIncidentAlerts.json
+// (Incidents_ListAlerts response shape `{ value: SecurityAlert[] }`, identifiers replaced).
+const sentinelIncidentAlert = (name: string, overrides: Record<string, unknown> = {}) => ({
+  id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/Entities/${name}`,
+  name,
+  type: "Microsoft.SecurityInsights/Entities",
+  kind: "SecurityAlert",
+  properties: {
+    systemAlertId: name,
+    tactics: ["Persistence"],
+    alertDisplayName: "myAlert",
+    confidenceLevel: "Unknown",
+    severity: "Low",
+    vendorName: "Microsoft",
+    productName: "Azure Security Center",
+    alertType: "myAlert",
+    status: "New",
+    endTimeUtc: "2026-09-30T13:15:30Z",
+    startTimeUtc: "2026-09-30T13:00:30Z",
+    timeGenerated: "2026-09-30T13:15:30Z",
+    resourceIdentifiers: [{ type: "LogAnalytics", workspaceId: WORKSPACE, subscriptionId: SUB_A, resourceGroup: "rg-demo" }],
+    friendlyName: "myAlert",
+  },
+  ...overrides,
+});
+
+export const sentinelIncidentAlerts = [
+  sentinelIncidentAlert(SYN(92)),
+  sentinelIncidentAlert(SYN(93), { properties: {
+    systemAlertId: SYN(93),
+    tactics: ["Exfiltration"],
+    alertDisplayName: "Unusual outbound volume",
+    confidenceLevel: "High",
+    severity: "Medium",
+    vendorName: "Microsoft",
+    productName: "Azure Security Center",
+    alertType: "outboundVolume",
+    status: "Active",
+    endTimeUtc: "2026-09-29T10:00:00Z",
+    startTimeUtc: "2026-09-29T08:00:00Z",
+    timeGenerated: "2026-09-29T10:00:00Z",
+    resourceIdentifiers: [],
+    friendlyName: "Unusual outbound volume",
+  } }),
+];
+
+// source: securityinsights stable/2025-09-01 examples/incidents/GetAllIncidentEntities.json
+// (Incidents_ListEntities response shape `{ entities, metaData }`, identifiers replaced).
+export const sentinelIncidentEntities = {
+  entities: [{
+    id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/Entities/${SYN(94)}`,
+    name: SYN(94),
+    type: "Microsoft.SecurityInsights/Entities",
+    kind: "Account",
+    properties: {
+      friendlyName: "administrator",
+      accountName: "administrator",
+      ntDomain: "contoso",
+    },
+  }, {
+    id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/Entities/${SYN(95)}`,
+    name: SYN(95),
+    type: "Microsoft.SecurityInsights/Entities",
+    kind: "Host",
+    properties: {
+      friendlyName: "contoso-vm",
+      hostName: "contoso-vm",
+      dnsDomain: "contoso.com",
+    },
+  }],
+  metaData: [{ entityKind: "Account", count: 1 }, { entityKind: "Host", count: 1 }],
+};
+
 // source: Defender for Cloud Resource Graph samples for securityresources (identifiers replaced)
 const assessment = (recommendation: string, severity: string, status: string, resource: string) => ({
   recommendation,

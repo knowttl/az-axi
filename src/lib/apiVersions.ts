@@ -159,6 +159,14 @@ export const DEFENDER_SECURE_SCORES = "2020-01-01";
  * New/Active/Closed and severity is High/Medium/Low/Informational.
  * Related alerts/entities and incident updates are separate operations and are
  * not covered by this read contract.
+ *
+ * Related alerts (`Incidents_ListAlerts`, POST `.../incidents/{incidentId}/alerts`)
+ * and entities (`Incidents_ListEntities`, POST `.../incidents/{incidentId}/entities`)
+ * are bodyless management-plane reads under this same version: alerts return
+ * `{ value: SecurityAlert[] }`, entities return `{ entities: Entity[],
+ * metaData: IncidentEntitiesResultsMetadata[] }`, and neither response pages.
+ * Verified: 2026-10-04 against the same stable spec tree and the
+ * GetAllIncidentAlerts/GetAllIncidentEntities examples.
  */
 export const SENTINEL_INCIDENTS = "2025-09-01";
 

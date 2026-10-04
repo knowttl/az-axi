@@ -588,8 +588,9 @@ Reference: https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/ge
 Show accepts the incident GUID name, the sequential incident number (resolved through a bounded list), or exactly one `--ids` incident ARM ID; `--incident-id` aliases `--name`.
 Workspace targeting is `--workspace-name` plus `--resource-group`, or `--workspace <alias|guid>` resolved through the ARM workspace list by customer ID; exactly one subscription is required and management-group scope is refused.
 Status, severity, owner and time-window filters apply client-side over bounded paging (10 pages, lower-bound disclosure).
-Related alerts/entities, analytics rules, connectors and incident updates stay out of scope.
+Related alerts (`sentinel incident list-alert`, alias `sentinel incident alert list`) and entities (`sentinel incident list-entity`, alias `sentinel incident entity list`) read one incident's related records through reviewed bodyless POSTs classified as exact `query` reads in policy (never a generic POST-is-read rule); analytics rules, connectors and incident updates stay out of scope.
 Reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/get?view=rest-securityinsights-2025-09-01
+Related reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list-alerts?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list-entities?view=rest-securityinsights-2025-09-01
 
 ### 6.5 `rg query`
 

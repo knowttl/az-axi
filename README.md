@@ -255,6 +255,8 @@ az-axi monitor log-analytics workspace list -g rg-demo
 az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
 az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscription>
 az-axi sentinel incident show --name 3177 --workspace sentinel
+az-axi sentinel incident list-alert --name 3177 --workspace sentinel
+az-axi sentinel incident list-entity --name 3177 --workspace sentinel
 ```
 
 Sentinel incident triage uses read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -272,7 +274,11 @@ Show returns the description (truncated at 200 characters unless `--full`), owne
 Lists follow up to 10 pages and mark incomplete counts as lower bounds.
 Number-based show searches the same bounded list and reports `INCOMPLETE_SEARCH` if the number is absent from fetched pages while more pages exist; use the GUID or ARM ID for a direct lookup.
 Workspace GUID resolution stops at 100 pages and reports `INCOMPLETE_SEARCH` if more pages exist and uniqueness cannot be established; use workspace name and resource group to bypass discovery.
-Related alerts and entities, analytics rules, connectors and incident updates are out of scope; query workspace tables with `logs query` to investigate further.
+Related alerts (`incident list-alert`, alias `incident alert list`) and entities (`incident list-entity`, alias `incident entity list`) read one incident's related records through reviewed bodyless POSTs (api-version 2025-09-01) with the same incident and workspace selectors as show.
+Alert rows default to name, alert, severity, status and time with `bySeverity` and `byStatus` aggregates; `--full` adds ARM IDs, tactics and product names.
+Entity rows default to kind, entity and name with `byKind` aggregates from the server metadata; `--full` adds ARM IDs.
+Neither related response pages.
+Analytics rules, connectors and incident updates are out of scope; query workspace tables with `logs query` to investigate further.
 Management-group scope is unsupported; select one subscription explicitly.
 
 Discovery uses live ARM GETs.
@@ -334,6 +340,8 @@ az-axi defender assessments --severity High             # recommendations groupe
 az-axi defender score                                   # secure score per subscription, lowest first
 az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscription>  # Sentinel incidents, newest first
 az-axi sentinel incident show --name 3177 --workspace sentinel  # one incident by GUID or number
+az-axi sentinel incident list-alert --name 3177 --workspace sentinel  # related alerts for one incident
+az-axi sentinel incident list-entity --name 3177 --workspace sentinel  # related entities for one incident
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
 az-axi logs query --file hunt.kql --workspace sentinel   # Log Analytics KQL (see Query logs)
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request

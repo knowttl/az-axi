@@ -57,6 +57,10 @@ The offline test suite checks this list against the registry.
 | `az-axi security secure-scores list` | native | read |
 | `az-axi sentinel incident list` | native | read |
 | `az-axi sentinel incident show` | native | read |
+| `az-axi sentinel incident list-alert` | native | read |
+| `az-axi sentinel incident alert list` | native | read |
+| `az-axi sentinel incident list-entity` | native | read |
+| `az-axi sentinel incident entity list` | native | read |
 | `az-axi exposure` | native | read |
 | `az-axi monitor log-analytics query` | native | read |
 | `az-axi logs query` | native | read |
@@ -212,6 +216,8 @@ returns description, remediation steps, and an entities summary.
 ```sh
 az-axi sentinel incident list -g rg-demo --workspace-name logs-demo
 az-axi sentinel incident show --name 3177 --workspace sentinel
+az-axi sentinel incident list-alert --name 3177 --workspace sentinel
+az-axi sentinel incident list-entity --name 3177 --workspace sentinel
 ```
 
 See [Sentinel incident triage](../../README.md#use) for workspace and subscription selectors, incident identities and aliases, filters, output fields, paging limits and investigation scope.
