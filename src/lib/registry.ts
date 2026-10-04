@@ -49,7 +49,7 @@ export const NSG_RULE_CREATE_FLAGS: FlagSchema = {
   priority: "value", direction: "value", access: "value", protocol: "value",
   "source-address-prefixes": "list", "source-port-ranges": "list",
   "destination-address-prefixes": "list", "destination-port-ranges": "list",
-  description: "value", execute: "boolean", confirm: "value", "if-match": "value",
+  description: "value", execute: "boolean", confirm: "value",
   timeout: "value", "no-wait": "boolean",
 };
 

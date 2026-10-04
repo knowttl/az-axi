@@ -779,10 +779,13 @@ Select the NSG with `--nsg-name` plus `--resource-group` / `-g`, or with `--ids 
 `--direction` defaults to Inbound and `--protocol` to `*`; the four address/port lists default to `*` (unlike az, whose destination-port default is 80).
 Application security groups are unsupported and rejected as unknown flags.
 The preview reads the NSG (`GET .../networkSecurityGroups/<nsg>?api-version=2024-05-01`) and lists its existing rules plus the exact rule to be added, with the native execute command.
-Execution sends one parent NSG `PUT .../networkSecurityGroups/<nsg>?api-version=2024-05-01` through the shared pipeline, preserving the fetched body with exactly one new rule appended.
-The PUT carries `If-Match` with the ETag from the initial NSG GET; execution refuses if that ETag is missing or an explicit `--if-match` differs from it.
-A concurrent NSG change yields HTTP 412, reported as a conflict asking for a fresh preview, without overwriting the concurrent change.
-The child [Security Rules Create Or Update](https://learn.microsoft.com/en-us/rest/api/virtualnetwork/security-rules/create-or-update) operation does not document create-only conditional headers, so the command uses the parent NSG operation and retains the mandatory destructive `--confirm <rule-name>` gate.
+Execution checks the exact rule for existence and sends one child `PUT .../securityRules/<rule>?api-version=2024-05-01` through the shared pipeline, retaining mandatory destructive `--confirm <rule-name>`.
+This is best-effort creation: Azure's documented [Security Rules Create Or Update](https://learn.microsoft.com/en-us/rest/api/virtualnetwork/security-rules/create-or-update) API cannot rule out a concurrent create of the same rule name in the seconds between preview and execution; such a create can be overwritten.
+No `If-Match` header is sent and the native command does not accept `--if-match`, because Azure does not document rule-absence protection.
+Immediately after the PUT, including asynchronous acceptance and `--no-wait`, the command re-reads the rule and compares its name and writable properties with the rule sent, excluding service metadata.
+A differing rule or failed read is reported clearly with the write outcome and an inspection command; a matching readback does not prove that no concurrent rule was overwritten, and asynchronous acceptance remains acceptance rather than completion.
+Owner-run live check: in an isolated NSG, create the same rule name concurrently between the existence check and PUT, inspect overwrite behavior and post-write readback, and confirm the documented best-effort limitation.
+Offline tests use fake transports and do not perform this live check.
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).

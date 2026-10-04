@@ -24,6 +24,7 @@ export async function executeWrite(options: {
   body: unknown;
   mergeBody?: (current: unknown) => unknown;
   isNoop?: (current: unknown) => boolean;
+  verify?: () => Promise<void>;
   ifMatch?: string;
   confirm?: string;
   selectors: string;
@@ -78,6 +79,7 @@ export async function executeWrite(options: {
   let outcome = "success";
   try {
     response = await sendRequest(profile, { method, path, body, ifMatch, execute: true, confirm: options.confirm });
+    await options.verify?.();
     const urls = operationUrls(response);
     const operationUrl = urls.asyncOperationUrl ?? urls.locationUrl;
     if ((response.status === 201 || response.status === 202) && operationUrl) {

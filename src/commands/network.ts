@@ -3,8 +3,9 @@ import { NETWORK, NETWORK_DNS } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
 import { buildUrl, request, requestAll, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
+import { diffResource } from "../lib/diff.js";
 import { subscriptions } from "../lib/discovery.js";
-import { executeWrite, WriteExecutionError } from "../lib/execute.js";
+import { executeWrite } from "../lib/execute.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { parseTimeoutFlag } from "../lib/lro.js";
@@ -641,7 +642,7 @@ const NSG_RULE_PROTOCOLS: Record<string, string> = {
   "*": "*", tcp: "Tcp", udp: "Udp", icmp: "Icmp", esp: "Esp", ah: "Ah",
 };
 const NSG_RULE_PROTECTION =
-  "Parent NSG PUT uses the fetched ETag in If-Match; execution refuses without an ETag or when the NSG changes";
+  "Best effort: Azure documents no atomic create-only protection; a concurrent create of the same rule name between preview and execution cannot be ruled out";
 const NSG_RULE_ROW_FIELDS = ["name", "priority", "direction", "access"];
 const PORT_ENTRY = /^(\*|\d+(-\d+)?)$/;
 
@@ -680,6 +681,11 @@ function portRanges(args: ReturnType<typeof parseArgs>, name: string, path: stri
   const ranges = selectorList(args, name, path);
   for (const entry of ranges) {
     if (!PORT_ENTRY.test(entry)) invalid(`--${name} entry '${entry}' must be * or a port or range 0-65535`, path);
+    if (entry === "*") continue;
+    const [start, end = start] = entry.split("-").map(Number);
+    if (start! > 65535 || end! > 65535 || start! > end!) {
+      invalid(`--${name} entry '${entry}' must be an ascending port or range 0-65535`, path);
+    }
   }
   return ranges;
 }
@@ -755,7 +761,6 @@ async function runNsgRuleCreate(
   const sourcePorts = portRanges(args, "source-port-ranges", path);
   const destAddresses = selectorList(args, "destination-address-prefixes", path);
   const destPorts = portRanges(args, "destination-port-ranges", path);
-  const ifMatch = flagText(args, "if-match");
   const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
   const noWait = flagBool(args, "no-wait");
   const timeoutRaw = flagText(args, "timeout");
@@ -827,7 +832,7 @@ async function runNsgRuleCreate(
     ["source-address-prefixes", sourceAddresses], ["source-port-ranges", sourcePorts],
     ["destination-address-prefixes", destAddresses], ["destination-port-ranges", destPorts],
   ] as const;
-  const command = (etagValue: string | undefined) =>
+  const command = () =>
     [
       "az-axi network nsg rule create",
       selectors,
@@ -842,7 +847,6 @@ async function runNsgRuleCreate(
       formatFlagValue("subscription", subscription),
       ...(timeoutRaw === undefined ? [] : [formatFlagValue("timeout", timeoutRaw)]),
       ...(noWait ? ["--no-wait"] : []),
-      ...(etagValue === undefined ? [] : [formatFlagValue("if-match", etagValue)]),
       "--execute",
       formatFlagValue("confirm", ruleName),
     ]
@@ -852,7 +856,7 @@ async function runNsgRuleCreate(
     dryRun: true,
     class: cls,
     method: "PUT",
-    target: shortenResourceId(nsgPath),
+    target: shortenResourceId(rulePath),
     subscription,
     nsg: nsgLabel,
     rule: body,
@@ -868,44 +872,48 @@ async function runNsgRuleCreate(
         ...(shown.length < existing.length && !full
           ? [`Run \`${showCommand}\` for every existing rule`]
           : []),
-        `\`${command(etag)}\``,
+        `\`${command()}\``,
       ],
     };
   }
-  const retryHelp = ["Re-run the dry run without --execute to review the current rules before retrying"];
-  if (!etag?.trim() || etag === "*") {
-    throw new AxiError("refusing: the NSG did not return an ETag for conditional creation", "CONFLICT", retryHelp);
-  }
-  if (ifMatch !== undefined && ifMatch !== etag) {
-    throw new AxiError("refusing: --if-match does not match the fetched NSG ETag", "CONFLICT", retryHelp);
-  }
-  try {
-    return await executeWrite({
-      profile,
-      method: "PUT",
-      path: buildUrl({ path: nsgPath, apiVersion: NETWORK }),
-      cls: "destructive",
-      body: {
-        ...probed.body,
-        properties: {
-          ...probed.body.properties,
-          securityRules: [...(probed.body.properties?.securityRules ?? []), body],
-        },
-      },
-      isNoop: () => false,
-      protection: NSG_RULE_PROTECTION,
-      ifMatch: etag,
-      confirm,
-      selectors,
-      timeoutMs,
-      noWait,
-    });
-  } catch (error) {
-    if (error instanceof WriteExecutionError && error.code === "PRECONDITION_FAILED") {
-      throw new WriteExecutionError(new AxiError("NSG changed during creation; no rule was added", "CONFLICT"), error.output, retryHelp);
-    }
-    throw error;
-  }
+  return executeWrite({
+    profile,
+    method: "PUT",
+    path: buildUrl({ path: rulePath, apiVersion: NETWORK }),
+    cls: "destructive",
+    body,
+    isNoop: (current) => {
+      if (current !== undefined) {
+        throw new AxiError(`refusing to overwrite rule '${ruleName}' found before the PUT`, "CONFLICT", [
+          `Run \`${showCommand}\` to review the current rules before retrying`,
+        ]);
+      }
+      return false;
+    },
+    verify: async () => {
+      let current: AnyObj;
+      try {
+        current = (await sendRequest<AnyObj>(profile, { method: "GET", path: rulePath, apiVersion: NETWORK })).body;
+      } catch (error) {
+        if (!(error instanceof AxiError)) throw error;
+        throw new AxiError(`Rule PUT was sent, but the post-write read failed: ${error.message}`, "VERIFY_FAILED", [
+          `Run \`${showCommand}\` to inspect the rule; do not retry the write without reviewing it`,
+        ]);
+      }
+      const properties = { ...objOf(current.properties) };
+      delete properties.provisioningState;
+      if (!diffResource({ name: current.name, properties }, body, "PUT").noop) {
+        throw new AxiError("Rule PUT was sent, but the rule read back does not match the rule sent", "CONFLICT", [
+          `Run \`${showCommand}\` to inspect the rule; a concurrent change may have occurred`,
+        ]);
+      }
+    },
+    protection: NSG_RULE_PROTECTION,
+    confirm,
+    selectors,
+    timeoutMs,
+    noWait,
+  });
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {

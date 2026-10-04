@@ -80,24 +80,28 @@ const nsgGet = (pathname) => {
     return json({ error: { code: "ResourceNotFound", message: "no such NSG" } }, 404);
   }
   nsgState ??= nsgBody(nsgNameOf(pathname));
+  if (pathname.includes("/securityRules/")) {
+    const name = decodeURIComponent(pathname.split("/securityRules/")[1]);
+    if (scenario === "nsg-existing-before-put" && !nsgState.properties.securityRules.some((rule) => rule.name === name)) {
+      nsgState.properties.securityRules.push({ name, properties: { access: "Allow", priority: 400 } });
+    }
+    const rule = nsgState.properties.securityRules.find((entry) => entry.name === name);
+    if (!rule || scenario === "nsg-readback-missing") return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
+    return json({ id: `https://management.azure.com${pathname}`, etag: '"rule1"', ...rule,
+      name: scenario === "nsg-readback-name" ? "operator-rule" : rule.name,
+      properties: { ...rule.properties, provisioningState: "Succeeded" } }, 200, { etag: '"rule1"' });
+  }
   return json(nsgState, 200, scenario === "nsg-no-etag" ? {} : { etag: nsgState.etag });
 };
 
-const nsgPut = (body, ifMatch) => {
-  if (scenario === "nsg-concurrent-create" || scenario === "nsg-concurrent-priority") {
-    nsgState.etag = '"nsg2"';
-    nsgState.properties.securityRules.push({
-      name: scenario === "nsg-concurrent-create" ? "deny-telnet" : "operator-rule",
-      properties: { access: "Allow", priority: 400, direction: "Inbound", protocol: "Tcp", destinationPortRange: "443" },
-    });
-  }
-  if (ifMatch !== nsgState.etag) {
-    writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
-    return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
-  }
-  nsgState = body;
+const nsgRulePut = (body) => {
+  const rule = ["nsg-readback-mismatch", "nsg-async-readback-mismatch"].includes(scenario)
+    ? { ...body, properties: { ...body.properties, access: "Allow" } } : body;
+  if (scenario === "nsg-readback-extra-property") rule.properties.description = "operator change";
+  nsgState.properties.securityRules.push(rule);
   writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
-  return json(nsgState, 201);
+  if (["async", "nsg-async-readback-mismatch"].includes(scenario)) return json({}, 202, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
+  return json(body, 201);
 };
 
 const tagsPatch = (body) => {
@@ -175,12 +179,12 @@ globalThis.fetch = async (url, init = {}) => {
     return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
   }
   if (scenario === "network") throw new Error("synthetic offline network failure");
+  if (method === "PUT" && new URL(url).pathname.includes("/securityRules/")) return nsgRulePut(body);
   if (["async", "failure", "timeout", "no-wait", "location"].includes(scenario)) {
     return json({}, 202, { [scenario === "location" ? "location" : "azure-asyncoperation"]: operationUrl,
       "retry-after": scenario === "timeout" ? "1" : "0" });
   }
   if (scenario === "created") return json({}, 201);
-  if (method === "PUT" && new URL(url).pathname.includes("/networkSecurityGroups/")) return nsgPut(body, init.headers?.["If-Match"]);
   if (new URL(url).pathname.includes("/alerts/")) return new Response(null, { status: 204, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test" } });
   if (new URL(url).pathname.includes("/incidents/") && method === "PUT") {
     // A comment PUT against a missing incident surfaces the missing target.
