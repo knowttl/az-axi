@@ -49,7 +49,8 @@ describe("built CLI workspace and account reads offline", () => {
     const preload = `data:text/javascript,${encodeURIComponent(stub)}`;
     return spawnSync(typeof argv === "string" ? "sh" : process.execPath, typeof argv === "string" ? ["-s"] : ["--import", preload, "dist/bin/az-axi.js", ...argv], {
       encoding: "utf8", input: typeof argv === "string" ? `cli() { ${quoteFlagValue(process.execPath)} --import ${quoteFlagValue(preload)} dist/bin/az-axi.js "$@"; }; ${argv.replace(/^az-axi /, "cli ")}` : undefined,
-      env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
+      // Git Bash must pass ARM IDs to Node without converting them to Windows paths.
+      env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*", AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
     });
   }
   it.each([{ path: ["account"] }, { path: workspace }])("lists $path across pages, resolves names, and reports empty results", ({ path }) => {
