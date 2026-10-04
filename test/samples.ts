@@ -51,6 +51,22 @@ export const keyvaultMetadataRows = {
   key: { name: "example-key", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z", notBefore: "", created: "2026-10-04T00:00:00.000Z", updated: "2026-10-04T00:00:00.000Z", managed: true },
   certificate: { name: "example-cert", enabled: false, expiresOn: "", notBefore: "", created: "2026-10-04T00:00:00.000Z", updated: "2026-10-04T00:00:00.000Z", thumbprint: "dGVzdA", managed: false },
 };
+// source: learn.microsoft.com/rest/api/registry-dataplane/container-registry get-repositories, get-tags and get-manifest (synthetic).
+export const acrCatalog = { repositories: ["hello-world", "nanoserver"] };
+export const acrTags = { imageName: "hello-world", registry: "myregistry.azurecr.io", tags: [
+  { name: "latest", digest: "sha256:110d2b6c84592561338aa040b1b14b7ab81c2f9edbd564c2285dd7d70d777086", createdTime: "2026-09-06T06:17:21.0856539Z", lastUpdateTime: "2026-09-06T06:17:21.0856539Z" },
+]};
+export const acrManifest = { mediaType: "application/vnd.docker.distribution.manifest.v2+json", schemaVersion: 2,
+  config: { digest: "sha256:691fbc2d44fff48357bba69ab0505b9bf12b2b250a925a84a0b8e8e7eed390b2", mediaType: "application/vnd.docker.container.image.v1+json", size: 5824 },
+  layers: [{ digest: "sha256:a073c86ecf9e0f29180e80e9638d4c741970695851ea48247276c32c57e40282", mediaType: "application/vnd.docker.image.rootfs.diff.tar.gzip", size: 2014658 }],
+  signatures: [{ signature: "never-output-this-value" }], history: [{ v1Compatibility: "never-output-this-value" }] };
+export const acrDigest = "sha256:110d2b6c84592561338aa040b1b14b7ab81c2f9edbd564c2285dd7d70d777086";
+export const acrMetadataRows = {
+  repository: { name: "hello-world" },
+  tag: { name: "latest", digest: acrDigest, createdTime: "2026-09-06T06:17:21.0856539Z", lastUpdateTime: "2026-09-06T06:17:21.0856539Z" },
+  manifest: { digest: acrDigest, mediaType: acrManifest.mediaType, schemaVersion: 2,
+    config: acrManifest.config, layers: acrManifest.layers },
+};
 export const WORKSPACE = SYN(10);
 
 // source: azure-mgmt-resource 23.3.0 ResourceGroup (catalogue-pinned GET)

@@ -38,7 +38,9 @@ const EXAMPLE_DOMAINS: readonly string[] = ["contoso.com", "fabrikam.com", "exam
 const PUBLIC_HOSTS: readonly string[] = [
   "azure.com",
   "vault.azure.net",
+  "azurecr.io",
   "claude.com",
+  "containerregistry.azure.net",
   "github.com",
   "loganalytics.io",
   "microsoft.com",

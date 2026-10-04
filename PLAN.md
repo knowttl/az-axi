@@ -894,6 +894,11 @@ Reference: [List Containers](https://learn.microsoft.com/rest/api/storageservice
 This slice introduced collection-only metadata reads rather than value-returning single-object reads.
 See [Key Vault metadata reads](README.md#key-vault-metadata-reads) for the authoritative command, authentication, output and paging contracts.
 
+### 6.16 ACR repository/tag/manifest metadata reads
+
+This slice introduced a dedicated registry metadata transport rather than broadening the raw API host map or native ARM envelopes.
+See [ACR metadata reads](README.md#acr-metadata-reads) for the authoritative command, authentication, output, safety and paging contracts and REST references.
+
 ## 7. Invariants
 
 These are non-negotiable. The agent must not weaken them; if one blocks progress, stop and ask the owner.
@@ -1405,6 +1410,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `sub list` | `az account list --query "length(@)"` |
 | `storage container/blob list/show` | Owner only: compare safe properties with the same Azure CLI operation using explicit `--auth-mode login`; worker tests use synthetic XML/headers and offline transports only |
 | `keyvault secret/key/certificate list` | Owner only: compare safe properties with `az keyvault secret|key|certificate list --vault-name <vault>`; worker tests use synthetic JSON and offline transports only |
+| `acr repository list/show-tags`, `acr manifest show-metadata` | Owner only: compare catalog, tag and manifest metadata with the same Azure CLI operation using Entra auth; worker tests use synthetic JSON/headers and offline transports only |
 | `account list/show` | Owner only: compare live ARM subscriptions under the same profile identity and selected scope; do not compare to an unrelated cached az account default |
 | `monitor log-analytics workspace list/show` | Owner only: `az monitor log-analytics workspace list -s <id>` and `show -g <group> -n <name> -s <id>` with identical scope |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
@@ -1477,6 +1483,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Resource locks | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources |
 | Storage metadata GET lists and HEAD properties (2023-11-03) | https://learn.microsoft.com/rest/api/storageservices/list-containers2 and https://learn.microsoft.com/rest/api/storageservices/list-blobs and https://learn.microsoft.com/rest/api/storageservices/get-container-properties and https://learn.microsoft.com/rest/api/storageservices/get-blob-properties |
 | Key Vault property listings (7.4) | https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4 and https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4 and https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4 |
+| Registry catalog, tags, manifest and token exchange (2021-07-01) | https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-repositories?view=rest-registry-dataplane-2021-07-01 and https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-tags?view=rest-registry-dataplane-2021-07-01 and https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-manifest?view=rest-registry-dataplane-2021-07-01 and https://learn.microsoft.com/en-us/rest/api/registry-dataplane/authentication/exchange-aad-access-token-for-acr-refresh-token?view=rest-registry-dataplane-2021-07-01 |
 
 ### 15.3 Resource Graph
 

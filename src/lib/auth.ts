@@ -18,6 +18,7 @@ const RESOURCE_URL: Record<CredentialResource, string> = {
   graph: "https://graph.microsoft.com",
   storage: "https://storage.azure.com/",
   vault: "https://vault.azure.net/",
+  registry: "https://containerregistry.azure.net",
 };
 
 const AZ_RESOURCE_ARGS: Record<CredentialResource, string[]> = {
@@ -26,6 +27,7 @@ const AZ_RESOURCE_ARGS: Record<CredentialResource, string[]> = {
   graph: ["--resource-type", "ms-graph"],
   storage: ["--resource", RESOURCE_URL.storage],
   vault: ["--resource", RESOURCE_URL.vault],
+  registry: ["--resource", RESOURCE_URL.registry],
 };
 
 export interface Credential {
@@ -84,7 +86,7 @@ async function azCredential(profile: ResolvedProfile, resource: CredentialResour
   try {
     const azArgs = ["account", "get-access-token", ...AZ_RESOURCE_ARGS[resource], "--output", "json"];
     if (profile.tenant) azArgs.push("--tenant", profile.tenant);
-    stdout = await runAz(azArgs, signal, resource === "storage" || resource === "vault");
+    stdout = await runAz(azArgs, signal, resource === "storage" || resource === "vault" || resource === "registry");
   } catch (err) {
     signal?.throwIfAborted();
     if (resource === "storage") {
@@ -97,6 +99,12 @@ async function azCredential(profile: ResolvedProfile, resource: CredentialResour
       throw new AxiError("could not acquire an Entra key vault token", "AUTH_REQUIRED", [
         "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_VAULT_TOKEN",
         "No key or certificate fallback exists; only Entra bearer auth is supported",
+      ]);
+    }
+    if (resource === "registry") {
+      throw new AxiError("could not acquire an Entra registry token", "AUTH_REQUIRED", [
+        "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_REGISTRY_TOKEN",
+        "Admin-user password fallback is disabled",
       ]);
     }
     throw azError(err instanceof Error ? err.message : String(err), profile, resource);
@@ -188,7 +196,7 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * `.cmd`/`.bat` shims correctly on Windows while still passing arguments
  * through as an argv array (not a shell command string), so there's no
  * shell-injection risk from argument values (e.g. `--tenant`).
- * The only place az-axi spawns `az`. Reviewed passthrough reads and storage or vault
+ * The only place az-axi spawns `az`. Reviewed passthrough reads and storage, vault or registry
  * token acquisition additionally close stdin, strip ambient overrides, disable
  * extension install and enforce a 30-second deadline and a combined 1 MiB byte ceiling.
  * On Windows, cancellation requests tree termination with `taskkill` and

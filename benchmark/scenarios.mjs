@@ -39,6 +39,12 @@ export const offlinePassthroughReads = [
   { name: "az-group-show", argv: ["az", "group", "show", "--name", "rg-demo"] },
 ];
 
+// ACR metadata shapes are measured offline without data-plane access.
+export const offlineAcrReads = [
+  { name: "acr-repository-list", kind: "repository", argv: ["acr", "repository", "list", "--name", "myregistry"] },
+  { name: "acr-repository-show-tags", kind: "tag", argv: ["acr", "repository", "show-tags", "--name", "myregistry", "--repository", "hello-world"] },
+  { name: "acr-manifest-show-metadata", kind: "manifest", argv: ["acr", "manifest", "show-metadata", "--registry", "myregistry", "--name", "hello-world:latest"] },
+];
 // Storage metadata shapes are measured offline without data-plane access.
 export const offlineStorageReads = [
   { name: "storage-container-list", argv: ["storage", "container", "list", "--account-name", "stexample"] },
