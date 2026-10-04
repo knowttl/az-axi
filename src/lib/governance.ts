@@ -133,7 +133,7 @@ export function selectorSuffix(args: ParsedArgs, keys = ["profile", "config", "t
 }
 
 function defaultFollowHint(collection: GovernanceCollection, first: GovernanceItem, args: ParsedArgs): string {
-  const selectors = selectorSuffix(args, ["profile", "config", "tenant"]);
+  const selectors = selectorSuffix(args, ["profile", "config", "tenant", "subscription"]);
   const leaf = [collection.top, ...collection.words].join(" ");
   return `Run \`az-axi ${leaf} show ${formatFlagValue("ids", first.id)}${selectors}\` for the first row in detail`;
 }

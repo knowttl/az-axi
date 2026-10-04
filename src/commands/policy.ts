@@ -82,7 +82,7 @@ const ASSIGNMENT: GovernanceCollection = {
     const definitionId = str(objOf(first.properties).policyDefinitionId);
     const collection = [DEFINITION, SET_DEFINITION].find((candidate) => candidate.idTail.test(definitionId));
     if (!collection) return undefined;
-    return `Run \`az-axi policy ${collection.words[0]} show ${formatFlagValue("ids", definitionId)}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
+    return `Run \`az-axi policy ${collection.words[0]} show ${formatFlagValue("ids", definitionId)}${selectorSuffix(args, ["profile", "config", "tenant", "subscription"])}` +
       `\` for the assigned definition`;
   },
 };
@@ -189,7 +189,7 @@ const STATES: GovernanceCollection = {
   followHint: (first, args) => {
     const assignmentId = str(first.policyAssignmentId);
     if (!ASSIGNMENT.idTail.test(assignmentId)) return undefined;
-    return `Run \`az-axi policy assignment show ${formatFlagValue("ids", assignmentId)}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
+    return `Run \`az-axi policy assignment show ${formatFlagValue("ids", assignmentId)}${selectorSuffix(args, ["profile", "config", "tenant", "subscription"])}` +
       `\` for the assigned policy`;
   },
   extraListFilter: (item, args) => {

@@ -382,6 +382,33 @@ describe("policy state list", () => {
 });
 
 describe("governance reads stay read-only and validate before transport", () => {
+  describe.each([
+    { scope: "another subscription", profile: { auth: "token", subscriptions: [SUB_B] }, subscription: SUB_A },
+    { scope: "a management group", profile: { auth: "token", managementGroup: "root" }, subscription: SUB_A },
+    { scope: "multiple selected subscriptions", profile: { auth: "token", subscriptions: [SUB_B] }, subscription: `${SUB_A},${SUB_B}` },
+  ])("detail hints override a profile scoped to $scope", ({ profile, subscription }) => {
+    it.each([
+      { source: "assignment", target: "definition", arm: "policyDefinitions" },
+      { source: "assignment", target: "set-definition", arm: "policySetDefinitions" },
+      { source: "state", target: "assignment", arm: "policyAssignments" },
+      { source: "definition", target: "definition", arm: "policyDefinitions" },
+      { source: "set-definition", target: "set-definition", arm: "policySetDefinitions" },
+    ])("preserves the explicit subscription in the $source to $target hint", async ({ source, target, arm }) => {
+      useProfile("ci", profile);
+      const id = `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/${arm}/demo`;
+      const item = { ...policyAssignment, id, properties: { ...policyAssignment.properties, policyDefinitionId: id } };
+      allMock.mockResolvedValue({ items: [item] });
+      requestMock.mockResolvedValue({ value: [{ ...policyStates[0], policyAssignmentId: id }] } as never);
+      const routed = routeArgv(["policy", source, "list", "-s", subscription]);
+      const result = await runPolicy(routed.argv.slice(1));
+      const command = (result.help as string[])[0]!.split("`")[1]!;
+      const argv = command.replace(/^az-axi /, "").split(" ");
+      expect(argv).toEqual(["policy", target, "show", "--ids", id, "--subscription", subscription]);
+      requestMock.mockResolvedValueOnce(item as never);
+      await expect(runPolicy(argv.slice(1))).resolves.toMatchObject({ id, subscription: SUB_A });
+    });
+  });
+
   it.each([
     { source: "assignment", target: "set-definition", arm: "policySetDefinitions" },
     { source: "state", target: "assignment", arm: "policyAssignments" },
