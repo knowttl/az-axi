@@ -237,3 +237,25 @@ export const LOG_ANALYTICS_WORKSPACES = "2025-07-01";
  * most 1000 GUIDs; the permission is Directory.Read.All.
  */
 export const GRAPH_GET_BY_IDS = "v1.0";
+
+/**
+ * Key Vault data-plane property listings (`GET https://{vault}.vault.azure.net/secrets`,
+ * `/keys`, `/certificates`, `vault` token for https://vault.azure.net/).
+ *
+ * Value: 7.4. Newer stable: the Learn REST view `rest-keyvault-secrets-7.4` is the
+ * current stable data-plane reference; newer dated versions were not pinned.
+ * Spec: not in azure-rest-api-specs `specification/` ARM folders (data plane).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4
+ * and https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4
+ * and https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4
+ * Verified: 2026-10-04 against the pinned Azure CLI source (dev at da4c0548:
+ * `keyvault secret list` maps to `list_properties_of_secrets` while `show` maps to
+ * value-returning `get_secret`) and the stable Learn REST views, which document that
+ * list operations return property items without secret, key or certificate values.
+ * Reason: long-standing stable data-plane version; list responses carry only
+ * `{ id/kid, attributes: { enabled, created, updated, exp, nbf }, tags, contentType/x5t,
+ * managed }` plus an opaque `nextLink`. Single-object GETs (`/secrets/{name}`,
+ * `/keys/{name}`, `/certificates/{name}`) return values or key material and are never
+ * constructed by az-axi.
+ */
+export const KEYVAULT_DATA_PLANE = "7.4";

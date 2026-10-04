@@ -28,6 +28,29 @@ export const storageMetadataRows = {
   container: { name: "example", lastModified: storageProperties["last-modified"], etag: storageProperties.etag, publicAccess: "blob" },
   blob: { name: "example", lastModified: storageProperties["last-modified"], etag: storageProperties.etag, size: "42", blobType: "BlockBlob" },
 };
+// source: learn.microsoft.com/rest/api/keyvault/secrets/get-secrets, keys/get-keys and
+// certificates/get-certificates (synthetic). Epoch attributes are 2026-10-04T00:00:00Z (created),
+// +30d (expiresOn) and -1d (notBefore). Unexpected members must never reach output rows.
+export const keyvaultSecrets = JSON.stringify({ value: [{
+  id: "https://kvexample.vault.azure.net/secrets/example-secret", contentType: "text/plain",
+  attributes: { enabled: true, created: 1791072000, updated: 1791072000, exp: 1793664000, nbf: 1790985600 },
+  tags: { owner: "never-output-this-value" }, managed: false, value: "never-output-this-value",
+}] });
+export const keyvaultKeys = JSON.stringify({ value: [{
+  kid: "https://kvexample.vault.azure.net/keys/example-key",
+  attributes: { enabled: true, created: 1791072000, updated: 1791072000, exp: 1793664000 },
+  tags: { owner: "never-output-this-value" }, managed: true, key: { kty: "never-output-this-value" },
+}] });
+export const keyvaultCertificates = JSON.stringify({ value: [{
+  id: "https://kvexample.vault.azure.net/certificates/example-cert", x5t: "dGVzdA",
+  attributes: { enabled: false, created: 1791072000, updated: 1791072000 },
+  tags: { owner: "never-output-this-value" }, managed: false, cer: "never-output-this-value",
+}] });
+export const keyvaultMetadataRows = {
+  secret: { name: "example-secret", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z", notBefore: "2026-10-03T00:00:00.000Z", created: "2026-10-04T00:00:00.000Z", updated: "2026-10-04T00:00:00.000Z", contentType: "text/plain", managed: false },
+  key: { name: "example-key", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z", notBefore: "", created: "2026-10-04T00:00:00.000Z", updated: "2026-10-04T00:00:00.000Z", managed: true },
+  certificate: { name: "example-cert", enabled: false, expiresOn: "", notBefore: "", created: "2026-10-04T00:00:00.000Z", updated: "2026-10-04T00:00:00.000Z", thumbprint: "dGVzdA", managed: false },
+};
 export const WORKSPACE = SYN(10);
 
 // source: azure-mgmt-resource 23.3.0 ResourceGroup (catalogue-pinned GET)
