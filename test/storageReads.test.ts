@@ -33,6 +33,24 @@ describe("storage read commands", () => {
     read.mockResolvedValue({ rows: [], nextMarker: "--unsafe marker'" });
     expect(await run([...args, "--prefix", "folder x", "--profile", "ci"])).toMatchObject({ count: "0+ blobs", nextMarker: "--unsafe marker'", help: [expect.stringContaining("--marker=")] });
   });
+  it.each(["container", "blob"])("%s list preserves literal filters in requests and pagination hints", async (kind) => {
+    read.mockResolvedValue({ rows: [], nextMarker: " next page " });
+    const result = await run([kind, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--prefix", " report ", "--marker", " current page "]);
+    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ prefix: " report ", marker: " current page " }));
+    expect(result.help).toEqual([expect.stringContaining("--prefix ' report ' --limit 50 --marker ' next page '")]);
+  });
+  it("blob show preserves a literal name", async () => {
+    await run(["blob", "show", "--account-name", "stexample", "--container-name", "example", "--name", " report "]);
+    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: " report " }));
+  });
+  it.each([["--prefix"], ["--prefix", ""], ["--marker"], ["--marker", " "]])("rejects missing or blank literal values %j", async (...flags) => {
+    await expect(run([...args, ...flags])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(read).not.toHaveBeenCalled();
+  });
+  it.each([[], [""], [" "]])("rejects missing or blank blob names %j", async (...values) => {
+    await expect(run(["blob", "show", "--account-name", "stexample", "--container-name", "example", "--name", ...values])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(read).not.toHaveBeenCalled();
+  });
   it.each([
     ["--auth-mode", "key"], ["--account-key", "key"], ["--sas-token", "sas"], ["--connection-string", "connection"],
     ["--file", "output"], ["--include", "metadata"], ["--fields", "metadata"], ["--execute"],

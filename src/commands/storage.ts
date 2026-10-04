@@ -1,5 +1,5 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
+import { assertKnownFlags, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
 import { requestStorageMetadata } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { emptyState, pickFields } from "../lib/format.js";
@@ -21,8 +21,12 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   if (authMode !== undefined && authMode !== "login") {
     throw new AxiError("storage supports only --auth-mode login", "VALIDATION_ERROR", ["Remove --auth-mode or use --auth-mode login"]);
   }
+  const literal = (flag: string): string | undefined => {
+    flagText(args, flag);
+    return flagString(args, flag);
+  };
   const required = (flag: string): string => {
-    const value = flagText(args, flag);
+    const value = flag === "name" ? literal(flag) : flagText(args, flag);
     if (!value) throw new AxiError(`--${flag} is required`, "VALIDATION_ERROR", [storageLeafHelp(path)]);
     return value;
   };
@@ -38,8 +42,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   if (fields?.some((field) => !safe.includes(field))) {
     throw new AxiError("--fields accepts only safe storage properties", "VALIDATION_ERROR", [`Valid fields: ${safe.join(",")}`]);
   }
+  const prefix = literal("prefix");
   const page = await requestStorageMetadata(profileFromArgs(args), {
-    kind, verb, account, container, name, limit, prefix: flagText(args, "prefix"), marker: flagText(args, "marker"),
+    kind, verb, account, container, name, limit, prefix, marker: literal("marker"),
   });
   if (verb === "show") return { account, [kind]: pickFields(page.rows, fields)[0] };
   const noun = `${kind}s`;
@@ -48,7 +53,6 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     const value = flagText(args, flag);
     return value ? [` ${formatFlagValue(flag, value)}`] : [];
   }).join("");
-  const prefix = flagText(args, "prefix");
   return {
     account, ...(container ? { container } : {}), count: `${page.rows.length}${page.nextMarker ? "+" : ""} ${noun}`,
     [noun]: page.rows.length ? pickFields(page.rows, fields) : emptyState(noun, `in ${container ?? account}${page.nextMarker ? " on this page" : ""}`),

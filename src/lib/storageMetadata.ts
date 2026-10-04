@@ -128,7 +128,7 @@ function metadataPage(xml: string, kind: StorageRead["kind"]): StoragePage {
     } else if (token.startsWith("<")) {
       const match = /^<([A-Za-z][\w-]*)(?:\s+[^<>]*?)?\s*\/?>$/.exec(token);
       if (!match || stack.length > 16 || ++nodes > 20_000) invalid();
-      const node: Node = { name: match[1]!, text: "", children: [], encoded: /\bEncoded="true"/.test(token) };
+      const node: Node = { name: match[1]!, text: "", children: [], encoded: /\sEncoded\s*=\s*(?:"true"|'true')(?=\s|\/?>)/.test(token) };
       parent.children.push(node);
       if (!token.endsWith("/>")) stack.push(node);
     } else parent.text += unescape(token);
@@ -138,7 +138,10 @@ function metadataPage(xml: string, kind: StorageRead["kind"]): StoragePage {
   const field = (node: Node, name: string) => {
     const found = child(node, name);
     if (found?.children.length) invalid();
-    return found?.encoded ? Buffer.from(found.text, "base64").toString("utf8") : found?.text ?? "";
+    if (found?.encoded) {
+      try { return decodeURIComponent(found.text); } catch { invalid(); }
+    }
+    return found?.text ?? "";
   };
   const envelope = root.children[0]!;
   const collection = child(envelope, kind === "container" ? "Containers" : "Blobs");

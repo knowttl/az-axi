@@ -42,6 +42,29 @@ describe("storage metadata transport", () => {
     expect([...url.searchParams.keys()]).toEqual(["restype", "comp", "maxresults", "prefix", "marker"]);
     expect(result).toMatchObject({ nextMarker: "next&page", rows: [{ name: "folder/a&b.txt", size: "42", blobType: "BlockBlob" }] });
   });
+  it.each(['Encoded="true"', "Encoded = 'true'"])("decodes percent-encoded names with %s and preserves their show target", async (attribute) => {
+    fetchMock.mockResolvedValueOnce(new Response(storageBlobs.replace("<Name>folder/a&amp;b.txt</Name>", `<Name ${attribute}>%20report%01%25%E2%98%83</Name>`)));
+    const page = await requestStorageMetadata(profile, { kind: "blob", verb: "list", account: "stexample", container: "example", limit: 50 });
+    expect(page.rows[0]!.name).toBe(" report\u0001%☃");
+    fetchMock.mockResolvedValueOnce(new Response(null, { headers: storageProperties }));
+    const shown = await requestStorageMetadata(profile, { kind: "blob", verb: "show", account: "stexample", container: "example", name: page.rows[0]!.name, limit: 50 });
+    expect(new URL(String(fetchMock.mock.calls[1]![0])).pathname).toBe("/example/%20report%01%25%E2%98%83");
+    expect(shown.rows[0]!.name).toBe(page.rows[0]!.name);
+  });
+  it("decodes an encoded continuation marker and sends it literally", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(storageBlobs.replace("<NextMarker>next&amp;page</NextMarker>", '<NextMarker Encoded="true">%20next%26page%25%20</NextMarker>')));
+    const page = await requestStorageMetadata(profile, { kind: "blob", verb: "list", account: "stexample", container: "example", limit: 50 });
+    expect(page.nextMarker).toBe(" next&page% ");
+    fetchMock.mockResolvedValueOnce(new Response(storageBlobs));
+    await requestStorageMetadata(profile, { kind: "blob", verb: "list", account: "stexample", container: "example", marker: page.nextMarker, limit: 50 });
+    expect(new URL(String(fetchMock.mock.calls[1]![0])).searchParams.get("marker")).toBe(page.nextMarker);
+  });
+  it.each([
+    ["Name", "%"], ["Name", "%GG"], ["Name", "%FF"], ["NextMarker", "%"], ["Etag", "%FF"],
+  ])("rejects invalid percent encoding in %s: %s", async (field, value) => {
+    fetchMock.mockResolvedValue(new Response(storageBlobs.replace(new RegExp(`<${field}>[^<]*</${field}>`), `<${field} Encoded="true">${value}</${field}>`)));
+    await expect(requestStorageMetadata(profile, { kind: "blob", verb: "list", account: "stexample", container: "example", limit: 50 })).rejects.toMatchObject({ code: "API_ERROR", message: "invalid storage metadata XML" });
+  });
 
   it.each([401, 403, 404, 302])( "HTTP %s never falls back or reads an error body", async (status) => {
     fetchMock.mockResolvedValue(new Response("credential-value", { status, headers: { location: "https://evil.example.com" } }));
