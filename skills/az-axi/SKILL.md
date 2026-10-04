@@ -33,6 +33,10 @@ The offline test suite checks this list against the registry.
 | `az-axi config list` | native | read |
 | `az-axi config path` | native | read |
 | `az-axi sub list` | native | read |
+| `az-axi account list` | native | read |
+| `az-axi account show` | native | read |
+| `az-axi monitor log-analytics workspace list` | native | read |
+| `az-axi monitor log-analytics workspace show` | native | read |
 | `az-axi group list` | native | read |
 | `az-axi group show` | native | read |
 | `az-axi resource list` | native | read |
@@ -123,6 +127,10 @@ az-axi group list
 az-axi group show -n rg-demo -s <subscription>
 az-axi resource list -g rg-demo
 az-axi resource show --ids <ARM-id> --full
+az-axi account list
+az-axi account show -s <subscription> --full
+az-axi monitor log-analytics workspace list -g rg-demo
+az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
 ```
 
 See [README.md#use](../../README.md#use) for discovery subscription scope, including `resource show --ids`.
@@ -133,12 +141,13 @@ Generic `resource show` returns only the ARM envelope: id, name, type, kind, loc
 Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
 Provider `properties` and nested field paths are rejected by `--fields`; no show view returns the raw properties blob.
 Use typed commands for provider details, or the raw `az-axi api` path with its existing redaction.
-Paging stops at 100 pages per subscription and marks incomplete counts as lower bounds.
+See [README.md#use](../../README.md#use) for discovery paging limits and incomplete counts.
 Show by name requires one subscription; resource show also requires `--resource-group` and `--resource-type`, or exactly one `--ids` instead.
 Resource show selects the newest stable provider API version unless `--api-version` is supplied.
 Credential-bearing child resources and actions are refused before retrieval.
 Management-group discovery is unsupported; select subscriptions explicitly.
-Existing command scope, defaults and aliases are unchanged.
+
+See [README.md#use](../../README.md#use) for native account and workspace discovery scope, selectors, metadata fields, paging limits and credential exclusions, including how `account list` differs from legacy `sub list`.
 
 ```sh
 az-axi graph query -q Resources

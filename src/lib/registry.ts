@@ -44,6 +44,10 @@ export const COMMAND_LEAVES = [
   { path: "config list", effect: "read", capability: "native" },
   { path: "config path", effect: "read", capability: "native" },
   { path: "sub list", effect: "read", capability: "native" },
+  { path: "account list", effect: "read", capability: "native" },
+  { path: "account show", effect: "read", capability: "native" },
+  { path: "monitor log-analytics workspace list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "monitor log-analytics workspace show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", "workspace-name": "value", name: "value" } },
   { path: "group list", effect: "read", capability: "native" },
   { path: "group show", effect: "read", capability: "native", flags: { name: "value" } },
   { path: "resource list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", "resource-type": "value" } },
@@ -102,6 +106,8 @@ const LOADERS = {
   doctor: () => import("../commands/doctor.js"),
   config: () => import("../commands/config.js"),
   sub: () => import("../commands/sub.js"),
+  account: () => import("../commands/account.js"),
+  monitor: () => import("../commands/monitor.js"),
   group: () => import("../commands/group.js"),
   resource: () => import("../commands/resource.js"),
   rg: () => import("../commands/rg.js"),
@@ -158,6 +164,8 @@ const HELP_OVERVIEWS = {
   doctor: "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
   config: "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
   sub: "az-axi sub list                          # subscriptions visible to the identity",
+  account: "az-axi account list|show                  # live ARM subscriptions in selected scope",
+  monitor: "az-axi monitor log-analytics workspace list|show  # workspace metadata, no shared keys",
   group: "az-axi group list|show                    # resource groups in selected subscriptions",
   resource: "az-axi resource list|show                 # ARM resource inventory and detail",
   rg: "az-axi rg query \"<kql>\"                  # Resource Graph query across subscriptions",
@@ -209,6 +217,10 @@ export const ALERT_UPDATE_HELP = [
 ].join("\n");
 
 const LEAF_HELP: Record<string, string> = {
+  "account list": "Lists live ARM subscriptions in selected scope (flags, environment, profile, else all accessible), resolving unambiguous names to IDs. This is not Azure CLI's cached account list. Legacy sub list still lists all visible subscriptions with inScope markers.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata and shows all fetched rows; --fields selects metadata. --limit defaults to 50. Paging stops at 100 pages with lower-bound counts. Management-group scope is unsupported.\nExamples: az-axi account list; az-axi account list -s <subscription> --full",
+  "account show": "Shows one live ARM subscription selected by flags, environment or profile, resolving unambiguous names to IDs. Exactly one selected subscription is required; no implicit ambient az default is chosen.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata; --fields selects metadata. This does not change profile defaults or Azure CLI's account. Management-group scope is unsupported.\nExamples: az-axi account show -s <subscription>; az-axi account show --full",
+  "monitor log-analytics workspace list": "Lists ARM workspace metadata in selected subscriptions (flags, environment, profile, else all accessible). --resource-group / -g scopes the list; --name / -n filters exact names.\nDefault: name, id (ARM ID), location, customerId (query workspace GUID). --limit defaults to 50; --full shows all fetched rows and safe metadata; --fields selects only documented metadata. Paging stops at 100 pages per subscription with lower-bound counts. Management-group scope is unsupported.\nExamples: az-axi monitor log-analytics workspace list; az-axi monitor log-analytics workspace list -g <group> --full",
+  "monitor log-analytics workspace show": "Requires --workspace-name (or --name / -n) and --resource-group / -g in exactly one selected subscription, or one --ids <workspace-ARM-id> alone. Subscription names resolve to IDs. IDs must identify a workspace itself, never a child or action.\nDefault: name, id, location, customerId. --full and --fields expose only name, id, type, location, tags, customerId, state, retentionInDays, sku, publicNetworkAccessForIngestion, publicNetworkAccessForQuery. Shared keys, listKeys and unknown provider properties are never retrieved or printed. Management-group scope is unsupported.\nExamples: az-axi monitor log-analytics workspace show -g <group> --workspace-name <workspace> -s <subscription>; az-axi monitor log-analytics workspace show --ids <workspace-ARM-id> --full",
   "group list": "Lists live ARM resource groups in selected subscriptions (flags, environment, profile, else all accessible). Subscription names resolve to IDs. Management-group scope is unsupported.\n--limit defaults to 50; --full shows complete metadata and all fetched rows; --fields selects metadata fields. Lists follow up to 100 pages per subscription and disclose incomplete counts.\nExamples: az-axi group list; az-axi group list -s <subscription> --full",
   "group show": "Requires --name / -n and exactly one selected subscription (ID or unambiguous name).\nDefault: name, id, location, state; --full returns the complete ARM resource group.\nExamples: az-axi group show -n <group> -s <subscription>; az-axi group show -n <group> --full",
   "resource list": "Lists live ARM resources in selected subscriptions (flags, environment, profile, else all accessible). Subscription names resolve to IDs. Management-group scope is unsupported.\n--resource-group / -g scopes the list; --name / -n and --resource-type filter exact matches.\n--limit defaults to 50; --full shows complete metadata and all fetched rows; --fields selects metadata fields. Lists follow up to 100 pages per subscription and disclose incomplete counts.\nExamples: az-axi resource list -g <group>; az-axi resource list --resource-type Microsoft.Compute/virtualMachines",
@@ -235,6 +247,8 @@ const HELP_FOOTER = [
 const HELP_TEXT = {
   storage: STORAGE_HELP,
   keyvault: KEYVAULT_HELP,
+  account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
+  monitor: ["az-axi monitor log-analytics workspace list|show", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"]].join("\n"),
   az: AZ_HELP,
   group: ["az-axi group list", "az-axi group show --name <group> --subscription <id>", LEAF_HELP["group list"], LEAF_HELP["group show"]].join("\n"),
   resource: ["az-axi resource list", "az-axi resource show --ids <ARM-id>", LEAF_HELP["resource list"], LEAF_HELP["resource show"]].join("\n"),

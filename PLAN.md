@@ -575,6 +575,13 @@ Port upstream `commands/config.ts`. `config init` flags: `--name`, `--auth az|to
 
 **Reference:** Subscriptions - List (https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/list).
 
+### Native account and workspace discovery
+
+`account list/show` reads live ARM subscription metadata in selected discovery scope; show requires one subscription and never chooses or changes an ambient Azure CLI default.
+Legacy `sub list` keeps its all-visible output and scope markers.
+`monitor log-analytics workspace list/show` uses ARM workspace GETs with compact IDs and safe metadata in full views; no shared keys or credential-bearing child/action requests.
+Reference: https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/get?view=rest-resources-2022-12-01 and https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/get?view=rest-loganalytics-2025-07-01
+
 ### 6.5 `rg query`
 
 Canonical path: `graph query --graph-query <kql>` / `-q <kql>`, retaining `rg query` as the legacy alias.
@@ -1385,6 +1392,8 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `sub list` | `az account list --query "length(@)"` |
 | `storage container/blob list/show` | Owner only: compare safe properties with the same Azure CLI operation using explicit `--auth-mode login`; worker tests use synthetic XML/headers and offline transports only |
 | `keyvault secret/key/certificate list` | Owner only: compare safe properties with `az keyvault secret|key|certificate list --vault-name <vault>`; worker tests use synthetic JSON and offline transports only |
+| `account list/show` | Owner only: compare live ARM subscriptions under the same profile identity and selected scope; do not compare to an unrelated cached az account default |
+| `monitor log-analytics workspace list/show` | Owner only: `az monitor log-analytics workspace list -s <id>` and `show -g <group> -n <name> -s <id>` with identical scope |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
 | `group list/show` | `az group list` and `az group show -n <group> -s <subscription>` with identical subscription scope |
 | `resource list/show` | `az resource list -g <group>` and `az resource show --ids <ARM-id>` with identical subscription and API version |
@@ -1478,6 +1487,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Defender assessments | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/assessments/list |
 | Defender secure scores | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/secure-scores/list |
 | Log Analytics query | https://learn.microsoft.com/en-us/rest/api/loganalytics/dataaccess/query/execute |
+| Log Analytics workspace metadata | https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/list?view=rest-loganalytics-2025-07-01 and https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/get?view=rest-loganalytics-2025-07-01 |
 
 ### 15.5 Azure CLI
 

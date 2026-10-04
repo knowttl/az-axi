@@ -154,6 +154,7 @@ describe("command effect registry", () => {
     }
     expect(effects).toEqual({
       group: "read", resource: "read",
+      account: "read", monitor: "read",
       home: "read",
       doctor: "read",
       config: "read",

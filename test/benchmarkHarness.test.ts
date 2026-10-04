@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symli
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { decode } from "@toon-format/toon";
 import { scrub } from "../scripts/benchmark/scrub.mjs";
 import { countTokens } from "../scripts/benchmark/tokens.mjs";
 import { scenarios } from "../benchmark/scenarios.mjs";
@@ -19,29 +20,34 @@ function scratch(): string {
 afterEach(() => { for (const path of scratchPaths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 describe("benchmark preload", () => {
-  it("replays synthetic responses and pagination through the built CLI with no network", () => {
+  it.each([["sub", "list"], ["account", "list"], ["account", "show"]])("replays synthetic %s %s responses through the built CLI with no network", (group, verb) => {
     const dir = scratch();
     const file = join(dir, "recording.json");
     const bootstrap = join(dir, "bootstrap.mjs");
     const config = join(dir, "config.json");
     const nextLink = "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=contoso-page";
-    writeFileSync(file, JSON.stringify({ responses: [
-      { method: "GET", host: "management.azure.com", status: 200, body: scrub({ value: [{
-        subscriptionId: "00000000-0000-0000-0000-000000000001", displayName: "contoso-sub", state: "Enabled",
-      }], nextLink }) },
+    const sub = "00000000-0000-0000-0000-000000000001";
+    const tenantId = "00000000-0000-0000-0000-000000000003";
+    const account = { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId };
+    writeFileSync(file, JSON.stringify({ responses: verb === "show" ? [
+      { method: "GET", host: "management.azure.com", status: 200, body: scrub(account, { leakCheck: [tenantId] }) },
+    ] : [
+      { method: "GET", host: "management.azure.com", status: 200, body: scrub({ value: [account], nextLink }, { leakCheck: [tenantId] }) },
       { method: "GET", host: "management.azure.com", status: 200, body: { value: [] } },
     ] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
     writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token" } } }));
     const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
-      "dist/bin/az-axi.js", "sub", "list"], {
+      "dist/bin/az-axi.js", group, verb], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
-        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
+        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: verb === "show" ? sub : "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
         AZ_AXI_READ_ONLY: "1", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
     });
     expect(child.status, child.stderr + child.stdout).toBe(0);
     expect(child.stdout).toContain(scrub("contoso-sub"));
     expect(child.stdout).toContain("Enabled");
+    if (group === "account") expect(child.stdout).toContain(scrub(tenantId));
+    expect(child.stdout).not.toContain(tenantId);
     expect(child.stdout).not.toContain("contoso-sub");
     expect(child.stdout).not.toContain("benchmark-dummy");
   });
@@ -86,11 +92,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 15, notes: ["Skipped group-show", "Skipped resource-show"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 16, notes: ["Skipped resource-show"], detailCalls: [
+    { details: {}, count: 18, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 19, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 16, notes: ["Skipped group-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 19, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -146,9 +152,11 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[17]", notes: [] },
-    { omitted: ["group-show", "resource-show"], rows: "rows[15]", notes: ["Skipped group-show", "Skipped resource-show"] },
-  ])("runs available scenarios through offline replay with omitted $omitted captures", ({ omitted, rows, notes }) => {
+    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[18]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false },
+    { omitted: [], rows: "rows[21]", notes: [], duplicate: true, capped: false },
+    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: true },
+  ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped", ({ omitted, rows, notes, duplicate, capped }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
@@ -156,14 +164,27 @@ describe("benchmark surface", () => {
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
     mkdirSync(join(dir, "benchmark/fixtures"), { recursive: true });
     const sub = "00000000-0000-0000-0000-000000000001";
+    const capturedSub = "00000000-0000-0000-0000-000000000004";
+    const tenantId = "00000000-0000-0000-0000-000000000003";
     const principal = "00000000-0000-0000-0000-000000000002";
     const id = `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.Compute/virtualMachines/contoso-vm`;
     const response = (method: string, body: unknown, host = "management.azure.com") => ({ method, host, status: 200, body: scrub(body) });
-    const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" }] });
+    const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId }] });
     for (const scenario of scenarios) {
       if (omitted.includes(scenario.name)) continue;
       let responses;
-      if (scenario.name === "group-list") {
+      if (scenario.name === "account-list") {
+        const nextLink = "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=contoso-page";
+        responses = [response("GET", { value: [{ id: `/subscriptions/${capturedSub}`, subscriptionId: capturedSub, displayName: "contoso-sub", state: "Enabled", tenantId }], nextLink }),
+          response("GET", { value: [{ subscriptionId: principal, displayName: duplicate ? "contoso-sub" : "other-sub", state: "Disabled", tenantId }], ...(capped ? { nextLink } : {}) }),
+          ...Array.from({ length: capped ? 98 : 0 }, () => response("GET", { value: [], nextLink }))];
+      } else if (scenario.name === "account-show") {
+        responses = [response("GET", { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId })];
+      } else if (scenario.name === "workspace-list") {
+        responses = [response("GET", { value: [] })];
+      } else if (scenario.name === "workspace-show") {
+        responses = [response("GET", { id: `/subscriptions/${sub}/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo`, name: "logs-demo", location: "westus", properties: { customerId: "00000000-0000-0000-0000-000000000010" } })];
+      } else if (scenario.name === "group-list") {
         responses = [response("GET", { value: [] })];
       } else if (scenario.name === "group-show") {
         responses = [response("GET", { id: `/subscriptions/${sub}/resourceGroups/rg-demo`, name: "rg-demo", location: "westus" })];
@@ -199,8 +220,32 @@ describe("benchmark surface", () => {
       }
       writeFileSync(join(dir, `benchmark/fixtures/${scenario.name}.json`), JSON.stringify({ responses }));
     }
-    const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
+    const accountCapture = join(dir, "benchmark/fixtures/account-list.json");
+    const persistedAccount = readFileSync(accountCapture, "utf8");
+    const bootstrap = join(dir, "bootstrap.mjs");
+    const accountOutput = join(dir, "account-output.toon");
+    writeFileSync(bootstrap, [
+      'import childProcess from "node:child_process";',
+      'import { syncBuiltinESMExports } from "node:module";',
+      'import { writeFileSync } from "node:fs";',
+      'const spawnSync = childProcess.spawnSync;',
+      'childProcess.spawnSync = (command, argv, options) => {',
+      '  const child = spawnSync(command, argv, options);',
+      `  if (argv.includes("account") && argv.includes("list")) writeFileSync(${JSON.stringify(accountOutput)}, child.stdout);`,
+      '  return child;',
+      '};',
+      'syncBuiltinESMExports();',
+    ].join("\n"));
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
+    const output = decode(readFileSync(accountOutput, "utf8")) as Record<string, unknown>;
+    expect(output).toMatchObject({
+      total: capped ? "1+" : 1, count: capped ? "1 of 1+ subscriptions" : "1 of 1 subscriptions",
+    });
+    expect(output.subscriptions).toEqual([{ id: sub, name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }]);
+    expect(readFileSync(accountCapture, "utf8")).toBe(persistedAccount);
+    expect(JSON.parse(persistedAccount).responses[0].body.value[0].subscriptionId).toBe(scrub(capturedSub));
+    expect(persistedAccount).not.toContain(capturedSub);
     expect(child.stdout).toContain(rows);
     for (const note of notes) expect(child.stderr).toContain(note);
     expect(child.stdout).toContain("rbac-privileged");
@@ -218,12 +263,13 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(19);
+    expect(Object.keys(result.help)).toHaveLength(21);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
+      "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
       "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);

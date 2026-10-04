@@ -249,6 +249,10 @@ az-axi group list
 az-axi group show -n rg-demo -s <subscription>
 az-axi resource list -g rg-demo
 az-axi resource show --ids <ARM-id> --full
+az-axi account list
+az-axi account show -s <subscription> --full
+az-axi monitor log-analytics workspace list -g rg-demo
+az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
 ```
 
 Discovery uses live ARM GETs.
@@ -263,11 +267,26 @@ Generic `resource show` returns only the ARM envelope: id, name, type, kind, loc
 Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
 Provider `properties` and nested field paths are rejected by `--fields`; no show view returns the raw properties blob.
 Use typed commands for provider details, or the raw `az-axi api` path with its existing redaction.
-Paging stops at 100 pages per subscription and marks incomplete counts as lower bounds.
+Group and resource paging stops at 100 pages per subscription and marks incomplete counts as lower bounds.
 Show by name requires one subscription; resource show also requires `--resource-group` and `--resource-type`, or exactly one `--ids` instead.
 Resource show selects the newest stable provider API version unless `--api-version` is supplied.
 Credential-bearing child resources and actions are refused before retrieval.
 Management-group discovery is unsupported; select subscriptions explicitly.
+
+`account list/show` reads live ARM subscription metadata within the same discovery scope, resolving subscription names to IDs.
+This differs from Azure CLI's cached account list: it uses the selected profile identity and flags/environment/profile subscriptions, otherwise all accessible subscriptions.
+`account show` requires exactly one selected subscription and never changes defaults or chooses an ambient Azure CLI account.
+The legacy `sub list` still lists all visible subscriptions with `inScope` markers.
+Account defaults are name, subscription GUID id, state and tenantId; `--full` adds armId, authorizationSource, quotaId, spendingLimit and locationPlacementId.
+Account `--fields` selects only these metadata fields.
+Workspace lists default to name, ARM id, location and customerId (the GUID used for Log Analytics queries).
+Workspace list accepts `--resource-group` / `-g` to scope the list and `--name` / `-n` to filter exact names case-insensitively.
+Workspace show accepts exactly one workspace `--ids`, or `--resource-group` plus `--workspace-name` (also `--name` / `-n`) within one subscription.
+An ID's subscription is used only when no subscription scope is configured; otherwise it must belong to selected scope.
+Full workspace views and `--fields` expose only documented metadata: name, id, type, location, tags, customerId, state, retentionInDays, sku, publicNetworkAccessForIngestion and publicNetworkAccessForQuery.
+Shared keys, arbitrary provider properties and credential-bearing children/actions are excluded before output; child/action selectors are refused before retrieval.
+Account lists follow up to 100 pages of the subscription catalogue; workspace lists follow up to 100 pages per subscription.
+Both default to 50 displayed rows; `--full` shows all fetched rows, and incomplete counts are lower bounds.
 Existing command scope, defaults and aliases are unchanged.
 
 One example per inspection command; see [Profiles](#profiles) for `config init` and `config path` examples.
@@ -371,7 +390,8 @@ Command paths must be complete and contiguous; put command flags after the full 
 Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
 `--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
 `rg query` continues to mean Resource Graph; use `group list/show` for resource groups and `resource list/show` for ARM resources, as described [above](#use).
-Account discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
+For native account and workspace discovery, see the [discovery reference above](#use).
+Raw assessment lists and alert name/location selectors for reads remain separate additions.
 For the native alert status write and its legacy alias, see [Writes](#writes).
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
 

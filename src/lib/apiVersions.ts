@@ -197,6 +197,15 @@ export const DEPLOYMENTS_WHAT_IF = "2026-06-01";
 export const LOG_ANALYTICS_QUERY = "v1";
 
 /**
+ * Workspace List, ListByResourceGroup and Get, ARM metadata only.
+ * Value: 2025-07-01, stable REST contract verified 2026-10-03.
+ * Docs: https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/list?view=rest-loganalytics-2025-07-01
+ * and https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/get?view=rest-loganalytics-2025-07-01
+ * SharedKeys and child resources/actions are excluded.
+ */
+export const LOG_ANALYTICS_WORKSPACES = "2025-07-01";
+
+/**
  * Microsoft Graph directoryObjects getByIds
  * (`POST https://graph.microsoft.com/v1.0/directoryObjects/getByIds`, `graph` token).
  * Data plane: the version is the `v1.0` path segment.
