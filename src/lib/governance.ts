@@ -31,10 +31,10 @@ export interface FetchedPage {
 export interface GovernanceCollection {
   /** Words after the top-level command, without the verb (`["assignment"]`, `["set-definition"]`). */
   words: string[];
-  /** Top-level command owning this collection (`policy`, `lock`, `deny-assignment`). */
+  /** Top-level command owning this collection (`policy`). */
   top: string;
   noun: string;
-  /** ARM collection segment for `--ids` hints (`policyAssignments`, `locks`). */
+  /** ARM collection segment for `--ids` hints (`policyAssignments`, `policyDefinitions`). */
   arm: string;
   apiVersion: string;
   /** Validates `--ids` for this collection before any transport. */

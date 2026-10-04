@@ -1,4 +1,4 @@
-/** Secret redaction applied to all command output (PLAN.md Section 6.13.8). */
+/** Secret redaction applied to all command output; see README.md Behavior. */
 export const REDACTED = "***redacted***";
 
 const SECRET_KEY_PARTS = ["password", "secret", "token", "connectionstring", "credential", "sasuri", "sasurl"];
