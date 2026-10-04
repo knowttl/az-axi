@@ -19,6 +19,7 @@ import {
 import { governanceLeafHelp } from "../lib/governanceHelp.js";
 import { shortDate, truncate } from "../lib/format.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
+import { formatFlagValue } from "../lib/shell.js";
 
 export const meta = commandMeta("policy");
 
@@ -80,7 +81,9 @@ const ASSIGNMENT: GovernanceCollection = {
   },
   followHint: (first, args) => {
     const definitionId = str(objOf(first.properties).policyDefinitionId);
-    return `Run \`az-axi policy definition show --ids ${definitionId}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
+    const collection = [DEFINITION, SET_DEFINITION].find((candidate) => candidate.idTail.test(definitionId));
+    if (!collection) return undefined;
+    return `Run \`az-axi policy ${collection.words[0]} show ${formatFlagValue("ids", definitionId)}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
       `\` for the assigned definition`;
   },
 };
@@ -184,9 +187,12 @@ const STATES: GovernanceCollection = {
     }
     return { byCompliance };
   },
-  followHint: (first, args) =>
-    `Run \`az-axi policy assignment show --ids ${str(first.policyAssignmentId)}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
-    `\` for the assigned policy`,
+  followHint: (first, args) => {
+    const assignmentId = str(first.policyAssignmentId);
+    if (!ASSIGNMENT.idTail.test(assignmentId)) return undefined;
+    return `Run \`az-axi policy assignment show ${formatFlagValue("ids", assignmentId)}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
+      `\` for the assigned policy`;
+  },
   extraListFlags: ["assignment", "compliance"],
   extraListFilter: (item, args) => {
     const assignment = args.flags["assignment"];

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AxiError } from "axi-sdk-js";
+import { spawnSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn(), request: vi.fn(), requestAll: vi.fn() }));
@@ -140,6 +141,39 @@ describe("policy assignment list", () => {
 });
 
 describe("policy assignment show", () => {
+  it("includes explicitly selected metadata and excluded scopes without full output", async () => {
+    requestMock.mockResolvedValueOnce({ ...policyAssignment, properties: {
+      ...policyAssignment.properties,
+      metadata: { owner: "team", adminPassword: "private-password" },
+      notScopes: [`/subscriptions/${SUB_A}/resourceGroups/excluded`],
+    } } as never);
+    const result = await runPolicy(["assignment", "show", "--ids", policyAssignment.id, "--fields", "metadata,notScopes,definition"]);
+    expect(result).toMatchObject({
+      metadata: { owner: "team", adminPassword: "***redacted***" },
+      notScopes: [`/subscriptions/${SUB_A}/resourceGroups/excluded`],
+      definition: "ResourceNaming",
+    });
+  });
+
+  it.each(["assignment", "definition", "set-definition"])("redacts %s nested secrets before compact and full serialization", async (kind) => {
+    const item = { ...policyAssignment, properties: {
+      ...policyAssignment.properties,
+      parameters: { adminPassword: { value: "private-password" }, allowed: { value: "public-value" } },
+      policyRule: { then: { effect: "deployIfNotExists", details: { deployment: { properties: {
+        parameters: { clientSecret: { value: "private-credential" } },
+      } } } } },
+      policyDefinitions: [{ policyDefinitionId: policyDefinition.id, parameters: { adminPassword: { value: "member-password" } } }],
+    } };
+    requestMock.mockResolvedValue(item as never);
+    const compact = await runPolicy([kind, "show", "--name", "demo"]);
+    const full = await runPolicy([kind, "show", "--name", "demo", "--full"]);
+    expect(JSON.stringify(compact)).not.toMatch(/private-password|private-credential|member-password/);
+    expect(JSON.stringify(full)).not.toMatch(/private-password|private-credential|member-password/);
+    expect(full.parameters).toContain("public-value");
+    expect(full.parameters).toContain("***redacted***");
+    expect(item.properties.parameters.adminPassword.value).toBe("private-password");
+  });
+
   it("shows parameters and messages by name at both scopes and by ARM ID", async () => {
     const sub = await runPolicy(["assignment", "show", "--name", "CostManagement"]);
     expect(sub).toMatchObject({
@@ -171,6 +205,22 @@ describe("policy assignment show", () => {
 });
 
 describe("policy definition list and show", () => {
+  it.each([
+    { kind: "definition", builtin: policyDefinition, arm: "policyDefinitions", noun: "policy definitions" },
+    { kind: "set-definition", builtin: policySetDefinition, arm: "policySetDefinitions", noun: "policy initiatives" },
+  ])("deduplicates $kind built-ins across subscriptions before counting and limiting", async ({ kind, builtin, arm, noun }) => {
+    useProfile("ci", { auth: "token", subscriptions: [SUB_A, SUB_B] });
+    allMock.mockImplementation(async (_profile, options) => ({ items: [
+      { ...builtin, id: options.path.includes(SUB_A) ? builtin.id : builtin.id.toUpperCase() },
+      { ...builtin, id: `${options.path}/custom`, name: "custom", properties: { ...builtin.properties, policyType: "Custom" } },
+    ] }));
+    const result = await runPolicy([kind, "list", "--limit", "1"]);
+    expect(result).toMatchObject({ total: 3, count: `1 of 3 ${noun}`, byType: { BuiltIn: 1, Custom: 2 } });
+    const filtered = await runPolicy([kind, "list", "--name", builtin.name]);
+    expect(filtered.total).toBe(1);
+    expect(listCalls().map((call) => call.path)).toContain(`/subscriptions/${SUB_B}/providers/Microsoft.Authorization/${arm}`);
+  });
+
   it("lists built-in and custom definitions with effects and categories", async () => {
     const result = await runPolicy(["definition", "list"]);
     expect(result).toMatchObject({
@@ -231,6 +281,23 @@ describe("policy set-definition list and show", () => {
 });
 
 describe("policy state list", () => {
+  it.each([
+    { flags: [], total: "1+", count: "1 of 1+ policy states" },
+    { flags: ["--compliance", "Compliant"], total: "0+", count: "0 of 0+ policy states" },
+    { flags: ["--assignment", "missing"], total: "0+", count: "0 of 0+ policy states" },
+    { flags: ["--name", "missing"], total: "0+", count: "0 of 0+ policy states" },
+  ])("retains lower bounds when paging stops with filters $flags", async ({ flags, total, count }) => {
+    requestMock.mockResolvedValueOnce(policyStateEnvelope([policyStates[0]], 1, "https://management.azure.com/next?page=2") as never);
+    expect(await runPolicy(["state", "list", ...flags])).toMatchObject({ total, count });
+  });
+
+  it("counts states from every subscription even when a response has no page count", async () => {
+    useProfile("ci", { auth: "token", subscriptions: [SUB_A, SUB_B] });
+    requestMock.mockResolvedValueOnce(policyStateEnvelope([policyStates[0]], 1, null) as never);
+    requestMock.mockResolvedValueOnce({ value: policyStates } as never);
+    expect(await runPolicy(["state", "list"])).toMatchObject({ total: 3, byCompliance: { NonCompliant: 2, Compliant: 1 } });
+  });
+
   it("queries latest states with a bodyless read POST and summarizes compliance", async () => {
     const result = await runPolicy(["state", "list"]);
     expect(result).toMatchObject({
@@ -272,7 +339,7 @@ describe("policy state list", () => {
       .resolves.toMatchObject({ total: 0, rows: expect.stringContaining("0 policy states found") });
   });
 
-  it("follows skip tokens across pages and keeps the exact service total", async () => {
+  it("follows skip tokens across pages and counts fetched states", async () => {
     requestMock.mockReset();
     mockPagedStates();
     const result = await runPolicy(["state", "list"]);
@@ -285,7 +352,7 @@ describe("policy state list", () => {
     requestMock.mockResolvedValueOnce(
       policyStateEnvelope([policyStates[0]], 2, "https://management.azure.com/next?page=2") as never);
     const result = await runPolicy(["state", "list"]);
-    expect(result).toMatchObject({ total: 2, count: "1 of 2 policy states" });
+    expect(result).toMatchObject({ total: "1+", count: "1 of 1+ policy states" });
     expect(result.help).toEqual(expect.arrayContaining([expect.stringContaining("lower bounds")]));
   });
 
@@ -293,15 +360,43 @@ describe("policy state list", () => {
     requestMock.mockImplementation(async (_profile: unknown, requestOptions: Record<string, unknown>) => {
       const query = (requestOptions["query"] ?? {}) as Record<string, unknown>;
       if (!query["$skiptoken"]) {
-        return policyStateEnvelope(policyStates, 3,
+        return policyStateEnvelope(policyStates, 2,
           `https://management.azure.com/subscriptions/x/queryResults?$skiptoken=token-2`) as never;
       }
-      return policyStateEnvelope([policyStates[1]], 3, null) as never;
+      return policyStateEnvelope([policyStates[1]], 1, null) as never;
     });
   }
 });
 
 describe("governance reads stay read-only and validate before transport", () => {
+  it.each([
+    { source: "assignment", target: "set-definition", arm: "policySetDefinitions" },
+    { source: "state", target: "assignment", arm: "policyAssignments" },
+    { source: "definition", target: "definition", arm: "policyDefinitions" },
+    { source: "set-definition", target: "set-definition", arm: "policySetDefinitions" },
+  ])("emits a runnable quoted hint from $source to $target", async ({ source, target, arm }) => {
+    const id = `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/${arm}/Team's policy`;
+    const item = { ...policyAssignment, id, properties: { ...policyAssignment.properties, policyDefinitionId: id } };
+    allMock.mockResolvedValue({ items: [item] });
+    requestMock.mockResolvedValue({ value: [{ ...policyStates[0], policyAssignmentId: id }] } as never);
+    const result = await runPolicy([source, "list"]);
+    const command = (result.help as string[])[0]!.split("`")[1]!;
+    const script = "process.stdout.write(JSON.stringify(process.argv.slice(1)))";
+    const shell = spawnSync("sh", ["-c", command.replace(/^az-axi/, `${quoteFlagValue(process.execPath)} -e ${quoteFlagValue(script)}`)], { encoding: "utf8" });
+    expect(shell.status, shell.stderr).toBe(0);
+    const argv = JSON.parse(shell.stdout) as string[];
+    expect(argv).toEqual(["policy", target, "show", "--ids", id]);
+    requestMock.mockResolvedValueOnce(item as never);
+    await expect(runPolicy(argv.slice(1))).resolves.toMatchObject({ id });
+  });
+
+  it("omits detail hints for inherited management-group assignments", async () => {
+    requestMock.mockResolvedValueOnce({ value: [{ ...policyStates[0],
+      policyAssignmentId: "/providers/Microsoft.Management/managementGroups/root/providers/Microsoft.Authorization/policyAssignments/inherited",
+    }] } as never);
+    expect(await runPolicy(["state", "list"])).toMatchObject({ help: [] });
+  });
+
   it("rejects unknown verbs and leaves without transport", async () => {
     await expect(runPolicy(["assignment", "update"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(runPolicy(["state", "show"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });

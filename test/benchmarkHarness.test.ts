@@ -20,6 +20,62 @@ function scratch(): string {
 afterEach(() => { for (const path of scratchPaths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 describe("benchmark preload", () => {
+  it.each(["assignment", "definition", "set-definition", "state"])("replays nonempty scrubbed policy %s recordings without network", (kind) => {
+    const dir = scratch();
+    const file = join(dir, "recording.json");
+    const bootstrap = join(dir, "bootstrap.mjs");
+    const config = join(dir, "config.json");
+    const sub = "00000000-0000-0000-0000-000000000001";
+    const assignmentId = `/subscriptions/${sub}/providers/Microsoft.Authorization/policyAssignments/private-policy`;
+    const definitionId = "/providers/Microsoft.Authorization/policyDefinitions/private-definition";
+    const state = {
+      resourceId: `/subscriptions/${sub}/resourceGroups/private-group/providers/Microsoft.Compute/virtualMachines/private-vm`,
+      policyAssignmentId: assignmentId, policyDefinitionId: definitionId,
+      complianceState: "NonCompliant", timestamp: "2026-10-02T12:34:56Z",
+    };
+    const inventory = { id: assignmentId, name: "private-policy", properties: {
+      scope: `/subscriptions/${sub}`, policyDefinitionId: definitionId, enforcementMode: "DoNotEnforce",
+      policyType: "BuiltIn", displayName: "private-display", metadata: { category: "private-category" },
+      parameters: { adminPassword: { value: "private-password" } },
+      policyRule: { then: { effect: "deny" } },
+      policyDefinitions: [{ policyDefinitionId: definitionId }],
+    } };
+    const nextLink = `https://management.azure.com/subscriptions/${sub}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults?api-version=2024-10-01&$skiptoken=private-page`;
+    const bodies = kind === "state" ? [
+      { value: [state], "@odata.count": 1, "@odata.nextLink": nextLink },
+      { value: [{ ...state, complianceState: "Compliant" }], "@odata.count": 1, "@odata.nextLink": null },
+    ] : [{ value: [inventory] }];
+    const recording = { responses: bodies.map((body) => ({
+      method: kind === "state" ? "POST" : "GET", host: "management.azure.com", status: 200,
+      body: scrub(body, { leakCheck: [sub, "private-password", "private-page", "private-category", "private-policy"] }),
+    })) };
+    expect(recording.responses[0]!.body.value[0]).toMatchObject(kind === "state" ? {
+      complianceState: "NonCompliant", policyAssignmentId: scrub(assignmentId),
+      policyDefinitionId: scrub(definitionId), timestamp: state.timestamp,
+    } : { properties: {
+      parameters: { [scrub("adminPassword")]: { value: scrub("private-password") } },
+      policyRule: { then: { effect: "deny" } },
+    } });
+    writeFileSync(file, JSON.stringify(recording));
+    writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
+    writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token", subscriptions: [sub] } } }));
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+      "dist/bin/az-axi.js", "policy", kind, "list"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
+        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
+        AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
+    });
+    expect(child.status, child.stderr + child.stdout).toBe(0);
+    const output = decode(child.stdout) as Record<string, unknown>;
+    expect(output.total).toBe(kind === "state" ? 2 : 1);
+    const rows = output.rows as Record<string, unknown>[];
+    if (kind === "state") expect(output.byCompliance).toEqual({ NonCompliant: 1, Compliant: 1 });
+    if (kind === "assignment") expect(rows[0]).toMatchObject({ enforcement: "DoNotEnforce", definition: scrub("private-definition") });
+    if (kind === "definition") expect(rows[0]).toMatchObject({ type: "BuiltIn", effect: "deny", category: scrub("private-category") });
+    if (kind === "set-definition") expect(rows[0]).toMatchObject({ type: "BuiltIn", definitions: 1, category: scrub("private-category") });
+    expect(child.stdout).not.toContain("private-password");
+  });
+
   it.each([["sub", "list"], ["account", "list"], ["account", "show"]])("replays synthetic %s %s responses through the built CLI with no network", (group, verb) => {
     const dir = scratch();
     const file = join(dir, "recording.json");

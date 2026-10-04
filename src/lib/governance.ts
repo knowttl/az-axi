@@ -7,6 +7,7 @@ import { countLine, emptyState, pickFields, truncate } from "./format.js";
 import { governanceLeafHelp } from "./governanceHelp.js";
 import { parseSubscriptionId, shortenResourceId } from "./scope.js";
 import { formatFlagValue } from "./shell.js";
+import { redact } from "./redact.js";
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 1000;
@@ -27,8 +28,6 @@ export interface GovernanceItem extends AnyObj {
 export interface FetchedPage {
   items: GovernanceItem[];
   incomplete: boolean;
-  /** Exact total when the service reports one (policy states `@odata.count`). */
-  total?: number;
 }
 
 export interface GovernanceCollection {
@@ -122,7 +121,12 @@ async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOpt
     items.push(...page.items);
     incomplete ||= !!page.nextLink;
   }
-  return { items, incomplete };
+  const unique = new Map<string, GovernanceItem>();
+  for (const item of items) {
+    const id = item.id.toLowerCase();
+    if (!unique.has(id)) unique.set(id, item);
+  }
+  return { items: [...unique.values()], incomplete };
 }
 
 export function governanceLimit(args: ParsedArgs, path: string): number {
@@ -144,7 +148,7 @@ export function selectorSuffix(args: ParsedArgs, keys = ["profile", "config", "t
 function defaultFollowHint(collection: GovernanceCollection, first: GovernanceItem, args: ParsedArgs): string {
   const selectors = selectorSuffix(args, ["profile", "config", "tenant"]);
   const leaf = [collection.top, ...collection.words].join(" ");
-  return `Run \`az-axi ${leaf} show --ids ${first.id}${selectors}\` for the first row in detail`;
+  return `Run \`az-axi ${leaf} show ${formatFlagValue("ids", first.id)}${selectors}\` for the first row in detail`;
 }
 
 function scopeLabel(subs: string[], group: string | undefined): string {
@@ -172,25 +176,21 @@ export async function runGovernanceList(
   const fetch = collection.fetchTargets ?? defaultFetchTargets;
   const targets = subs.flatMap((sub) => collection.listTargets(sub, group, path));
   const fetched = await fetch(profile, targets);
-  let dropped = false;
   const kept = fetched.items.filter((item) => {
     const keepName = !name ||
       (collection.matchName ? collection.matchName(item, name) : item.name.toLowerCase() === name.toLowerCase());
     const keepExtra = !collection.extraListFilter || collection.extraListFilter(item, args, path);
-    if (!keepName || !keepExtra) dropped = true;
     return keepName && keepExtra;
   });
   kept.sort(collection.compare ?? ((a, b) => a.name.localeCompare(b.name)));
 
-  // A service total counts the scope, not client-side filters: filtered views
-  // report their match count instead, like rbac list does.
-  const total = dropped ? kept.length : (fetched.total ?? (fetched.incomplete ? `${kept.length}+` : kept.length));
+  const total = fetched.incomplete ? `${kept.length}+` : kept.length;
   const context = scopeLabel(subs, groupFlag ?? undefined);
   if (kept.length === 0) {
     return {
       profile: profile.name,
       total,
-      count: countLine(0, 0, collection.noun),
+      count: fetched.incomplete ? `0 of ${total} ${collection.noun}` : countLine(0, 0, collection.noun),
       rows: emptyState(collection.noun, fetched.incomplete ? `${context} in fetched pages; listing is incomplete` : context),
       help: [
         `Run \`az-axi ${path}${suffix} --full\` to show every fetched row`,
@@ -207,8 +207,8 @@ export async function runGovernanceList(
   const truncatedValues = !full && /\(truncated, \d+ chars total\)/.test(JSON.stringify(picked));
   const help: string[] = [];
   const first = kept[0]!;
-  const follow = collection.followHint?.(first, args) ?? defaultFollowHint(collection, first, args);
-  help.push(follow);
+  const follow = collection.followHint ? collection.followHint(first, args) : defaultFollowHint(collection, first, args);
+  if (follow) help.push(follow);
   if (shown.length < kept.length || truncatedValues) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
   }
@@ -218,7 +218,7 @@ export async function runGovernanceList(
   return {
     profile: profile.name,
     total,
-    count: countLine(shown.length, typeof total === "number" ? total : kept.length, collection.noun),
+    count: fetched.incomplete ? `${shown.length} of ${total} ${collection.noun}` : countLine(shown.length, kept.length, collection.noun),
     ...collection.aggregate?.(kept),
     rows: picked,
     help,
@@ -283,10 +283,14 @@ export async function runGovernanceShow(
     getPath = namedPath!(subscription, group, governanceSegment(name!, "name", path));
   }
 
-  const item = await request<GovernanceItem>(profile, { method: "GET", path: getPath, apiVersion: collection.apiVersion });
+  const item = redact(await request<GovernanceItem>(profile, { method: "GET", path: getPath, apiVersion: collection.apiVersion }));
   const { body } = collection.detail(item, full, limit);
+  const fullBody = collection.detail(item, true, limit).body;
+  for (const field of fields ?? []) {
+    if (!(field in body)) body[field] = fullBody[field];
+  }
   const shortened = !full && JSON.stringify(pickFields([body], fields)) !==
-    JSON.stringify(pickFields([collection.detail(item, true, limit).body], fields));
+    JSON.stringify(pickFields([fullBody], fields));
   const help: string[] = [];
   if (shortened) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` for every nested row`);
@@ -305,12 +309,8 @@ export async function runGovernanceShow(
 export async function fetchStatePages(profile: ResolvedProfile, targets: RequestOptions[]): Promise<FetchedPage> {
   const items: GovernanceItem[] = [];
   let incomplete = false;
-  let total = 0;
-  let counted = false;
   for (const target of targets) {
     let skipToken: string | undefined;
-    // `@odata.count` repeats one subscription's query total on every page.
-    let targetCounted = false;
     for (let page = 0; page < STATE_MAX_PAGES; page++) {
       const body = await request<{ value?: GovernanceItem[]; "@odata.count"?: unknown; "@odata.nextLink"?: unknown }>(profile, {
         ...target,
@@ -318,11 +318,6 @@ export async function fetchStatePages(profile: ResolvedProfile, targets: Request
         query: { ...(target.query ?? {}), $top: STATE_PAGE_TOP, ...(skipToken ? { $skiptoken: skipToken } : {}) },
       });
       items.push(...(body?.value ?? []));
-      if (!targetCounted && typeof body?.["@odata.count"] === "number") {
-        total += body["@odata.count"];
-        targetCounted = true;
-        counted = true;
-      }
       const next = typeof body?.["@odata.nextLink"] === "string" ? body["@odata.nextLink"] : undefined;
       if (!next) break;
       const token = /[?&]\$skiptoken=([^&]*)/i.exec(next)?.[1];
@@ -333,5 +328,5 @@ export async function fetchStatePages(profile: ResolvedProfile, targets: Request
       skipToken = decodeURIComponent(token);
     }
   }
-  return { items, incomplete, ...(counted ? { total } : {}) };
+  return { items, incomplete };
 }
