@@ -527,6 +527,25 @@ describe("network projection regressions", () => {
       .resolves.toMatchObject({ subnets: ["subnets/default"] });
   });
 
+  it("preserves NAT gateway associations in public-IP list and show", async () => {
+    const item = { ...networkPublicIp, properties: { ...networkPublicIp.properties,
+      ipConfiguration: undefined,
+      natGateway: { id: `${discoveryGroup.id}/providers/Microsoft.Network/natGateways/nat-demo` },
+    } };
+    allMock.mockResolvedValue({ items: [item] });
+    requestMock.mockResolvedValue(item as never);
+    await expect(run(["public-ip", "list"]))
+      .resolves.toMatchObject({ rows: [{ associated: "nat-demo" }] });
+    await expect(run(["public-ip", "list", "--full"]))
+      .resolves.toMatchObject({ rows: [{ associated: "nat-demo" }] });
+    await expect(run(["public-ip", "show", "--ids", item.id]))
+      .resolves.toMatchObject({ associated: "nat-demo" });
+    await expect(run(["public-ip", "show", "--name", item.name, "--resource-group", "rg-demo", "--full"]))
+      .resolves.toMatchObject({ associated: "nat-demo" });
+    await expect(run(["public-ip", "show", "--ids", item.id, "--fields", "associated"]))
+      .resolves.toEqual({ profile: "ci", associated: "nat-demo" });
+  });
+
   it("keeps load-balancer names in public-IP associations", async () => {
     const item = { ...networkPublicIp, properties: { ...networkPublicIp.properties,
       ipConfiguration: { id: `${discoveryGroup.id}/providers/Microsoft.Network/loadBalancers/lb1/frontendIPConfigurations/front1` },

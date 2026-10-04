@@ -297,7 +297,7 @@ const COLLECTIONS: Collection[] = [
     compact: (item) => ({
       name: item.name, id: item.id, location: item.location ?? "",
       address: str(propsOf(item).ipAddress),
-      associated: tail(str(objOf(propsOf(item).ipConfiguration).id), 2),
+      associated: tail(str(objOf(propsOf(item).ipConfiguration).id), 2) || tail(str(objOf(propsOf(item).natGateway).id)),
     }),
     fields: ["name", "id", "location", "address", "associated"],
     detail: (item, full, _limit, includeMetadata = full) => {
@@ -308,7 +308,7 @@ const COLLECTIONS: Collection[] = [
           address: str(properties.ipAddress),
           allocation: str(properties.publicIPAllocationMethod),
           version: str(properties.publicIPAddressVersion),
-          associated: tail(str(objOf(properties.ipConfiguration).id), 2),
+          associated: tail(str(objOf(properties.ipConfiguration).id), 2) || tail(str(objOf(properties.natGateway).id)),
           fqdn: str(objOf(properties.dnsSettings).fqdn),
           sku: str(objOf(item.sku).name),
           zones: Array.isArray(item.zones) ? item.zones.map(String) : [],

@@ -18,13 +18,13 @@ const SELECTORS: Record<string, string> = {
 };
 
 const DETAIL: Record<string, string> = {
-  "network nsg list": "Rows default to name, id, location and rules (the security-rule count).",
-  "network nsg show": "Show returns the full rule list (name, priority, direction, access, protocol, source, destination, ports) plus attached subnets and NICs; long rule lists are capped at --limit with the total disclosed.",
+  "network nsg list": "Rows default to name, id, location and rules (the custom security-rule count). Azure default security rules are excluded, including with --full.",
+  "network nsg show": "Show returns custom security rules (name, priority, direction, access, protocol, source, destination, ports) plus attached subnets and NICs; long rule lists are capped at --limit with totalRules counting all custom rules. Azure default security rules are excluded; --full expands every custom rule.",
   "network nic list": "Rows default to name, id, location, privateIp and vm (the attached virtual machine, when any).",
   "network nic show": "Show returns every IP configuration (private IP, allocation, subnet, public IP) plus the NSG, virtual machine and MAC address.",
   "network vnet list": "Rows default to name, id, location, prefixes (address space) and subnets (the subnet count).",
   "network vnet show": "Show returns the address space, every subnet (prefix, NSG, route table) and every peering (state, remote VNet).",
-  "network public-ip list": "Rows default to name, id, location, address and associated (the attached NIC, load balancer or gateway, when any).",
+  "network public-ip list": "Rows default to name, id, location, address and associated (the attached NIC, load balancer or gateway, including a NAT gateway, when any).",
   "network public-ip show": "Show returns the address, allocation method, association, FQDN, SKU and zones.",
   "network private-endpoint list": "Rows default to name, id, location, service (the target private-link service) and status (the connection state).",
   "network private-endpoint show": "Show returns the target service, connection state, subnet, NICs and custom DNS configs.",
