@@ -19,8 +19,8 @@ version it runs as.
 ## Orientation
 
 The exact current leaf registry is `src/lib/registry.ts`.
-Its capability labels are `native` (implemented handler), `api-only` (reviewed raw API operation only), `blocked` (policy refusal), and `unsupported` (no supported implementation or reviewed API coverage).
-The list below records current native leaves only; it makes no coverage claim for other Azure commands.
+Its capability labels are `native` (implemented handler), `passthrough` (pinned reviewed Azure CLI read), `api-only` (reviewed raw API operation only), `blocked` (policy refusal), and `unsupported` (no supported implementation or reviewed API coverage).
+The list below records current executable leaves and their capabilities; it makes no coverage claim for other Azure commands.
 `api` has a dynamic Azure effect determined by request policy, and `config init` only writes locally.
 The offline test suite checks this list against the registry.
 
@@ -52,12 +52,13 @@ The offline test suite checks this list against the registry.
 | `az-axi logs query` | native | read |
 | `az-axi api` | native | dynamic |
 | `az-axi op status` | native | read |
+| `az-axi az group show` | passthrough | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
-See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for its data-only status, refusal policy, credential exclusions and maintenance workflow.
+See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
 
 Run `az-axi` with no arguments first. It prints the active profile, identity,
 visible subscription count, active Defender alerts by severity, average and lowest
@@ -75,7 +76,7 @@ az-axi sub list             # subscriptions visible to the identity
 
 ## Selecting profile, scope, and tenant
 
-Every command accepts these selector flags, and they never count as unknown
+Native commands accept these selector flags, and they never count as unknown
 flags:
 
 - `--profile <name>` - a configured profile (`az-axi config list`); may also be

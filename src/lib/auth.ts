@@ -1,5 +1,9 @@
 import spawn from "cross-spawn";
 import { AxiError } from "axi-sdk-js";
+import { StringDecoder } from "node:string_decoder";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
 
 export type { Resource } from "./config.js";
@@ -168,29 +172,56 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * `.cmd`/`.bat` shims correctly on Windows while still passing arguments
  * through as an argv array (not a shell command string), so there's no
  * shell-injection risk from argument values (e.g. `--tenant`).
- * The only place az-axi spawns `az`.
+ * The only place az-axi spawns `az`. Reviewed passthrough reads additionally
+ * close stdin, strip ambient overrides, disable extension install and enforce
+ * a 30-second deadline and a combined 1 MiB byte ceiling.
  * On Windows, cancellation requests tree termination with `taskkill` and
  * closes local pipes, rejecting with the signal reason without waiting for
  * termination. If `taskkill` cannot spawn, it falls back to killing the child.
  */
-export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
-  return new Promise((resolve, reject) => {
+export function runAz(args: string[], signal?: AbortSignal, reviewedRead = false): Promise<string> {
+  const bounds = new AbortController();
+  let extensionDir: string | undefined;
+  if (reviewedRead) {
+    const deadline = AbortSignal.timeout(30_000);
+    signal = AbortSignal.any([...(signal ? [signal] : []), deadline, bounds.signal]);
+  }
+  return new Promise<string>((resolve, reject) => {
     signal?.throwIfAborted();
+    if (reviewedRead) extensionDir = mkdtempSync(join(tmpdir(), "az-axi-extensions-"));
     const windows = process.platform === "win32";
     const child = spawn("az", args, {
       windowsHide: true,
+      shell: false,
+      ...(reviewedRead ? { stdio: ["ignore", "pipe", "pipe"] as const } : {}),
       signal: windows ? undefined : signal,
       killSignal: "SIGKILL",
       env: {
-        ...process.env,
+        ...(reviewedRead ? Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+          /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|TEMP|TMP|LANG|LC_ALL|AZURE_CONFIG_DIR|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|REQUESTS_CA_BUNDLE|SSL_CERT_FILE)$/i.test(key),
+        )) : process.env),
         AZURE_CORE_COLLECT_TELEMETRY: "no",
         AZURE_CORE_ONLY_SHOW_ERRORS: "true",
         AZURE_CORE_DISABLE_CONFIRM_PROMPT: "1",
+        ...(reviewedRead ? {
+          // Azure CLI 2.77.0 reads these overrides before loading extensions;
+          // empty dev_sources also overrides a persisted config value.
+          AZURE_EXTENSION_DIR: extensionDir!,
+          AZURE_EXTENSION_SYS_DIR: extensionDir!,
+          AZURE_EXTENSION_DEV_SOURCES: "",
+          AZURE_EXTENSION_USE_DYNAMIC_INSTALL: "no",
+          AZURE_CORE_OUTPUT: "json",
+          "AZURE_AUTO-UPGRADE_ENABLE": "no",
+          AZURE_LOGGING_ENABLE_LOG_FILE: "no",
+        } : {}),
       },
     });
     let stdout = "";
     let stderr = "";
     let truncated = false;
+    const maxBytes = reviewedRead ? 1024 * 1024 : MAX_AZ_OUTPUT_BYTES;
+    let outputBytes = 0;
+    const decoder = new StringDecoder("utf8");
 
     const abort = () => {
       // Killing cmd.exe first can orphan az's Python process before taskkill finds it.
@@ -211,11 +242,21 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
     };
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      if (stdout.length < MAX_AZ_OUTPUT_BYTES) stdout += chunk.toString();
-      else truncated = true;
+      outputBytes += chunk.length;
+      if (reviewedRead ? outputBytes <= maxBytes : stdout.length < maxBytes) stdout += decoder.write(chunk);
+      else {
+        truncated = true;
+        if (reviewedRead) {
+          bounds.abort(new Error("reviewed read output exceeded the maximum buffer size"));
+        }
+      }
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      if (stderr.length < MAX_AZ_OUTPUT_BYTES) stderr += chunk.toString();
+      outputBytes += chunk.length;
+      if (reviewedRead ? outputBytes <= maxBytes : stderr.length < maxBytes) stderr += chunk.toString();
+      else if (reviewedRead) {
+        bounds.abort(new Error("reviewed read output exceeded the maximum buffer size"));
+      }
     });
     child.on("error", (err: NodeJS.ErrnoException) => {
       signal?.removeEventListener("abort", abort);
@@ -228,7 +269,7 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
     child.on("close", (code) => {
       signal?.removeEventListener("abort", abort);
       if (code === 0 && !truncated) {
-        resolve(stdout);
+        resolve(stdout + decoder.end());
       } else if (truncated) {
         reject(new Error("az CLI output exceeded the maximum buffer size"));
       } else {
@@ -239,6 +280,8 @@ export function runAz(args: string[], signal?: AbortSignal): Promise<string> {
       signal.addEventListener("abort", abort, { once: true });
       if (signal.aborted) abort();
     }
+  }).finally(() => {
+    if (extensionDir) rmSync(extensionDir, { recursive: true, force: true });
   });
 }
 

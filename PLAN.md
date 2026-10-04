@@ -707,6 +707,11 @@ az-axi api DELETE <path> --api-version <v> --execute --confirm <resource-name>
 - All output passes through `redact.ts`.
 - **Reference:** Azure REST API reference landing page (https://learn.microsoft.com/en-us/rest/api/azure/); upstream pattern in ado-axi `src/commands/api.ts`.
 
+### 6.11a `az group show` reviewed passthrough
+
+Slice 7 introduced an explicit reviewed child-process read alongside native REST commands.
+See [README.md#pinned-azure-cli-read-catalogue](README.md#pinned-azure-cli-read-catalogue) for its behavior contract and catalogue provenance, and [BENCHMARK.md](BENCHMARK.md#owner-capture) for measurement scope.
+
 ### 6.12 Error codes and exit codes
 
 Keep upstream's `formatError`. Codes:
@@ -1349,6 +1354,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 |---|---|
 | `doctor` (identity) | `az account show --query "{name:user.name,type:user.type,tenant:tenantId}"` |
 | `sub list` | `az account list --query "length(@)"` |
+| `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
 | `rg query "<kql>"` | Same query in the portal's Resource Graph Explorer, or `az graph query -q "<kql>"` (resource-graph extension) |
 | `rbac list --privileged` | `az role assignment list --all --query "[?roleDefinitionName=='Owner'] \| length(@)"` and the same for the other privileged roles |
 | `activity list --since 24h --status Failed` | `az monitor activity-log list --offset 24h --status Failed --query "length(@)"` |

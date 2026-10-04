@@ -36,6 +36,7 @@ import { run as runExposure } from "../src/commands/exposure.js";
 import { run as runLogs } from "../src/commands/logs.js";
 import { run as runApi } from "../src/commands/api.js";
 import { run as runSecurity } from "../src/commands/security.js";
+import { run as runPassthrough } from "../src/commands/az.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { requestAll, sendRequest } from "../src/lib/client.js";
 import { collapseHomeDirectory } from "../src/lib/paths.js";
@@ -47,9 +48,11 @@ import {
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
-import { offlineWritePreviews } from "../benchmark/scenarios.mjs";
+import { offlineWritePreviews, offlinePassthroughReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
+  TENANT,
+  azResourceGroup,
   WORKSPACE,
   activityEvents,
   apiListResponse,
@@ -100,6 +103,7 @@ const CEILINGS: Record<string, number> = {
   "logs query": 184,
   api: 135,
   "api execute": 140,
+  "az group show": 60,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -164,6 +168,15 @@ describe("token budgets", () => {
     sendMock.mockResolvedValue(ok(defenderAlertUpdateState));
     const { argv } = routeArgv([...offlineWritePreviews[0]!.argv, "--subscription", SUB_A]);
     await expectUnderBudget("security alert update", await runSecurity(argv.slice(1)));
+  });
+  it("reviewed group show stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ defaultProfile: "work", profiles: { work: { auth: "az", tenant: TENANT, subscriptions: [SUB_A] } } }));
+    runAzMock
+      .mockResolvedValueOnce(JSON.stringify({ "azure-cli": "2.77.0", "azure-cli-core": "2.77.0", extensions: {} }))
+      .mockResolvedValueOnce(JSON.stringify({ name: "AzureCloud", profile: "latest", endpoints: { resourceManager: "https://management.azure.com/" } }))
+      .mockResolvedValueOnce(JSON.stringify({ id: SUB_A, tenantId: TENANT, environmentName: "AzureCloud", state: "Enabled", user: { name: "ada@contoso.com", type: "user" } }))
+      .mockResolvedValueOnce(JSON.stringify(azResourceGroup));
+    await expectUnderBudget("az group show", await runPassthrough([...offlinePassthroughReads[0]!.argv.slice(1), "--subscription", SUB_A]));
   });
   it("home stays under its ceiling", async () => {
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {

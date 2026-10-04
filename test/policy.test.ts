@@ -166,6 +166,7 @@ describe("command effect registry", () => {
       logs: "read",
       op: "read",
       api: "dynamic",
+      az: "read",
     });
   });
 
