@@ -27,7 +27,7 @@ describe("exact leaf contracts", () => {
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
       "group list", "group show", "resource list", "resource show",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
-      "security alert update", "defender assessments", "defender score", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
+      "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
       "storage container list", "storage container show", "storage blob list", "storage blob show",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
@@ -80,7 +80,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "account", "monitor"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "account", "monitor", "sentinel"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

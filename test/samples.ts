@@ -223,6 +223,56 @@ export const defenderAlerts = [
 
 export const defenderAlertDetail = defenderAlert("alert-1");
 
+// source: securityinsights stable/2025-09-01 examples/incidents/GetIncidents.json
+// and the incidents list REST reference (identifiers replaced).
+const sentinelIncident = (name: string, incidentNumber: number, overrides: Record<string, unknown> = {}) => ({
+  id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/${name}`,
+  name,
+  type: "Microsoft.SecurityInsights/incidents",
+  etag: '"00000000-0000-0000-0000-000000000099"',
+  properties: {
+    lastModifiedTimeUtc: "2026-09-30T13:15:30Z",
+    createdTimeUtc: "2026-09-30T13:15:30Z",
+    lastActivityTimeUtc: "2026-09-30T13:05:30Z",
+    firstActivityTimeUtc: "2026-09-30T13:00:30Z",
+    description: "A demo incident raised by the analytics rule.",
+    title: "Suspicious sign-in activity",
+    owner: { objectId: SYN(80), email: "hunter@contoso.com", userPrincipalName: "hunter@contoso.com", assignedTo: "Casey Hunter" },
+    severity: "High",
+    status: "Active",
+    incidentUrl: "https://portal.azure.com/#asset/Microsoft_Azure_Security_Insights/Incident",
+    incidentNumber,
+    labels: [{ labelName: "reviewed", labelType: "User" }],
+    providerName: "Azure Sentinel",
+    providerIncidentId: String(incidentNumber),
+    additionalData: { alertsCount: 3, bookmarksCount: 0, commentsCount: 1, alertProductNames: ["Azure Security Center"], tactics: ["Persistence"] },
+  },
+  ...overrides,
+});
+
+export const sentinelIncidents = [
+  sentinelIncident(SYN(90), 3177),
+  sentinelIncident(SYN(91), 3176, {
+    properties: {
+      lastModifiedTimeUtc: "2026-09-29T10:00:00Z",
+      createdTimeUtc: "2026-09-29T10:00:00Z",
+      lastActivityTimeUtc: "2026-09-29T09:00:00Z",
+      firstActivityTimeUtc: "2026-09-29T08:00:00Z",
+      description: "Outbound traffic exceeded the learned baseline.",
+      title: "Unusual data transfer volume",
+      severity: "Medium",
+      status: "New",
+      incidentNumber: 3176,
+      labels: [],
+      providerName: "Azure Sentinel",
+      providerIncidentId: "3176",
+      additionalData: { alertsCount: 1, bookmarksCount: 0, commentsCount: 0, alertProductNames: [], tactics: [] },
+    },
+  }),
+];
+
+export const sentinelIncidentDetail = sentinelIncidents[0];
+
 // source: Defender for Cloud Resource Graph samples for securityresources (identifiers replaced)
 const assessment = (recommendation: string, severity: string, status: string, resource: string) => ({
   recommendation,

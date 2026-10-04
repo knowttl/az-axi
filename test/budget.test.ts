@@ -43,6 +43,7 @@ import { run as runExposure } from "../src/commands/exposure.js";
 import { run as runLogs } from "../src/commands/logs.js";
 import { run as runApi } from "../src/commands/api.js";
 import { run as runSecurity } from "../src/commands/security.js";
+import { run as runSentinel } from "../src/commands/sentinel.js";
 import { run as runPassthrough } from "../src/commands/az.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { request, requestAll, sendRequest } from "../src/lib/client.js";
@@ -58,6 +59,8 @@ import { routeArgv } from "../src/lib/router.js";
 import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
+  sentinelIncidentDetail,
+  sentinelIncidents,
   storageMetadataRows,
   TENANT,
   azResourceGroup,
@@ -119,6 +122,8 @@ const CEILINGS: Record<string, number> = {
   "security alert update": 179,
   "defender assessments": 117,
   "defender score": 86,
+  "sentinel incident list": 220,
+  "sentinel incident show": 226,
   exposure: 298,
   "logs query": 184,
   api: 135,
@@ -301,6 +306,20 @@ describe("token budgets", () => {
     sendMock.mockResolvedValue(ok({ totalRecords: defenderScores.length, data: defenderScores }));
     const { argv } = routeArgv(path.split(" "));
     await expectUnderBudget("defender score", await runDefender(argv.slice(1)));
+  });
+
+  it("sentinel incident list stays under its ceiling", async () => {
+    allMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) =>
+      String(options["path"] ?? "") === "/subscriptions" ? { items: subItems() } : { items: sentinelIncidents });
+    await expectUnderBudget("sentinel incident list", await runSentinel(["incident", "list",
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel incident show stays under its ceiling", async () => {
+    vi.mocked(request).mockResolvedValue(sentinelIncidentDetail as never);
+    await expectUnderBudget("sentinel incident show", await runSentinel(["incident", "show",
+      "--name", sentinelIncidents[0]!.name as string,
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
   });
 
   it("exposure stays under its ceiling", async () => {

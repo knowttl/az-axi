@@ -59,6 +59,8 @@ export const COMMAND_LEAVES = [
   { path: "security alert update", effect: "write", capability: "native", aliases: ["defender alerts update"], flags: { location: "value", name: "value", "resource-group": "value", status: "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "defender assessments", effect: "read", capability: "native", flags: { severity: "list", status: "value", resource: "value", "show-query": "boolean" } },
   { path: "defender score", effect: "read", capability: "native", aliases: ["security secure-scores list"] },
+  { path: "sentinel incident list", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", status: "list", severity: "list", owner: "value", since: "value" } },
+  { path: "sentinel incident show", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value" } },
   { path: "exposure", effect: "read", capability: "native", flags: { check: "value", "show-query": "boolean" } },
   { path: "monitor log-analytics query", handlerPath: "logs query", aliases: ["logs query"], effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" }, canonicalFlags: { "analytics-query": "value" } },
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
@@ -111,6 +113,7 @@ const LOADERS = {
   activity: () => import("../commands/activity.js"),
   defender: () => import("../commands/defender.js"),
   security: () => import("../commands/security.js"),
+  sentinel: () => import("../commands/sentinel.js"),
   exposure: () => import("../commands/exposure.js"),
   logs: () => import("../commands/logs.js"),
   api: () => import("../commands/api.js"),
@@ -168,6 +171,7 @@ const HELP_OVERVIEWS = {
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
   defender: "az-axi defender alerts|assessments|score  # Defender for Cloud posture",
   security: "az-axi security alert update             # gated status update for one Defender alert",
+  sentinel: "az-axi sentinel incident list|show          # Sentinel incidents in one Log Analytics workspace",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
@@ -228,6 +232,8 @@ const LEAF_HELP: Record<string, string> = {
   "security alert update": ALERT_UPDATE_HELP,
   "defender assessments": "Recommendation summaries from Resource Graph, worst severity first. --limit defaults to 25.\n--severity High and --status Unhealthy filter recommendations; --resource <name> selects per-resource rows.\n--show-query prints KQL without running it.\nExamples: az-axi defender assessments --severity High; az-axi defender assessments --resource <name>",
   "defender score": "Secure scores from Resource Graph, lowest percentage first. --limit defaults to 50.\nOutput: total, count, rows (subscription,current,max,percent).\nExamples: az-axi security secure-scores list; az-axi defender score --full",
+  "sentinel incident list": "Lists Sentinel incidents in one workspace, newest first. Requires --workspace-name and --resource-group, or --workspace <alias|guid> from the profile workspaces. Exactly one subscription is required.\n--status New,Active and --severity High,Medium filter case-insensitively; --owner <text> matches the assignee name, email or UPN; --since 7d filters by creation time.\nDefault rows: number, severity, title, status, time. --limit defaults to 50; --full shows full ARM IDs, owner and creation time for every fetched row; --fields selects row fields. Lists follow up to 10 pages and disclose incomplete counts.\nExamples: az-axi sentinel incident list -g <group> --workspace-name <workspace> -s <subscription>; az-axi sentinel incident list --workspace sentinel --status Active --severity High",
+  "sentinel incident show": "Shows one Sentinel incident. --name takes the incident GUID or its sequential incident number (with --workspace-name and --resource-group, or --workspace <alias|guid>); --ids takes the full incident ARM ID alone. --incident-id aliases --name. Exactly one subscription is required.\nDefault: number, id, title, description (truncated at 200 chars), severity, status, created/modified times, owner, labels, provider, tactics and alert count. --full expands the description.\nExamples: az-axi sentinel incident show -n <incident-id> -g <group> --workspace-name <workspace> -s <subscription>; az-axi sentinel incident show --name 3177 --workspace sentinel; az-axi sentinel incident show --ids <incident-ARM-id> --full",
 };
 
 const HELP_FOOTER = [
@@ -329,6 +335,7 @@ const HELP_TEXT = {
     "Examples: az-axi defender alerts --severity High; az-axi defender assessments --severity High; az-axi defender score",
   ].join("\n"),
   security: ALERT_UPDATE_HELP,
+  sentinel: ["az-axi sentinel incident list --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident show --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", LEAF_HELP["sentinel incident list"], LEAF_HELP["sentinel incident show"]].join("\n"),
   exposure: [
     "az-axi exposure [--check public-ips|mgmt-ports|any-any|all] [--limit 50]",
     "az-axi exposure --show-query              # print the canned Resource Graph KQL without running it",

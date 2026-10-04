@@ -582,6 +582,15 @@ Legacy `sub list` keeps its all-visible output and scope markers.
 `monitor log-analytics workspace list/show` uses ARM workspace GETs with compact IDs and safe metadata in full views; no shared keys or credential-bearing child/action requests.
 Reference: https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/get?view=rest-resources-2022-12-01 and https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/get?view=rest-loganalytics-2025-07-01
 
+### Native Sentinel incident triage
+
+`sentinel incident list/show` reads incidents with ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
+Show accepts the incident GUID name, the sequential incident number (resolved through a bounded list), or exactly one `--ids` incident ARM ID; `--incident-id` aliases `--name`.
+Workspace targeting is `--workspace-name` plus `--resource-group`, or `--workspace <alias|guid>` resolved through the ARM workspace list by customer ID; exactly one subscription is required and management-group scope is refused.
+Status, severity, owner and time-window filters apply client-side over bounded paging (10 pages, lower-bound disclosure).
+Related alerts/entities, analytics rules, connectors and incident updates stay out of scope.
+Reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/get?view=rest-securityinsights-2025-09-01
+
 ### 6.5 `rg query`
 
 Canonical path: `graph query --graph-query <kql>` / `-q <kql>`, retaining `rg query` as the legacy alias.
@@ -1398,6 +1407,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `security alert update` | Owner only in a disposable sandbox: compare the selected alert's status before/after in the Defender portal; repeat the action to verify a no-op |
 | `defender assessments` | Defender for Cloud portal, Recommendations blade, unhealthy counts per recommendation |
 | `defender score` | `az security secure-scores list` |
+| `sentinel incident list/show` | Owner only: `az sentinel incident list -g <group> -w <workspace>` and `show --name <incident-id> -g <group> -w <workspace>` with identical scope; worker verification uses only mocks and fake transports |
 | `exposure` | Each query from `--show-query` pasted into Resource Graph Explorer |
 | `logs query` | Same query in the workspace's Logs blade, or `az monitor log-analytics query -w <workspace-guid> --analytics-query "<kql>"` |
 | `graph query -q "<kql>"` | Compare with `az graph query -q "<kql>"` using the same explicit scope and `--first 50`; az-axi retains profile scope |
@@ -1481,6 +1491,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Defender secure scores | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/secure-scores/list |
 | Log Analytics query | https://learn.microsoft.com/en-us/rest/api/loganalytics/dataaccess/query/execute |
 | Log Analytics workspace metadata | https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/list?view=rest-loganalytics-2025-07-01 and https://learn.microsoft.com/en-us/rest/api/loganalytics/workspaces/get?view=rest-loganalytics-2025-07-01 |
+| Sentinel incidents | https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/get?view=rest-securityinsights-2025-09-01 |
 
 ### 15.5 Azure CLI
 

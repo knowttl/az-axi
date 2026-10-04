@@ -27,6 +27,8 @@ const CLASSIFICATION: Row[] = [
   // read: GET and HEAD, always
   ["arm", "GET", "/subscriptions", "read"],
   ["arm", "HEAD", STORAGE, "read"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents`, "read"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090`, "read"],
   ["logs", "GET", "/v1/workspaces", "read"],
   ["graph", "GET", "/v1.0/me", "read"],
   // query: exactly the listed POST paths
@@ -164,6 +166,7 @@ describe("command effect registry", () => {
       activity: "read",
       defender: "read",
       security: "write",
+      sentinel: "read",
       exposure: "read",
       logs: "read",
       op: "read",

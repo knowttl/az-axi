@@ -55,6 +55,8 @@ The offline test suite checks this list against the registry.
 | `az-axi defender assessments` | native | read |
 | `az-axi defender score` | native | read |
 | `az-axi security secure-scores list` | native | read |
+| `az-axi sentinel incident list` | native | read |
+| `az-axi sentinel incident show` | native | read |
 | `az-axi exposure` | native | read |
 | `az-axi monitor log-analytics query` | native | read |
 | `az-axi logs query` | native | read |
@@ -201,6 +203,23 @@ returns description, remediation steps, and an entities summary.
 `defender score` returns one row per subscription
 (`subscription, current, max, percent`), lowest percent first.
 `--show-query` on `assessments` prints the exact KQL without running it.
+
+```sh
+az-axi sentinel incident list -g rg-demo --workspace-name logs-demo
+az-axi sentinel incident show --name 3177 --workspace sentinel
+```
+
+`sentinel incident list` lists incidents in one workspace, newest first.
+It needs `--workspace-name` and `--resource-group`, or `--workspace
+<alias|guid>` from the profile `workspaces` map, plus exactly one
+subscription. `--status`, `--severity`, `--owner`, and `--since` filter
+client-side. Output is `total`, `count`, `bySeverity`, `byStatus`, and rows
+of `number, severity, title, status, time`. `sentinel incident show` takes
+`--name <incident-id|number>` (`--incident-id` aliases `--name`) with the
+workspace selectors, or `--ids <incident-ARM-id>` alone, and returns the
+description, owner, labels, provider, tactics, and alert count.
+Related alerts, entities, analytics rules, and incident updates are not
+covered; use `logs query` on the workspace tables for investigation.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,

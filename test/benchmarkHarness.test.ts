@@ -92,11 +92,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 18, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 19, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
+    { details: {}, count: 19, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 20, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 19, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 20, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -152,10 +152,10 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: false },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[18]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false },
-    { omitted: [], rows: "rows[21]", notes: [], duplicate: true, capped: false },
-    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: true },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[19]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: true, capped: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: true },
   ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped", ({ omitted, rows, notes, duplicate, capped }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
@@ -207,6 +207,24 @@ describe("benchmark surface", () => {
           alertDisplayName: "contoso-alert", severity: "High", status: "Active", timeGeneratedUtc: "2026-10-02T12:34:56Z",
           resourceIdentifiers: [{ azureResourceId: id }],
         } }] }), subscriptions()];
+      } else if (scenario.name === "sentinel-incidents") {
+        const workspaceList = response("GET", { value: [{
+          id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws`,
+          name: "contoso-ws",
+          properties: { customerId: "contoso-customer" },
+        }] });
+        // The replay matches the workspace by customer ID against the
+        // benchmark profile alias, so the synthetic GUID must survive scrubbing.
+        workspaceList.body.value[0].properties.customerId = "00000000-0000-0000-0000-000000000010";
+        responses = [
+          workspaceList,
+          response("GET", { value: [{
+            id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws/providers/Microsoft.SecurityInsights/incidents/contoso-incident`,
+            name: "contoso-incident",
+            properties: { incidentNumber: 7, title: "contoso-title", severity: "High", status: "Active", createdTimeUtc: "2026-10-02T12:34:56Z" },
+          }] }),
+          subscriptions(),
+        ];
       } else if (scenario.name === "monitor-activity") {
         responses = [response("GET", { value: [] })];
       } else if (scenario.name === "security-scores") {
@@ -263,7 +281,7 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(20);
+    expect(Object.keys(result.help)).toHaveLength(21);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 
@@ -271,7 +289,7 @@ describe("benchmark surface", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
       "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");
