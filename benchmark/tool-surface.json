@@ -31,9 +31,9 @@
     "keyvault": 359,
     "acr": 342,
     "network": 515,
-    "policy": 455,
-    "lock": 426,
-    "deny-assignment": 469
+    "policy": 472,
+    "lock": 448,
+    "deny-assignment": 514
   },
-  "helpTotal": 10728
+  "helpTotal": 10812
 }
