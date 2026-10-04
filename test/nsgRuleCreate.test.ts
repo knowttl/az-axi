@@ -149,13 +149,13 @@ describe("built NSG deny-rule create, offline only", () => {
   });
 
   it("sends plural selectors when several values are given", () => {
-    const result = cli(["--destination-port-ranges", "23", "80-90", "--source-address-prefixes", "10.0.0.0/8", "Internet",
+    const result = cli(["--destination-port-ranges", "23", "80-90", "--source-address-prefixes", "10.0.0.0/8", "192.0.2.0/24",
       "--execute", "--confirm", RULE]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(records("requests.jsonl")[2]).toMatchObject({ method: "PUT",
       body: { properties: {
         destinationPortRanges: ["23", "80-90"],
-        sourceAddressPrefixes: ["10.0.0.0/8", "Internet"],
+        sourceAddressPrefixes: ["10.0.0.0/8", "192.0.2.0/24"],
       } } });
   });
 
@@ -305,6 +305,43 @@ describe("built NSG deny-rule create, offline only", () => {
       const result = cli([`--${flag}`, value]);
       expect(result.status, result.stdout + result.stderr).toBe(0);
       expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL }]);
+    });
+  });
+
+  describe.each([
+    { flag: "source-address-prefixes", single: "sourceAddressPrefix", plural: "sourceAddressPrefixes" },
+    { flag: "destination-address-prefixes", single: "destinationAddressPrefix", plural: "destinationAddressPrefixes" },
+  ])("--$flag validation", ({ flag, single, plural }) => {
+    it.each([
+      ["VirtualNetwork", "Internet"],
+      ["10.0.0.0/8", "Internet"],
+      ["*", "192.0.2.1"],
+      ["192.0.2.1,AzureCloud.westus"],
+      ["10.0.0.0/33", "192.0.2.1"],
+      ["2001:db8::/129", "2001:db8::1"],
+      ["192.0.2.1/24/1", "198.51.100.1"],
+    ])("refuses unsupported plural values %j before transport", (...values) => {
+      const result = cli([`--${flag}`, ...values]);
+      expect(result.status, result.stdout + result.stderr).toBe(2);
+      expect(result.stdout).toContain("with multiple values supports only IP addresses or CIDR prefixes");
+      expect(records("requests.jsonl")).toEqual([]);
+      expect(records("writes.log")).toEqual([]);
+    });
+
+    it.each([
+      { values: ["192.0.2.1", "198.51.100.1"] },
+      { values: ["10.0.0.0/8", "192.0.2.0/24"] },
+      { values: ["2001:db8::/32", "2001:db8::1"] },
+    ])("sends valid plural values $values", ({ values }) => {
+      const result = cli([`--${flag}`, ...values, "--execute", "--confirm", RULE]);
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(records("requests.jsonl")[2]).toMatchObject({ method: "PUT", body: { properties: { [plural]: values } } });
+    });
+
+    it.each(["Internet", "VirtualNetwork", "*"])("preserves single value %s", (value) => {
+      const result = cli([`--${flag}`, value, "--execute", "--confirm", RULE]);
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(records("requests.jsonl")[2]).toMatchObject({ method: "PUT", body: { properties: { [single]: value } } });
     });
   });
 

@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { AxiError } from "axi-sdk-js";
 import { NETWORK, NETWORK_DNS } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
@@ -690,6 +691,21 @@ function portRanges(args: ReturnType<typeof parseArgs>, name: string, path: stri
   return ranges;
 }
 
+function addressPrefixes(args: ReturnType<typeof parseArgs>, name: string, path: string): string[] {
+  const prefixes = selectorList(args, name, path);
+  if (prefixes.length > 1) {
+    for (const entry of prefixes) {
+      const [address, prefix, ...extra] = entry.split("/");
+      const version = isIP(address!);
+      if (!version || address!.includes("%") || extra.length ||
+          (prefix !== undefined && (!/^\d+$/.test(prefix) || Number(prefix) > (version === 4 ? 32 : 128)))) {
+        invalid(`--${name} with multiple values supports only IP addresses or CIDR prefixes; use a service tag or * alone`, path);
+      }
+    }
+  }
+  return prefixes;
+}
+
 /** Singular ARM field for one value, plural for several. */
 function ranged(values: string[], single: string, plural: string): Record<string, unknown> {
   return values.length === 1 ? { [single]: values[0] } : { [plural]: values };
@@ -759,9 +775,9 @@ async function runNsgRuleCreate(
   const protocol = NSG_RULE_PROTOCOLS[protocolKey]!;
   const description = flagText(args, "description");
   if (description !== undefined && description.length > 140) invalid("--description is restricted to 140 chars", path);
-  const sourceAddresses = selectorList(args, "source-address-prefixes", path);
+  const sourceAddresses = addressPrefixes(args, "source-address-prefixes", path);
   const sourcePorts = portRanges(args, "source-port-ranges", path);
-  const destAddresses = selectorList(args, "destination-address-prefixes", path);
+  const destAddresses = addressPrefixes(args, "destination-address-prefixes", path);
   const destPorts = portRanges(args, "destination-port-ranges", path);
   const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
   const noWait = flagBool(args, "no-wait");

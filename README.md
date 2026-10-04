@@ -778,6 +778,7 @@ Select the NSG with `--nsg-name` plus `--resource-group` / `-g`, or with `--ids 
 `--access` takes Deny alone and defaults to Deny; Allow is refused.
 `--direction` takes Inbound or Outbound and defaults to Inbound; `--protocol` takes Tcp, Udp, Icmp, Esp, Ah or `*` and defaults to `*`.
 The four address/port lists default to `*` (unlike az, whose destination-port default is 80).
+Multiple source or destination address values must be IP addresses or CIDR prefixes; use a service tag or `*` alone.
 Source and destination ports accept `*`, individual ports in 0-65535, or ascending ranges within those bounds; invalid ports are refused before reading the NSG.
 Application security groups are unsupported and rejected as unknown flags.
 The preview reads the NSG (`GET .../networkSecurityGroups/<nsg>?api-version=2024-05-01`) and lists its existing rules plus the exact rule to be added, with the native execute command.
