@@ -80,9 +80,14 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const target = formatFlagValue("vault-name", vault);
   return {
     vault, count: `${page.rows.length}${page.truncated ? "+" : ""} ${noun}${scope}`,
-    [noun]: page.rows.length ? pickFields(page.rows, columns) : emptyState(noun, `in ${vault}${scope}`),
+    [noun]: page.rows.length ? pickFields(page.rows, columns) : page.truncated
+      ? `No matching ${noun} in scanned pages of ${vault}${scope}; listing incomplete`
+      : emptyState(noun, `in ${vault}${scope}`),
     ...(page.truncated
-      ? { help: [`Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""} --limit ${Math.min(limit * 2, 1000)}\` for more rows`] }
+      ? { help: [page.truncationReason === "scan"
+        ? "Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"
+        : limit === 1000 ? "Listing incomplete at the maximum --limit of 1000"
+        : `Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""} --limit ${Math.min(limit * 2, 1000)}\` for more rows`] }
       : page.rows.length ? { help: [`Run \`az-axi keyvault ${kind} show ${target}${selectors} --name <name>\` for one object's properties`] } : {}),
   };
 }
