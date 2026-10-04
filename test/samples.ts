@@ -828,6 +828,99 @@ export const denyAssignment = {
     excludePrincipals: [{ id: SYN(32), type: "Group" }],
   },
 };
+export const roleScopeId = (collection: string, name: string) =>
+  `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/${collection}/${name}`;
+// source: learn.microsoft.com/rest/api/authorization/role-definitions/list
+// (2022-04-01 "List role definitions for scope" example, identifiers replaced).
+// The subscription list carries built-in definitions with tenant-scoped IDs
+// alongside customs, like the policy definition list.
+export const roleDefinition = {
+  id: roleScopeId("roleDefinitions", SYN(40)), name: SYN(40),
+  type: "Microsoft.Authorization/roleDefinitions",
+  properties: {
+    roleName: "Contoso On-call", type: "CustomRole",
+    description: "Perform VM actions and read storage and network information",
+    assignableScopes: [`/subscriptions/${SUB_A}`],
+    permissions: [{
+      actions: ["Microsoft.Compute/*/read", "Microsoft.Compute/virtualMachines/start/action"],
+      notActions: [],
+      dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/*"],
+      notDataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write"],
+    }],
+    createdOn: "2026-09-01T12:00:00Z", updatedOn: "2026-10-01T12:00:00Z",
+  },
+};
+export const roleDefinitions = [roleDefinition, {
+  id: `/providers/Microsoft.Authorization/roleDefinitions/${SYN(41)}`,
+  name: SYN(41), type: "Microsoft.Authorization/roleDefinitions",
+  properties: {
+    roleName: "Reader", type: "BuiltInRole",
+    description: "View all resources, but does not allow you to make any changes",
+    assignableScopes: ["/"],
+    permissions: [{ actions: ["*/read"], notActions: [], dataActions: [], notDataActions: [] }],
+    createdOn: "2015-02-02T21:55:09Z", updatedOn: "2024-01-01T00:00:00Z",
+  },
+}];
+// source: learn.microsoft.com/rest/api/defenderforcloud/pricings/list
+// (2024-01-01 "Get pricings on subscription" example, identifiers replaced).
+export const defenderPricing = {
+  id: `/subscriptions/${SUB_A}/providers/Microsoft.Security/pricings/VirtualMachines`,
+  name: "VirtualMachines", type: "Microsoft.Security/pricings",
+  properties: {
+    pricingTier: "Standard", subPlan: "P2", enablementTime: "2023-03-01T12:42:42Z",
+    freeTrialRemainingTime: "PT0S", enforce: "False", resourcesCoverageStatus: "PartiallyCovered",
+    extensions: [
+      { name: "AgentlessVmScanning", isEnabled: "True",
+        additionalExtensionProperties: { ExclusionTags: '[{"Key":"TestKey1","Value":"TestValue1"}]' } },
+      { name: "MdeDesignatedSubscription", isEnabled: "True" },
+    ],
+  },
+};
+export const defenderPricings = [defenderPricing, {
+  id: `/subscriptions/${SUB_A}/providers/Microsoft.Security/pricings/AppServices`,
+  name: "AppServices", type: "Microsoft.Security/pricings",
+  properties: {
+    pricingTier: "Free", freeTrialRemainingTime: "PT0S", enforce: "False",
+    resourcesCoverageStatus: "NotCovered",
+  },
+}];
+// source: learn.microsoft.com/rest/api/defenderforcloud/sub-assessments/list
+// (2019-01-01-preview "List security sub-assessments" example, identifiers replaced).
+const subAssessmentScope =
+  `${discoveryGroup.id}/providers/Microsoft.Sql/servers/sqlserver1demo`;
+export const securitySubAssessment = {
+  id: `${subAssessmentScope}/providers/Microsoft.Security/assessments/${SYN(50)}/subAssessments/${SYN(51)}`,
+  name: SYN(51), type: "Microsoft.Security/assessments/subAssessments",
+  properties: {
+    id: "VA2064",
+    displayName: "Database-level firewall rules should be tracked and maintained at a strict minimum",
+    description: "The Azure SQL Database-level firewall helps protect your data by preventing all access to your database until you specify which IP addresses have permission. Database-level firewall rules for master grant access to the specific database based on the originating IP address of each request.",
+    category: "SurfaceAreaReduction",
+    impact: "Firewall rules should be strictly configured to allow access only to client computers that have a valid need to connect to the database.",
+    remediation: "Evaluate each of the database-level firewall rules. Remove any rules that grant unnecessary access and set the rest as a baseline.",
+    resourceDetails: { id: `${subAssessmentScope}/databases/database1`, source: "Azure" },
+    status: { code: "Unhealthy", cause: "Unknown", severity: "High" },
+    timeGenerated: "2026-10-03T12:20:08Z",
+    additionalData: { assessedResourceType: "SqlServerVulnerability", type: "AzureDatabase",
+      query: "SELECT name FROM sys.database_firewall_rules" },
+  },
+};
+export const securitySubAssessments = [securitySubAssessment, {
+  id: `${subAssessmentScope}/providers/Microsoft.Security/assessments/${SYN(50)}/subAssessments/${SYN(52)}`,
+  name: SYN(52), type: "Microsoft.Security/assessments/subAssessments",
+  properties: {
+    id: "VA2065",
+    displayName: "Server-level firewall rules should be tracked and maintained at a strict minimum",
+    description: "Short description",
+    category: "SurfaceAreaReduction",
+    impact: "Short impact",
+    remediation: "Short remediation",
+    resourceDetails: { id: subAssessmentScope, source: "Azure" },
+    status: { code: "Healthy", cause: "Unknown", severity: "Low" },
+    timeGenerated: "2026-10-02T12:20:08Z",
+    additionalData: { assessedResourceType: "SqlServerVulnerability", type: "AzureDatabase" },
+  },
+}];
 export const denyAssignments = [denyAssignment, {
   id: `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/denyAssignments/sub-deny`,
   name: "sub-deny", type: "Microsoft.Authorization/denyAssignments",

@@ -286,6 +286,13 @@ az-axi lock list
 az-axi lock show --name sub-lock
 az-axi deny-assignment list
 az-axi deny-assignment show --ids <deny-assignment-ARM-id>
+az-axi role definition list
+az-axi role definition list --custom-role-only
+az-axi role definition show --name <definition-GUID>
+az-axi security pricing list
+az-axi security pricing show --name VirtualMachines
+az-axi security sub-assessment list --assessment-name <assessment>
+az-axi security sub-assessment show --assessment-name <assessment> --name <finding>
 ```
 
 Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -363,6 +370,20 @@ Definition show reads its version from `metadata.version`.
 ARM lists follow up to 100 pages per subscription and compliance queries up to 10 service pages per subscription without imposing a query result limit; incomplete counts are disclosed as lower bounds.
 There are no native policy-assignment, lock or deny-assignment mutation commands; generic `api` writes to these types are destructive under policy and require the existing destructive confirmation.
 Deny assignments have no dedicated Azure CLI group: the spelling follows the ARM resource type.
+Role definition reads (`role definition list|show`) use read-only ARM GETs against Microsoft.Authorization at api-version 2022-04-01.
+The subscription list carries built-in definitions alongside customs; `--name` / `-n` matches one definition GUID or role name (for example Reader), and `--custom-role-only` keeps custom roles.
+Definition rows default to name (the GUID), role (the display name), type (BuiltInRole or CustomRole), actions and dataActions, with `byType` counts.
+Show takes the definition GUID by name in one subscription, or one definition `--ids` alone (built-ins are tenant-scoped: show them with `--ids`); resolve a display name to its GUID with `role definition list` first.
+Definition detail labels actions, dataActions, notActions and notDataActions separately and includes assignable scopes and modification times.
+There are no native role-definition mutation commands; generic `api` writes to role definitions are destructive under policy and require the existing destructive confirmation. Role assignments stay on `rbac list` (alias `role assignment list`).
+Defender plan and finding reads (`security pricing list|show`, `security sub-assessment list|show`) use read-only ARM GETs against Microsoft.Security: pricings use api-version 2024-01-01; sub-assessments use api-version 2019-01-01-preview (the only version).
+Pricing lists fan out across the selected subscriptions with exact `--name` / `-n` plan filtering; rows default to name (the plan), tier (Free or Standard), subPlan and coverage, with `byTier` counts.
+Pricing show takes the plan name in one subscription, or one pricing `--ids` alone (resource-scoped pricings need `--ids`); it returns the tier, subPlan, enablement and trial times, enforcement, coverage, deprecation, replacement plans and extensions with their enabled state.
+Sub-assessment lists use the subscription list-all across the selected subscriptions, worst severity first, with `byStatus` and `bySeverity` counts; rows default to name, assessment (the parent assessment), resource (the assessed resource), status and severity.
+Sub-assessment list applies client-side, case-insensitive filters: `--assessment-name` keeps one parent assessment, `--assessed-resource-id` keeps findings for one assessed resource ARM ID (it must sit in a selected subscription), and `--name` / `-n` matches one exact finding name.
+Sub-assessment show needs `--assessment-name` plus `--name` / `-n` in one subscription (add `--assessed-resource-id` for a resource-scoped finding), or one finding `--ids` alone; it returns the display name, description, category, impact, remediation, assessed resource, status code, cause, severity and generation time, with the vulnerability ID and additionalData in `--full`.
+Long descriptions, impacts, remediations, rules and action lists truncate at 200 characters with a selector-preserving `--full` hint; `--limit` defaults to 50 and accepts integers from 1 to 1000.
+There are no native Defender plan or assessment mutation commands (`security pricing create` stays out); plan changes stay on generic `api` writes behind the existing gates. Alert status updates stay on `security alert update` and assessment summaries on `defender assessments`.
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Discovery uses live ARM GETs.

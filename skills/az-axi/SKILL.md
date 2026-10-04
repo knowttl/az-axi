@@ -1,6 +1,6 @@
 ---
 name: az-axi
-description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, network and public DNS resources, policy and governance reads, NSG and public IP exposure, Log Analytics KQL queries.
+description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments and definitions, activity log, Defender for Cloud alerts, plans, assessments and secure score, network and public DNS resources, policy and governance reads, NSG and public IP exposure, Log Analytics KQL queries.
 user-invocable: false
 ---
 
@@ -49,6 +49,10 @@ The offline test suite checks this list against the registry.
 | `az-axi defender alerts` | native | read |
 | `az-axi security alert list` | native | read |
 | `az-axi defender alerts get` | native | read |
+| `az-axi security pricing list` | native | read |
+| `az-axi security pricing show` | native | read |
+| `az-axi security sub-assessment list` | native | read |
+| `az-axi security sub-assessment show` | native | read |
 | `az-axi security alert update` | native | write |
 | `az-axi defender alerts update` | native | write |
 | `az-axi defender assessments` | native | read |
@@ -103,6 +107,8 @@ The offline test suite checks this list against the registry.
 | `az-axi lock show` | native | read |
 | `az-axi deny-assignment list` | native | read |
 | `az-axi deny-assignment show` | native | read |
+| `az-axi role definition list` | native | read |
+| `az-axi role definition show` | native | read |
 | `az-axi network dns record-set list` | native | read |
 | `az-axi network dns record-set a list` | native | read |
 | `az-axi network dns record-set a show` | native | read |
@@ -303,9 +309,18 @@ az-axi lock list
 az-axi lock show --name sub-lock
 az-axi deny-assignment list
 az-axi deny-assignment show --ids <deny-assignment-ARM-id>
+az-axi role definition list
+az-axi role definition list --custom-role-only
+az-axi role definition show --name <definition-GUID>
+az-axi security pricing list
+az-axi security pricing show --name VirtualMachines
+az-axi security sub-assessment list --assessment-name <assessment>
+az-axi security sub-assessment show --assessment-name <assessment> --name <finding>
 ```
 
 See [governance reads](../../README.md#use) for collection scope, name and ARM ID selectors, compliance filters, output fields, paging limits, command naming and the mutation, scan and summary exclusions.
+
+See [role and Defender reads](../../README.md#use) for role and Defender collection scope, name and ARM ID selectors, assessment filters, output fields, paging limits and the mutation exclusions.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,

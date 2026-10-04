@@ -27,6 +27,8 @@ describe("exact leaf contracts", () => {
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
       "group list", "group show", "resource list", "resource show", "tag update",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
+      "security pricing list", "security pricing show",
+      "security sub-assessment list", "security sub-assessment show",
       "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show",
       "sentinel incident list-alert", "sentinel incident list-entity", "sentinel incident update", "sentinel incident comment create",
       "sentinel alert-rule list", "sentinel alert-rule show", "sentinel data-connector list", "sentinel data-connector show", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
@@ -41,6 +43,7 @@ describe("exact leaf contracts", () => {
       "policy definition list", "policy definition show",
       "policy set-definition list", "policy set-definition show", "policy state list",
       "lock list", "lock show", "deny-assignment list", "deny-assignment show",
+      "role definition list", "role definition show",
       "network dns record-set list",
       "network dns record-set a list", "network dns record-set a show",
       "network dns record-set aaaa list", "network dns record-set aaaa show",
@@ -74,10 +77,12 @@ describe("exact leaf contracts", () => {
       const module = await COMMANDS[name!]!();
       expect(module.meta).toEqual(commandMeta(name!));
       for (const leaf of COMMAND_LEAVES.filter((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path).split(" ")[0] === name)) {
-        // Sentinel is the one mixed-effect module: list/show stay read while the
-        // write verbs elevate to the write effect for their own requests only.
+        // Sentinel and security are mixed-effect modules: reads stay read while
+        // the write verbs elevate to the write effect for their own requests only.
         if (name === "sentinel" && leaf.effect === "write") {
           expect(["sentinel incident update", "sentinel incident comment create"]).toContain(leaf.path);
+        } else if (name === "security" && leaf.effect === "write") {
+          expect(["security alert update"]).toContain(leaf.path);
         } else {
           expect(leaf.effect).toBe(module.meta.effect);
         }
@@ -109,7 +114,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

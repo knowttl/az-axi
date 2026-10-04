@@ -1,12 +1,12 @@
 {
   "tokenizer": "o200k_base",
   "skill": {
-    "frontmatter": 73,
-    "body": 5297,
-    "total": 5369
+    "frontmatter": 79,
+    "body": 5491,
+    "total": 5569
   },
   "help": {
-    "topLevel": 843,
+    "topLevel": 883,
     "home": 244,
     "doctor": 231,
     "config": 171,
@@ -20,7 +20,7 @@
     "rbac": 208,
     "activity": 172,
     "defender": 262,
-    "security": 266,
+    "security": 1095,
     "sentinel": 2137,
     "exposure": 311,
     "logs": 296,
@@ -33,7 +33,8 @@
     "network": 515,
     "policy": 472,
     "lock": 448,
-    "deny-assignment": 514
+    "deny-assignment": 514,
+    "role": 449
   },
-  "helpTotal": 10812
+  "helpTotal": 12130
 }

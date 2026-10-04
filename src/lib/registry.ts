@@ -6,6 +6,8 @@ import { AZ_HELP } from "./azHelp.js";
 import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
 import { NETWORK_HELP, NETWORK_RECORD_TYPES, networkLeafHelp } from "./networkHelp.js";
 import { DENY_ASSIGNMENT_HELP, governanceLeafHelp, LOCK_HELP, POLICY_HELP } from "./governanceHelp.js";
+import { ROLE_HELP, roleLeafHelp } from "./roleHelp.js";
+import { SECURITY_READS_HELP, securityReadLeafHelp } from "./securityHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 import { KEYVAULT_HELP, keyvaultLeafHelp } from "./keyvaultHelp.js";
 
@@ -63,6 +65,10 @@ export const COMMAND_LEAVES = [
   { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
   { path: "defender alerts", effect: "read", capability: "native", aliases: ["security alert list"], flags: { severity: "list", status: "value", since: "value" } },
   { path: "defender alerts get", effect: "read", capability: "native", positionalInput: true },
+  { path: "security pricing list", effect: "read", capability: "native", flags: { name: "value" } },
+  { path: "security pricing show", effect: "read", capability: "native", flags: { ids: "value", name: "value" } },
+  { path: "security sub-assessment list", effect: "read", capability: "native", flags: { name: "value", "assessment-name": "value", "assessed-resource-id": "value" } },
+  { path: "security sub-assessment show", effect: "read", capability: "native", flags: { ids: "value", name: "value", "assessment-name": "value", "assessed-resource-id": "value" } },
   { path: "security alert update", effect: "write", capability: "native", aliases: ["defender alerts update"], flags: { location: "value", name: "value", "resource-group": "value", status: "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "defender assessments", effect: "read", capability: "native", flags: { severity: "list", status: "value", resource: "value", "show-query": "boolean" } },
   { path: "defender score", effect: "read", capability: "native", aliases: ["security secure-scores list"] },
@@ -114,6 +120,8 @@ export const COMMAND_LEAVES = [
   { path: "lock show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "deny-assignment list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "deny-assignment show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "role definition list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", "custom-role-only": "boolean" } },
+  { path: "role definition show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "network dns record-set list", effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
   ...NETWORK_RECORD_TYPES.flatMap((type) => [
     { path: `network dns record-set ${type} list`, effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
@@ -176,6 +184,7 @@ const LOADERS = {
   policy: () => import("../commands/policy.js"),
   lock: () => import("../commands/lock.js"),
   "deny-assignment": () => import("../commands/denyAssignment.js"),
+  role: () => import("../commands/role.js"),
 } satisfies Record<CommandName, () => Promise<CommandModule>>;
 
 let activeEffect: Effect | undefined;
@@ -227,7 +236,8 @@ const HELP_OVERVIEWS = {
   rbac: "az-axi rbac list [--privileged]           # role assignments with principal names",
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
   defender: "az-axi defender alerts|assessments|score  # Defender for Cloud posture",
-  security: "az-axi security alert update             # gated status update for one Defender alert",
+  security: "az-axi security pricing|sub-assessment list|show  # Defender plans and assessment findings\naz-axi security alert update             # gated status update for one Defender alert",
+  role: "az-axi role definition list|show            # built-in and custom role definitions with permission planes",
   sentinel: "az-axi sentinel incident list|show|list-alert|list-entity|update|comment create  # Sentinel incidents and related alerts/entities in one Log Analytics workspace\naz-axi sentinel alert-rule list|show  # Sentinel analytics rules in one Log Analytics workspace\naz-axi sentinel data-connector list|show  # Sentinel data connectors in one Log Analytics workspace",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
@@ -251,6 +261,10 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
   if (path.startsWith("network ")) return networkLeafHelp(path);
   if (path.startsWith("policy ") || path.startsWith("lock ") || path.startsWith("deny-assignment ")) {
     return governanceLeafHelp(path);
+  }
+  if (path.startsWith("role ")) return roleLeafHelp(path);
+  if (path.startsWith("security pricing") || path.startsWith("security sub-assessment")) {
+    return securityReadLeafHelp(path);
   }
   if (leaf.capability === "passthrough") return AZ_HELP;
   const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
@@ -364,6 +378,8 @@ const HELP_TEXT = {
   policy: POLICY_HELP,
   lock: LOCK_HELP,
   "deny-assignment": DENY_ASSIGNMENT_HELP,
+  role: ROLE_HELP,
+  security: [SECURITY_READS_HELP, ALERT_UPDATE_HELP].join("\n"),
   account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
   monitor: ["az-axi monitor log-analytics workspace list|show", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"]].join("\n"),
   az: AZ_HELP,
@@ -454,7 +470,6 @@ const HELP_TEXT = {
     "--show-query on assessments prints the exact KQL without running it.",
     "Examples: az-axi defender alerts --severity High; az-axi defender assessments --severity High; az-axi defender score",
   ].join("\n"),
-  security: ALERT_UPDATE_HELP,
   sentinel: ["az-axi sentinel incident list --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident show --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident list-alert|list-entity --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident update --subscription <id> --name <incident-id|number> --status Closed --classification FalsePositive --classification-reason IncorrectAlertLogic", "az-axi sentinel incident comment create --subscription <id> --incident-id <incident-id> --message <text>", "az-axi sentinel alert-rule list --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel alert-rule show --name <rule-id> --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel data-connector list --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel data-connector show --name <connector-id> --workspace-name <workspace> --resource-group <group> --subscription <id>", LEAF_HELP["sentinel incident list"], LEAF_HELP["sentinel incident show"], LEAF_HELP["sentinel incident list-alert"], LEAF_HELP["sentinel incident list-entity"], LEAF_HELP["sentinel incident update"], LEAF_HELP["sentinel incident comment create"], LEAF_HELP["sentinel alert-rule list"], LEAF_HELP["sentinel alert-rule show"], LEAF_HELP["sentinel data-connector list"], LEAF_HELP["sentinel data-connector show"]].join("\n"),
   exposure: [
     "az-axi exposure [--check public-ips|mgmt-ports|any-any|all] [--limit 50]",
