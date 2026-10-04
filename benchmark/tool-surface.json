@@ -20,7 +20,7 @@
     "activity": 172,
     "defender": 262,
     "security": 266,
-    "sentinel": 2169,
+    "sentinel": 2137,
     "exposure": 311,
     "logs": 296,
     "api": 533,
@@ -30,5 +30,5 @@
     "keyvault": 359,
     "acr": 342
   },
-  "helpTotal": 8281
+  "helpTotal": 8249
 }

@@ -284,10 +284,10 @@ Entity rows default to kind, entity and name with `byKind` aggregates from the s
 Both related commands use the same display limit as incident list; `--full` shows every returned row, and `--fields` takes precedence over the full row schema.
 Neither related response pages.
 Analytics rules (`sentinel alert-rule list|show`) and data connectors (`sentinel data-connector list|show`) read workspace configuration through plain ARM GETs (api-version 2025-09-01) with the same workspace selectors as incident show: `--name` takes the rule or connector ID with `--workspace-name` and `--resource-group` (or `--workspace <alias|guid>`), while `--ids` takes the full ARM ID alone.
-Rule lists sort by display name; `--kind` (Scheduled, NRT, MicrosoftSecurityIncidentCreation, Fusion) and `--severity` filter case-insensitively with `byKind` and `byEnabled` aggregates.
+Rule lists sort by display name with `byKind` and `byEnabled` aggregates (kinds include Scheduled, NRT, MicrosoftSecurityIncidentCreation and Fusion).
 Rule rows default to name, rule, kind, enabled and severity; `--full` adds ARM IDs, tactics, templates and modification times.
 Rule show returns the description and, for query-based kinds, the KQL query, each truncated at 200 characters unless `--full`.
-Connector lists sort by name; `--kind` filters case-insensitively with `byKind` aggregates.
+Connector lists sort by name with `byKind` aggregates.
 Connector rows default to name, kind and types (connected data types with state); `--full` adds ARM IDs plus tenant, subscription and modification metadata.
 Connector views project safelisted metadata only: secrets, keys and credential fields are never printed, and credential-returning actions are never called.
 There is no rule or connector mutation command; query workspace tables with `logs query` to investigate further.

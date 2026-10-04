@@ -923,24 +923,14 @@ async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeo
     invalid(`alert-rule list --fields supports only: ${RULE_FIELD_ALLOWLIST.join(", ")}`);
   }
   const limit = limitValue(args);
-  const kinds = filterList(args, "kind");
-  const severities = filterList(args, "severity");
   const selectors = collectionSelectorError(args, "alert-rule", "list");
   if (selectors) invalid(selectors);
 
   const { target, suffix } = await resolveCollectionScope(profile, args, "alert-rule list");
-  const filterSuffix = ["kind", "severity"]
-    .filter((key) => typeof args.flags[key] === "string")
-    .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 
   const page = await requestAll<AlertRule>(profile,
     { method: "GET", path: collectionBase(target, "alertRules"), apiVersion: SENTINEL_ALERT_RULES });
   const collected = page.items
-    .filter((rule) => {
-      if (kinds?.length && !kinds.includes((rule.kind ?? "").toLowerCase())) return false;
-      if (severities?.length && !severities.includes((rule.properties?.severity ?? "").toLowerCase())) return false;
-      return true;
-    })
     .sort((a, b) => (a.properties?.displayName ?? a.name ?? "").localeCompare(b.properties?.displayName ?? b.name ?? ""));
 
   const scopeHint = `in workspace ${target.workspaceName}`;
@@ -952,8 +942,8 @@ async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeo
       count: countLine(0, 0, "alert rules"),
       rows: emptyState("alert rules", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
-        `Drop a filter: \`az-axi sentinel alert-rule list${suffix}\``,
-        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --kind or --severity."] : []),
+        `Run \`az-axi sentinel alert-rule show --name <rule-id>${suffix}\` for a rule in detail`,
+        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds."] : []),
       ],
     };
   }
@@ -974,10 +964,10 @@ async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeo
     `Run \`az-axi sentinel alert-rule show --name ${first.name ?? ""}${suffix}\` for the first rule in detail`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel alert-rule list${suffix}${filterSuffix} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi sentinel alert-rule list${suffix} --full\` to show every fetched row`);
   }
   if (page.nextLink) {
-    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --kind or --severity.");
+    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds.");
   }
   return {
     profile: profile.name,
@@ -1075,17 +1065,14 @@ async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<t
     invalid(`data-connector list --fields supports only: ${CONNECTOR_FIELD_ALLOWLIST.join(", ")}`);
   }
   const limit = limitValue(args);
-  const kinds = filterList(args, "kind");
   const selectors = collectionSelectorError(args, "data-connector", "list");
   if (selectors) invalid(selectors);
 
   const { target, suffix } = await resolveCollectionScope(profile, args, "data-connector list");
-  const filterSuffix = typeof args.flags["kind"] === "string" ? ` ${formatFlagValue("kind", args.flags["kind"])}` : "";
 
   const page = await requestAll<DataConnector>(profile,
     { method: "GET", path: collectionBase(target, "dataConnectors"), apiVersion: SENTINEL_DATA_CONNECTORS });
   const collected = page.items
-    .filter((connector) => !kinds?.length || kinds.includes((connector.kind ?? "").toLowerCase()))
     .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
   const scopeHint = `in workspace ${target.workspaceName}`;
@@ -1097,8 +1084,8 @@ async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<t
       count: countLine(0, 0, "data connectors"),
       rows: emptyState("data connectors", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
-        `Drop a filter: \`az-axi sentinel data-connector list${suffix}\``,
-        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --kind."] : []),
+        `Run \`az-axi sentinel data-connector show --name <connector-id>${suffix}\` for a connector in detail`,
+        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds."] : []),
       ],
     };
   }
@@ -1116,10 +1103,10 @@ async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<t
     `Run \`az-axi sentinel data-connector show --name ${first.name ?? ""}${suffix}\` for the first connector in detail`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel data-connector list${suffix}${filterSuffix} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi sentinel data-connector list${suffix} --full\` to show every fetched row`);
   }
   if (page.nextLink) {
-    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --kind.");
+    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds.");
   }
   return {
     profile: profile.name,

@@ -107,16 +107,19 @@ describe("sentinel alert-rule list", () => {
     }
   });
 
-  it("filters by kind and severity, and resolves workspace aliases", async () => {
-    await expect(run(["alert-rule", "list", ...SELECTORS, "--kind", "scheduled"]))
-      .resolves.toMatchObject({ total: 1 });
-    await expect(run(["alert-rule", "list", ...SELECTORS, "--severity", "high"]))
-      .resolves.toMatchObject({ total: 1 });
-    await expect(run(["alert-rule", "list", ...SELECTORS, "--kind", "Fusion"]))
-      .resolves.toMatchObject({ total: 0, count: "0 alert rules" });
+  it("resolves workspace aliases", async () => {
     useProfile("ci", { auth: "token", subscriptions: [SUB_A], workspaces: { sentinel: WORKSPACE } });
     await expect(run(["alert-rule", "list", "--workspace", "sentinel"]))
       .resolves.toMatchObject({ workspace: "logs-demo", total: 2 });
+  });
+
+  it("rejects the removed kind and severity filters before any rule transport", async () => {
+    await expect(run(["alert-rule", "list", ...SELECTORS, "--kind", "Scheduled"]))
+      .rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
+    await expect(run(["alert-rule", "list", ...SELECTORS, "--severity", "High"]))
+      .rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 
   it("shows full rows, selected fields and capped pages", async () => {
@@ -134,7 +137,7 @@ describe("sentinel alert-rule list", () => {
     expect(capped.help).toEqual(expect.arrayContaining([expect.stringContaining("--full")]));
   });
 
-  it("reports an explicit empty state with a filter hint", async () => {
+  it("reports an explicit empty state with a detail hint", async () => {
     mockTransport({ rules: [] });
     const result = await run(["alert-rule", "list", ...SELECTORS]);
     expect(result).toMatchObject({
@@ -142,7 +145,7 @@ describe("sentinel alert-rule list", () => {
       count: "0 alert rules",
       rows: expect.stringContaining("0 alert rules found in workspace logs-demo"),
     });
-    expect(result.help).toEqual([expect.stringContaining("Drop a filter")]);
+    expect(result.help).toEqual([expect.stringContaining("sentinel alert-rule show --name <rule-id>")]);
   });
 
   it("refuses bad selectors and flags before any rule transport", async () => {
@@ -247,9 +250,7 @@ describe("sentinel data-connector list", () => {
     expect(options.find((call) => String(call["path"] ?? "").endsWith("/dataConnectors"))?.["apiVersion"]).toBe("2025-09-01");
   });
 
-  it("filters by kind and reports an explicit empty state", async () => {
-    await expect(run(["data-connector", "list", ...SELECTORS, "--kind", "office365"]))
-      .resolves.toMatchObject({ total: 1 });
+  it("reports an explicit empty state", async () => {
     mockTransport({ connectors: [] });
     const result = await run(["data-connector", "list", ...SELECTORS]);
     expect(result).toMatchObject({
@@ -276,6 +277,8 @@ describe("sentinel data-connector list", () => {
   });
 
   it("refuses bad selectors before any connector transport", async () => {
+    await expect(run(["data-connector", "list", ...SELECTORS, "--kind", "Office365"]))
+      .rejects.toMatchObject({ code: "UNKNOWN_FLAG" });
     await expect(run(["data-connector", "list"]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(run(["data-connector", "list", ...SELECTORS, "--ids", CONNECTOR_A.id!]))
