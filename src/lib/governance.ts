@@ -11,7 +11,6 @@ import { redact } from "./redact.js";
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 1000;
-const STATE_PAGE_TOP = 100;
 const STATE_MAX_PAGES = 10;
 const LIST_MAX_PAGES = 100;
 
@@ -296,7 +295,7 @@ export async function fetchStatePages(profile: ResolvedProfile, targets: Request
       const body = await request<{ value?: GovernanceItem[]; "@odata.count"?: unknown; "@odata.nextLink"?: unknown }>(profile, {
         ...target,
         method: "POST",
-        query: { ...(target.query ?? {}), $top: STATE_PAGE_TOP, ...(skipToken ? { $skiptoken: skipToken } : {}) },
+        query: { ...(target.query ?? {}), ...(skipToken ? { $skiptoken: skipToken } : {}) },
       });
       items.push(...(body?.value ?? []));
       const next = typeof body?.["@odata.nextLink"] === "string" ? body["@odata.nextLink"] : undefined;

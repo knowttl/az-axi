@@ -747,7 +747,7 @@ export const policyDefinition = {
   name: SYN(42), type: "Microsoft.Authorization/policyDefinitions",
   properties: {
     displayName: "Allowed storage account SKUs", description: "Specify a set of storage account SKUs to deploy",
-    mode: "All", policyType: "BuiltIn", version: "1.2.1", metadata: { category: "Storage" },
+    mode: "All", policyType: "BuiltIn", metadata: { category: "Storage", version: "1.2.1" },
     policyRule: { if: { field: "type", equals: "Microsoft.Storage/storageAccounts" }, then: { effect: "Deny" } },
     parameters: { listOfAllowedSKUs: { type: "Array", metadata: { displayName: "Allowed SKUs" } } },
   },
@@ -757,7 +757,7 @@ export const policyDefinitions = [policyDefinition, {
   type: "Microsoft.Authorization/policyDefinitions",
   properties: {
     displayName: "Naming Convention", description: "Force resource names to begin with a prefix",
-    mode: "All", policyType: "Custom", version: "1.0.0", metadata: { category: "Naming" },
+    mode: "All", policyType: "Custom", metadata: { category: "Naming", version: "1.0.0" },
     policyRule: { if: { field: "name", like: "prefix*suffix" }, then: { effect: "deny" } },
     parameters: { prefix: { type: "String", metadata: { displayName: "Prefix" } } },
   },

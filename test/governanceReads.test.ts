@@ -164,7 +164,7 @@ describe("policy assignment show", () => {
         allowed: { value: "public-value", defaultValue: "public-default", allowedValues: ["public-allowed"] },
       },
       policyRule: { then: { effect: "deployIfNotExists", details: { deployment: { properties: {
-        parameters: { clientSecret: { value: "private-credential" } }, template: {
+        parameters: { clientSecret: { value: "private-credential" }, deploymentInput: { value: { field: "private-supplied-object" } } }, template: {
           parameters: { deploymentInput: { type: "secureObject", defaultValue: { field: "private-object" }, allowedValues: [{ field: "private-object-allowed" }] } },
         },
       } } } } },
@@ -218,6 +218,15 @@ describe("policy assignment show", () => {
 });
 
 describe("policy definition list and show", () => {
+  it.each([
+    { id: policyDefinition.id, version: "1.2.1" },
+    { id: policyDefinitions[1]!.id, version: "1.0.0" },
+  ])("reads metadata version $version in all show representations", async ({ id, version }) => {
+    expect(await runPolicy(["definition", "show", "--ids", id])).toMatchObject({ version });
+    expect(await runPolicy(["definition", "show", "--ids", id, "--full"])).toMatchObject({ version });
+    expect(await runPolicy(["definition", "show", "--ids", id, "--fields", "version"])).toEqual({ profile: "ci", version });
+  });
+
   it.each([
     { kind: "definition", builtin: policyDefinition, arm: "policyDefinitions", noun: "policy definitions" },
     { kind: "set-definition", builtin: policySetDefinition, arm: "policySetDefinitions", noun: "policy initiatives" },
@@ -294,6 +303,24 @@ describe("policy set-definition list and show", () => {
 });
 
 describe("policy state list", () => {
+  it.each([{ scope: [] }, { scope: ["--resource-group", "rg-demo"] }])("finds states beyond the first hundred at scope $scope", async ({ scope }) => {
+    const states = Array.from({ length: 150 }, (_, index) => ({
+      ...policyStates[0], resourceId: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/resource-${index}`,
+    }));
+    requestMock.mockImplementation(async (_profile, options) => ({ value: options.query?.$top ? states.slice(0, Number(options.query.$top)) : states }) as never);
+    const all = await runPolicy(["state", "list", ...scope, "--limit", "1"]);
+    expect(all).toMatchObject({ total: 150, count: "1 of 150 policy states", byCompliance: { NonCompliant: 150 } });
+    const filtered = await runPolicy(["state", "list", ...scope, "--name", "resource-149"]);
+    expect(filtered).toMatchObject({ total: 1, rows: [expect.objectContaining({ resource: "resource-149" })] });
+  });
+
+  it("stops service pagination at the page cap and reports lower bounds", async () => {
+    requestMock.mockResolvedValue(policyStateEnvelope([policyStates[0]], 1,
+      "https://management.azure.com/queryResults?$skiptoken=next-page") as never);
+    expect(await runPolicy(["state", "list"])).toMatchObject({ total: "10+", count: "10 of 10+ policy states" });
+    expect(requestMock).toHaveBeenCalledTimes(10);
+  });
+
   it.each([
     { flags: [], total: "1+", count: "1 of 1+ policy states" },
     { flags: ["--compliance", "Compliant"], total: "0+", count: "0 of 0+ policy states" },
@@ -334,7 +361,7 @@ describe("policy state list", () => {
     expect(String(options["path"] ?? "")).toBe(
       `/subscriptions/${SUB_A}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`);
     expect(options["body"]).toBeUndefined();
-    expect(options["query"]).toMatchObject({ $top: 100 });
+    expect(options["query"]).toEqual({});
   });
 
   it("scopes to a resource group and filters by assignment, compliance and resource", async () => {

@@ -37,8 +37,13 @@ describe("built CLI governance reads offline", () => {
             deploymentInput: { type: 'secureString', defaultValue: 'private-secure-default', allowedValues: ['private-secure-allowed'] },
             region: { type: 'String', defaultValue: 'public-region', allowedValues: ['public-region'] },
           };
-          item.properties.policyRule = { then: { effect: 'deployIfNotExists', details: { deployment: { properties: { template: {
-            parameters: { deploymentInput: { type: 'secureObject', defaultValue: { field: 'private-object' }, allowedValues: [{ field: 'private-object-allowed' }] } },
+          item.properties.policyRule = { then: { effect: 'deployIfNotExists', details: { deployment: { properties: {
+            parameters: { deploymentInput: { value: { field: 'private-supplied-object' } } }, template: {
+              parameters: { deploymentInput: { type: 'secureObject', defaultValue: { field: 'private-object' }, allowedValues: [{ field: 'private-object-allowed' }] } },
+              resources: [{ type: 'Microsoft.Resources/deployments', properties: {
+                parameters: { nestedInput: { value: 'private-nested-string' } },
+                template: { parameters: { nestedInput: { type: 'secureString' } } },
+              } }],
           } } } } } };
           item.properties.policyDefinitions = [{ policyDefinitionId: ${JSON.stringify(policyDefinition.id)}, parameters: {
             clientSecret: { value: 'private-member-value', defaultValue: 'private-member-default', allowedValues: ['private-member-allowed'] },
@@ -121,6 +126,7 @@ describe("built CLI governance reads offline", () => {
     expect(definitions.stdout).toContain("Allowed storage account SKUs");
     expect(definitions.stderr).toContain("Microsoft.Authorization/policyDefinitions?api-version=2021-06-01");
     expect(run(["policy", "definition", "show", "--ids", policyDefinition.id]).stdout).toContain("BuiltIn");
+    expect(decode(run(["policy", "definition", "show", "--ids", policyDefinition.id, "--fields", "version"]).stdout)).toMatchObject({ version: "1.2.1" });
 
     const initiatives = run(["policy", "set-definition", "list"]);
     expect(initiatives.status, initiatives.stdout).toBe(0);

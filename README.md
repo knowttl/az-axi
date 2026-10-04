@@ -350,7 +350,7 @@ State rows default to resource, assignment, compliance, definition and evaluatio
 Show by name needs exactly one subscription with optional `--resource-group` scoping for assignments; definitions and initiatives show customs by name in one subscription and built-ins (tenant-scoped) with `--ids`.
 `--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
 Long descriptions, rules and parameters truncate at 200 characters with a selector-preserving `--full` hint; `--limit` defaults to 50 and accepts integers from 1 to 1000.
-ARM lists follow up to 100 pages per subscription and compliance queries up to 10 pages of 100 states; incomplete counts are disclosed as lower bounds.
+ARM lists follow up to 100 pages per subscription and compliance queries up to 10 service pages without imposing a query result limit; incomplete counts are disclosed as lower bounds.
 Assignment mutations are destructive under policy and stay blocked; there is no governance write command.
 Management-group scope is unsupported; select subscriptions explicitly.
 

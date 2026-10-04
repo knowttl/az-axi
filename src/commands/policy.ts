@@ -130,7 +130,7 @@ function definitionCollection(kind: "definition" | "set-definition"): Governance
           ...(isSet ? {} : { mode: str(props.mode), effect: str(objOf(objOf(props.policyRule).then).effect) }),
           type: str(props.policyType),
           category: str(objOf(props.metadata).category),
-          ...(isSet ? {} : { version: str(props.version) }),
+          ...(isSet ? {} : { version: str(objOf(props.metadata).version) }),
           ...(isSet
             ? { definitions: full ? members : members.map((member) => tailName(str(member.policyDefinitionId))) }
             : { rule: full ? JSON.stringify(props.policyRule ?? {}) : truncate(JSON.stringify(props.policyRule ?? {}), CELL_TRUNCATE).text }),

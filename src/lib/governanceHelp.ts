@@ -34,7 +34,7 @@ export function governanceLeafHelp(path: string): string {
     `Command: az-axi ${path}`,
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only governance GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01. Compliance states use the reviewed bodyless queryResults POST at api-version 2024-10-01. Management-group scope is unsupported; select subscriptions explicitly.",
-    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription and compliance queries up to 10 pages of 100 states; incomplete counts are disclosed as lower bounds.",
+    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription and compliance queries up to 10 service pages without imposing a query result limit; incomplete counts are disclosed as lower bounds.",
     "Show by name needs exactly one subscription; --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when no scope is configured.",
     DETAIL[path] ?? "",
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata and shows every fetched row. No view returns secrets, keys or credential fields.",
