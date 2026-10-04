@@ -70,7 +70,7 @@ describe("built CLI network reads offline", () => {
   }
   const selectors = ["--resource-group", "rg-demo"];
 
-  it("lists every collection and shows one row of each by name and ARM ID", () => {
+  it("lists NSGs and shows one by name and ARM ID", () => {
     const nsg = run(["network", "nsg", "list", ...selectors]);
     expect(nsg.status, nsg.stdout).toBe(0);
     expect(nsg.stdout).toContain("nsg-web");
@@ -80,33 +80,45 @@ describe("built CLI network reads offline", () => {
     expect(rule.status, rule.stdout).toBe(0);
     expect(decode(rule.stdout)).toMatchObject({ totalRules: 3 });
     expect(run(["network", "nsg", "show", "--ids", networkNsg.id]).stdout).toContain("allow-https");
+  });
 
+  it("lists NICs and shows one by ARM ID", () => {
     const nic = run(["network", "nic", "list", ...selectors]);
     expect(nic.status, nic.stdout).toBe(0);
     expect(nic.stdout).toContain("10.0.1.4");
     expect(run(["network", "nic", "show", "--ids", networkNic.id]).stdout).toContain("ipconfig1");
+  });
 
+  it("lists VNets and shows one by ARM ID", () => {
     const vnet = run(["network", "vnet", "list", ...selectors]);
     expect(vnet.status, vnet.stdout).toBe(0);
     expect(vnet.stdout).toContain("10.0.0.0/16");
     expect(run(["network", "vnet", "show", "--ids", networkVnet.id]).stdout).toContain("hub-peer");
+  });
 
+  it("lists public IPs and shows one by ARM ID", () => {
     const pip = run(["network", "public-ip", "list", ...selectors]);
     expect(pip.status, pip.stdout).toBe(0);
     expect(pip.stdout).toContain("203.0.113.10");
     expect(run(["network", "public-ip", "show", "--ids", networkPublicIp.id]).stdout).toContain("pip-demo.westus.cloudapp.azure.com");
+  });
 
+  it("lists private endpoints and shows one by ARM ID", () => {
     const pe = run(["network", "private-endpoint", "list", ...selectors]);
     expect(pe.status, pe.stdout).toBe(0);
     expect(pe.stdout).toContain("stexample");
     expect(run(["network", "private-endpoint", "show", "--ids", networkPrivateEndpoint.id]).stdout).toContain("10.0.2.4");
+  });
 
+  it("lists DNS zones and shows one by ARM ID", () => {
     const zone = run(["network", "dns", "zone", "list", ...selectors]);
     expect(zone.status, zone.stdout).toBe(0);
     expect(zone.stdout).toContain("example.com");
     expect(zone.stderr).toContain("Microsoft.Network/dnszones?api-version=2018-05-01");
     expect(run(["network", "dns", "zone", "show", "--ids", networkDnsZone.id]).stdout).toContain("ns1.example.com.");
+  });
 
+  it("lists DNS record sets and shows one by name", () => {
     const records = run(["network", "dns", "record-set", "list", ...selectors, "--zone-name", "example.com"]);
     expect(records.status, records.stdout).toBe(0);
     expect(records.stdout).toContain("203.0.113.10");
