@@ -32,6 +32,7 @@ function cli(extra: string[] = [], options: {
   scenario?: string;
   subscription?: string | null;
   tagsEnv?: string;
+  tagsFresh?: string;
   tagsMissing?: boolean;
 } = {}) {
   const argv = ["tag", "update", "--profile", options.profile ?? "writer"];
@@ -56,6 +57,7 @@ function cli(extra: string[] = [], options: {
       AZ_AXI_WRITE_LOG: join(dir, "writes.log"),
       AZ_AXI_TEST_OUTCOME: options.scenario ?? "sync",
       AZ_AXI_TEST_TAGS: options.tagsEnv ?? '{"env":"dev"}',
+      ...(options.tagsFresh === undefined ? {} : { AZ_AXI_TEST_TAGS_FRESH: options.tagsFresh }),
       ...(options.tagsMissing ? { AZ_AXI_TEST_TAGS_MISSING: "1" } : {}),
       AZ_AXI_TEST_CAPTURE_URL: "1",
       AZ_AXI_TEST_CAPTURE_BODY: "1",
@@ -126,6 +128,48 @@ describe("built tag update, offline only", () => {
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(records("requests.jsonl").at(-1)).toMatchObject({ method: "PATCH", ifMatch: '"reviewed"' });
     expect(records("writes.log")).toHaveLength(1);
+  });
+
+  it.each([
+    { operation: "merge", tagsFresh: '{"Env":"prod","owner":"team"}', status: 200 },
+    { operation: "delete", tagsFresh: '{"owner":"team"}', status: 200 },
+    { operation: "delete", tagsFresh: 'null', status: 404 },
+  ])("skips $operation already satisfied at the final re-read of $tagsFresh", ({ operation, tagsFresh, status }) => {
+    const result = cli(["--execute"], { operation, tags: ["env=prod"], tagsFresh });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ result: "already in desired state (no-op)", status });
+    expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET"]);
+    expect(records("writes.log")).toEqual([]);
+  });
+
+  it.each([
+    { operation: "merge", tagsFresh: '{"Env":"PROD","owner":"team"}', tags: { env: "prod" } },
+    { operation: "delete", tagsFresh: '{"Env":"dev","owner":"team"}', tags: { env: null } },
+  ])("sends one $operation PATCH when the final re-read still requires a change", ({ operation, tagsFresh, tags }) => {
+    const result = cli(["--execute"], { operation, tags: ["env=prod"], tagsFresh });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("result: done");
+    expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PATCH"]);
+    expect(records("requests.jsonl").at(-1)).toMatchObject({ ifMatch: '"tags2"', body: { properties: { tags } } });
+    expect(records("writes.log")).toHaveLength(1);
+  });
+
+  it("merges after the tag wrapper disappears at the final re-read", () => {
+    const result = cli(["--execute"], { tagsFresh: 'null' });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("result: done");
+    expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PATCH"]);
+    expect(records("requests.jsonl").at(-1)).toMatchObject({ body: { properties: { tags: { env: "prod" } } } });
+    expect(records("requests.jsonl").at(-1)).not.toHaveProperty("ifMatch");
+    expect(records("writes.log")).toHaveLength(1);
+  });
+
+  it("skips merge when another writer creates the desired tags before the final re-read", () => {
+    const result = cli(["--execute"], { tagsMissing: true, tagsFresh: '{"env":"prod"}' });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("already in desired state (no-op)");
+    expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET"]);
+    expect(records("writes.log")).toEqual([]);
   });
 
   it.each([

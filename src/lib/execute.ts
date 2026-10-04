@@ -23,6 +23,7 @@ export async function executeWrite(options: {
   cls: "write" | "destructive";
   body: unknown;
   mergeBody?: (current: unknown) => unknown;
+  isNoop?: (current: unknown) => boolean;
   ifMatch?: string;
   confirm?: string;
   selectors: string;
@@ -63,7 +64,7 @@ export async function executeWrite(options: {
     if (error instanceof ApiRequestError) missing = error;
   }
   const body = options.mergeBody ? options.mergeBody(current!.body) : options.body;
-  const noop = method === "DELETE" ? current === undefined :
+  const noop = options.isNoop ? options.isNoop(current?.body) : method === "DELETE" ? current === undefined :
     (method === "PUT" || method === "PATCH") && current !== undefined && body !== undefined && diffResource(current.body, body, method).noop ||
     method === "POST" && current !== undefined && options.desiredState !== undefined && diffResource(current.body, options.desiredState, "PATCH").noop;
   if (noop) {

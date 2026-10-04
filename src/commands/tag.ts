@@ -128,6 +128,20 @@ function tagsOf(body: unknown): Record<string, string> {
   );
 }
 
+function tagDiff(body: unknown, entries: TagEntry[], operation: Operation) {
+  const currentTags = tagsOf(body);
+  const currentNames = new Map(Object.keys(currentTags).map((key) => [key.toLowerCase(), key]));
+  const selectedNames = new Set(entries.map((entry) => entry.key.toLowerCase()));
+  const effective =
+    operation === "Merge"
+      ? Object.fromEntries([
+        ...Object.entries(currentTags),
+        ...entries.map(({ key, value }) => [currentNames.get(key.toLowerCase()) ?? key, value]),
+      ])
+      : Object.fromEntries(Object.entries(currentTags).filter(([key]) => !selectedNames.has(key.toLowerCase())));
+  return diffResource({ tags: currentTags }, { tags: effective }, "PATCH");
+}
+
 function gateSelectorFlags(args: ParsedArgs): string {
   return ["profile", "tenant", "config"]
     .map((key) => (flagText(args, key) === undefined ? "" : formatFlagValue(key, flagText(args, key)!)))
@@ -200,25 +214,15 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     if (!(error instanceof AxiError) || error.code !== "NOT_FOUND") throw error;
     probed = undefined;
   }
-  const currentTags = probed ? tagsOf(probed.body) : {};
   const etag =
     probed?.headers["etag"] ??
     (typeof probed?.body === "object" && probed?.body !== null && typeof (probed.body as TagsResource).etag === "string"
       ? (probed.body as TagsResource).etag
       : undefined);
-  const currentNames = new Map(Object.keys(currentTags).map((key) => [key.toLowerCase(), key]));
-  const selectedNames = new Set(entries.map((entry) => entry.key.toLowerCase()));
-  const effective =
-    operation === "Merge"
-      ? Object.fromEntries([
-        ...Object.entries(currentTags),
-        ...entries.map(({ key, value }) => [currentNames.get(key.toLowerCase()) ?? key, value]),
-      ])
-      : Object.fromEntries(Object.entries(currentTags).filter(([key]) => !selectedNames.has(key.toLowerCase())));
   // The Tags PATCH carries an operation envelope, which a generic resource diff
   // would misread, so the preview diffs the tag map itself: exact per-tag
   // from/to rows with removals for delete, in dry-run output shape.
-  const diff = diffResource({ tags: currentTags }, { tags: effective }, "PATCH");
+  const diff = tagDiff(probed?.body, entries, operation);
   const creates = probed === undefined && operation === "Merge";
   const base = {
     dryRun: true,
@@ -261,6 +265,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     path: buildUrl({ path: tagsPath, apiVersion: RESOURCE_TAGS }),
     cls: "write",
     body: { operation, properties: { tags: sentTags } },
+    isNoop: (current) => tagDiff(current, entries, operation).noop,
     protection: PROTECTION,
     ifMatch,
     selectors,

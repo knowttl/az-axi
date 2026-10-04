@@ -3,6 +3,7 @@ import { appendFileSync } from "node:fs";
 
 const scenario = process.env.AZ_AXI_TEST_OUTCOME;
 let incidentReads = 0;
+let tagReads = 0;
 const operationUrl = "https://management.azure.com/operations/test?api-version=1";
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
   status, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test", ...headers },
@@ -41,6 +42,12 @@ const tagsBody = () => ({
 const tagsMissing = () => process.env.AZ_AXI_TEST_TAGS_MISSING === "1" || scenario === "gone";
 
 const tagsGet = () => {
+  tagReads += 1;
+  if (tagReads > 1 && process.env.AZ_AXI_TEST_TAGS_FRESH !== undefined) {
+    const tags = JSON.parse(process.env.AZ_AXI_TEST_TAGS_FRESH);
+    if (tags === null) return json({ error: { code: "ResourceNotFound", message: "no tags yet" } }, 404);
+    return json({ ...tagsBody(), properties: { tags } }, 200, { etag: '"tags2"' });
+  }
   if (tagsMissing()) return json({ error: { code: "ResourceNotFound", message: "no tags yet" } }, 404);
   return json(tagsBody(), 200, { etag: '"tags1"' });
 };
@@ -48,7 +55,9 @@ const tagsGet = () => {
 const tagsPatch = (body) => {
   if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
   const sent = body?.properties?.tags ?? {};
-  const current = process.env.AZ_AXI_TEST_TAGS_MISSING === "1" ? {} : tagsBody().properties.tags;
+  const current = tagReads > 1 && process.env.AZ_AXI_TEST_TAGS_FRESH !== undefined
+    ? JSON.parse(process.env.AZ_AXI_TEST_TAGS_FRESH) ?? {}
+    : process.env.AZ_AXI_TEST_TAGS_MISSING === "1" ? {} : tagsBody().properties.tags;
   const selected = new Map(Object.entries(sent).map(([key, value]) => [key.toLowerCase(), value]));
   const currentNames = new Map(Object.keys(current).map((key) => [key.toLowerCase(), key]));
   const tags = body?.operation === "Delete"
