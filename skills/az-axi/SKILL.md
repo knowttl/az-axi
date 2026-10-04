@@ -66,14 +66,7 @@ The offline test suite checks this list against the registry.
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
 
-Storage metadata: use `az-axi storage container list --account-name <account>`, `storage container show --account-name <account> --name <container>`, `storage blob list --account-name <account> --container-name <container>`, or `storage blob show --account-name <account> --container-name <container> --name <blob>`.
-These native reads force Entra auth (`--auth-mode login` only), never look up account keys, and never download content or create output files.
-Az-auth profiles acquire only a storage audience token; token profiles require `$AZ_AXI_STORAGE_TOKEN` or `tokenEnv.storage` and never fall back to az or ARM tokens.
-Storage credential/config/environment defaults are ignored; key, SAS, connection-string, arbitrary endpoint, content and credential flags/commands are refused.
-Only safe service properties are returned; user metadata, tags and secret values are excluded even with `--full` or `--fields`.
-List one page using `--limit` (default 50, maximum 1000), `--prefix` and `--marker`; `nextMarker` means the total is unknown.
-`--account-name` selects the account; subscription and management-group selectors do not filter data-plane results.
-See [storage metadata reads](../../README.md#storage-metadata-reads) for auth, limits and exact REST operations.
+See [storage metadata reads](../../README.md#storage-metadata-reads) for the storage commands, required flags, Entra-only authentication, safe properties, literal values and paging limits.
 
 See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
 

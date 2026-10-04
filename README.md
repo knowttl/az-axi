@@ -163,7 +163,7 @@ Several profiles and no selection is an error.
 | `managementGroup` | Default scope for Resource Graph queries |
 | `subscriptions` | Default subscription IDs; empty or missing means every subscription the identity can see |
 | `workspaces` | Alias to Log Analytics workspace ID (the workspace GUID, not the ARM resource ID) |
-| `tokenEnv` | Resource (`arm`, `logs`, `graph`) to environment variable name, for `token` mode |
+| `tokenEnv` | Token audience (`arm`, `logs`, `graph`, `storage`) to environment variable name, for `token` mode; `storage` is only for native [storage metadata reads](#storage-metadata-reads), not `api --resource` |
 
 Create a profile without editing JSON:
 
@@ -319,6 +319,9 @@ Token profiles require `$AZ_AXI_STORAGE_TOKEN`, or a custom environment variable
 `--account-name` explicitly selects the account; subscription and management-group selectors do not filter this data plane.
 Blob commands require `--container-name`; show also requires `--name` (`-n`).
 Lists fetch one page with `--limit` (default 50, integer 1-1000), optional `--prefix`, and optional `--marker`.
+Blob `--name`, list `--prefix` and opaque `--marker` values are preserved literally, including surrounding or whitespace-only values; empty values are refused.
+Quote shell-sensitive values and use inline assignment for values beginning with a dash, such as `--prefix=-reports`.
+Account and container names retain strict service-name validation.
 When `nextMarker` is present, the count is a lower bound and the output includes a continuation command; an empty page can still have a continuation.
 Outputs allow only name, lastModified, etag and publicAccess for containers, or size and blobType for blobs.
 `--fields` selects from those properties; `--full` preserves the same safe schema and page bound.
@@ -438,6 +441,7 @@ Offline tests check reproducibility, refusal invariants and zero network/child e
 Resource inspection commands bound rows and long cells by default, except `api` lists have no default row cap.
 Use `--limit N` to cap rows and `--fields a,b` to select list columns.
 `--full` expands truncated cells and removes display row limits for most inspection lists; `rg query` keeps its page cap, and `logs query` and `api` still honor `--limit`.
+For storage's fixed schema and page bound, see [Storage metadata reads](#storage-metadata-reads).
 `api` follows additional pages only with `--all`, subject to a page cap.
 For JSON request bodies, use `--body-file <path>` or pipe JSON on stdin, for example `az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json` or the same command with `< query.json` instead of `--body-file query.json`.
 Inline `--body` remains supported; choose exactly one source.

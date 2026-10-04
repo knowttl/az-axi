@@ -180,9 +180,9 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * `.cmd`/`.bat` shims correctly on Windows while still passing arguments
  * through as an argv array (not a shell command string), so there's no
  * shell-injection risk from argument values (e.g. `--tenant`).
- * The only place az-axi spawns `az`. Reviewed passthrough reads additionally
- * close stdin, strip ambient overrides, disable extension install and enforce
- * a 30-second deadline and a combined 1 MiB byte ceiling.
+ * The only place az-axi spawns `az`. Reviewed passthrough reads and storage
+ * token acquisition additionally close stdin, strip ambient overrides, disable
+ * extension install and enforce a 30-second deadline and a combined 1 MiB byte ceiling.
  * On Windows, cancellation requests tree termination with `taskkill` and
  * closes local pipes, rejecting with the signal reason without waiting for
  * termination. If `taskkill` cannot spawn, it falls back to killing the child.
