@@ -155,13 +155,10 @@ describe("built CLI network reads offline", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("prints leaf help matching the registry without Azure access", () => {
-    for (const path of COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.path.startsWith("network ")).map((leaf) => leaf.path)) {
-      const leaf = COMMAND_LEAVES.find((entry: CommandLeaf) => entry.path === path)!;
-      const result = run([...path.split(" "), "--help"]);
-      expect(result.status).toBe(0);
-      expect(result.stdout.trimEnd()).toBe(leafHelp(leaf, path).trimEnd());
-    }
+  it.each(COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.path.startsWith("network ")))("prints leaf help matching the registry without Azure access for $path", (leaf) => {
+    const result = run([...leaf.path.split(" "), "--help"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trimEnd()).toBe(leafHelp(leaf, leaf.path).trimEnd());
   });
 
   it("emits a runnable detail hint for the first row", () => {
