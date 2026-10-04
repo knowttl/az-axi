@@ -47,15 +47,15 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   if (manifest) {
     const artifact = literal("name");
     if (!artifact) throw new AxiError("--name is required", "VALIDATION_ERROR", [acrLeafHelp(path)]);
-    if (artifact.includes("://") || artifact.includes(".azurecr.io")) {
-      throw new AxiError("--name takes repository:tag or repository@digest, not a login-server-qualified ID", "VALIDATION_ERROR", [acrLeafHelp(path)]);
-    }
     const at = artifact.indexOf("@");
     const cut = at >= 0 ? at : artifact.lastIndexOf(":");
     artifactRepo = cut < 0 ? undefined : artifact.slice(0, cut);
     reference = cut < 0 ? undefined : artifact.slice(cut + 1);
     if (!artifactRepo || !reference) {
       throw new AxiError("--name must be repository:tag or repository@digest", "VALIDATION_ERROR", [acrLeafHelp(path)]);
+    }
+    if (artifactRepo.includes("://") || artifactRepo.includes(".azurecr.io")) {
+      throw new AxiError("--name takes repository:tag or repository@digest, not a login-server-qualified ID", "VALIDATION_ERROR", [acrLeafHelp(path)]);
     }
   }
   const orderby = showTags ? flagText(args, "orderby") : undefined;
@@ -104,7 +104,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
       : page.rows.length
         ? { help: [verb === "list"
           ? `Run \`az-axi acr repository show-tags ${target}${selectors} --repository <repository>\` for tags`
-          : `Run \`az-axi acr manifest show-metadata ${formatFlagValue("registry", registry)} ${formatFlagValue("name", `${repository}:<tag>`)}\` for manifest metadata`] }
+          : `Run \`az-axi acr manifest show-metadata ${formatFlagValue("registry", registry)} ${formatFlagValue("name", `${repository}:<tag>`)}${selectors}\` for manifest metadata`] }
         : {}),
   };
 }

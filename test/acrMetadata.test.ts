@@ -142,7 +142,31 @@ describe("acr metadata transport", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-  it.each(["../secret", "", "repo//name", ".hidden", "a".repeat(256)])("rejects hostile repository %s", async (repository) => {
+  it.each(["team/my--image", "team/my__image", "team---name/my__image", "team.name/my_image"])(
+    "reads tags for repository %s with valid separators", async (repository) => {
+      tokenFlow();
+      fetchMock.mockResolvedValueOnce(json(acrTags));
+      expect(await requestAcrMetadata(profile, { op: "tag-list", registry: "myregistry", repository, limit: 50 }))
+        .toEqual({ rows: [acrMetadataRows.tag] });
+      const [, token, data] = calls();
+      expect(new URLSearchParams(String(token!.init.body)).get("scope")).toBe(`repository:${repository}:pull`);
+      expect(data!.url.pathname).toBe(`/acr/v1/${repository}/_tags`);
+    });
+
+  it.each([
+    ["team/my--image", "latest"], ["team/my__image", acrDigest],
+    ["team---name/my__image", "release.azurecr.io"], ["team.name/my_image", "latest"],
+  ])("reads manifest metadata for %s at %s", async (repository, reference) => {
+    tokenFlow();
+    fetchMock.mockResolvedValueOnce(json(acrManifest, { "Docker-Content-Digest": acrDigest }));
+    expect(await requestAcrMetadata(profile, { op: "manifest-show", registry: "myregistry", repository, reference, limit: 50 }))
+      .toEqual({ rows: [acrMetadataRows.manifest] });
+    const [, token, data] = calls();
+    expect(new URLSearchParams(String(token!.init.body)).get("scope")).toBe(`repository:${repository}:pull`);
+    expect(data!.url.pathname).toBe(`/v2/${repository}/manifests/${encodeURIComponent(reference)}`);
+  });
+
+  it.each(["../secret", "", "repo//name", ".hidden", "a".repeat(256), "team/my___image", "team/my..image", "team/my-_image"])("rejects hostile repository %s", async (repository) => {
     await expect(requestAcrMetadata(profile, { op: "tag-list", registry: "myregistry", repository, limit: 50 }))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(fetchMock).not.toHaveBeenCalled();

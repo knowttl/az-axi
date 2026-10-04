@@ -68,7 +68,7 @@ export async function requestAcrMetadata(profile: ResolvedProfile, read: AcrRead
 
 function validRepository(value: string | undefined): value is string {
   if (value === undefined || value.length > 255) return false;
-  return /^(?:[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*)(?:\/(?:[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*))*$/.test(value);
+  return /^[A-Za-z0-9]+(?:(?:[._]|__|-+)[A-Za-z0-9]+)*(?:\/[A-Za-z0-9]+(?:(?:[._]|__|-+)[A-Za-z0-9]+)*)*$/.test(value);
 }
 
 function validReference(value: string | undefined): value is string {

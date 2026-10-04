@@ -45,6 +45,29 @@ describe("acr read commands", () => {
     expect(read).toHaveBeenLastCalledWith(expect.anything(),
       expect.objectContaining({ repository: "hello-world", reference: acrDigest }));
   });
+  it.each([
+    ["team/my--image:latest", "team/my--image", "latest"],
+    [`team/my__image@${acrDigest}`, "team/my__image", acrDigest],
+    ["hello-world:release.azurecr.io", "hello-world", "release.azurecr.io"],
+  ])("parses valid artifact %s", async (artifact, repository, reference) => {
+    read.mockResolvedValue({ rows: [acrMetadataRows.manifest] });
+    expect(await run(routeArgv(["acr", "manifest", "show-metadata", "--registry", "myregistry", "--name", artifact]).argv.slice(1)))
+      .toMatchObject({ repository, reference, manifest: acrMetadataRows.manifest });
+    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ repository, reference }));
+  });
+  it("preserves explicit identity and config when following tags to a manifest", async () => {
+    const config = join(dir, "selected config.json");
+    writeFileSync(config, JSON.stringify({ profiles: { selected: { auth: "token" } } }));
+    read.mockResolvedValue({ rows: [acrMetadataRows.tag] });
+    const result = await run(["repository", "show-tags", "--name", "myregistry", "--repository", "hello-world",
+      "--profile", "selected", "--tenant", "selected-tenant", "--config", config]);
+    const command = (result.help as string[])[0]!.split("`")[1]!.replace("<tag>", "latest");
+    const argv = execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
+    read.mockResolvedValue({ rows: [acrMetadataRows.manifest] });
+    await run(routeArgv(argv).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: "selected", tenant: "selected-tenant", configPath: config }),
+      expect.objectContaining({ op: "manifest-show", repository: "hello-world", reference: "latest" }));
+  });
   it("reports an explicit empty page", async () => {
     read.mockResolvedValue({ rows: [] });
     expect(await run(list)).toMatchObject({ count: "0 repositories", repositories: "0 repositories found in myregistry" });
