@@ -10,7 +10,6 @@ const SUB = "00000000-0000-0000-0000-000000000021";
 const OTHER = "00000000-0000-0000-0000-000000000022";
 const INCIDENT = "00000000-0000-0000-0000-000000000063";
 const INCIDENT_ID = `/subscriptions/${SUB}/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/${INCIDENT}`;
-const COMMENT = "00000000-0000-0000-0000-000000000064";
 const WORKSPACE_ID = "00000000-0000-0000-0000-000000000010";
 let dir: string;
 
@@ -41,11 +40,9 @@ interface CliOptions {
   reason?: string | null;
   comment?: string | null;
   message?: string | null;
-  commentName?: string | null;
   incidentStatus?: string;
   incidentSeverity?: string;
   incidentClassification?: string;
-  commentMessage?: string;
 }
 
 function cli(extra: string[] = [], options: CliOptions = {}) {
@@ -75,7 +72,6 @@ function cli(extra: string[] = [], options: CliOptions = {}) {
     if (options.comment !== undefined && options.comment !== null) argv.push("--classification-comment", options.comment);
   } else {
     if (options.message !== null) argv.push("--message", options.message ?? "Offline triage note");
-    if (options.commentName !== undefined && options.commentName !== null) argv.push("--name", options.commentName);
   }
   argv.push("--profile", profile);
   if (options.subscription !== null) argv.push("-s", options.subscription ?? SUB);
@@ -99,7 +95,6 @@ function cli(extra: string[] = [], options: CliOptions = {}) {
   if (options.incidentStatus !== undefined) env.AZ_AXI_TEST_INCIDENT_STATUS = options.incidentStatus;
   if (options.incidentSeverity !== undefined) env.AZ_AXI_TEST_INCIDENT_SEVERITY = options.incidentSeverity;
   if (options.incidentClassification !== undefined) env.AZ_AXI_TEST_INCIDENT_CLASSIFICATION = options.incidentClassification;
-  if (options.commentMessage !== undefined) env.AZ_AXI_TEST_COMMENT_MESSAGE = options.commentMessage;
   return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
     "dist/bin/az-axi.js", ...argv], { encoding: "utf8", env });
 }
@@ -282,9 +277,6 @@ describe("built Sentinel incident update, offline only", () => {
 });
 
 describe("built Sentinel incident comment create, offline only", () => {
-  const commentUrl = (id: string) =>
-    `https://management.azure.com${INCIDENT_ID}/comments/${id}?api-version=2025-09-01`;
-
   it("previews a new comment with creates:true and an exact execute hint", () => {
     const result = cli([], { route: "comment" });
     expect(result.status, result.stdout + result.stderr).toBe(0);
@@ -300,40 +292,41 @@ describe("built Sentinel incident comment create, offline only", () => {
   });
 
   it("executes one comment PUT and audits it", () => {
-    const result = cli(["--execute"], { route: "comment", commentName: COMMENT });
+    const result = cli(["--execute"], { route: "comment" });
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain("result: done");
     expect(result.stdout).toContain("status: 201");
-    expect(putCall()).toMatchObject({ method: "PUT", url: commentUrl(COMMENT) });
+    expect(putCall()).toMatchObject({ method: "PUT" });
+    expect(String(putCall()?.url)).toMatch(new RegExp(`^https://management.azure.com${INCIDENT_ID}/comments/[0-9a-f-]{36}\\?api-version=2025-09-01$`));
     expect(putCall()?.body).toEqual({ properties: { message: "Offline triage note" } });
     expect(records("writes.log")).toEqual([expect.objectContaining({ class: "write", method: "PUT",
-      url: commentUrl(COMMENT), outcome: "success", httpStatus: 201, requestId: "req-test" })]);
+      url: putCall()?.url, outcome: "success", httpStatus: 201, requestId: "req-test" })]);
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toMatch(/offline-sentinel-token|"headers"|Offline triage note/);
   });
 
-  it.each([{ flags: [] }, { flags: ["--if-match", '\"older\"'] }])("pins an existing comment preview ETag with $flags", ({ flags }) => {
-    const result = cli(flags, { route: "comment", commentName: COMMENT, commentMessage: "Previous note" });
-    expect(result.status, result.stdout + result.stderr).toBe(0);
-    const output = decode(result.stdout) as { help: string[] };
-    expect(output.help[0]).toContain("--if-match '\"fresh\"'");
-    expect(output.help[0]).not.toContain("--if-match '\"older\"'");
-    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toEqual([]);
-  });
-
-  it("generates a comment ID when --name is absent", () => {
-    const result = cli(["--execute"], { route: "comment" });
-    expect(result.status, result.stdout + result.stderr).toBe(0);
-    expect(String(putCall()?.url)).toMatch(/\/comments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\?api-version=2025-09-01$/);
+  it("adds a separate comment when invoked again with the same message", () => {
+    const first = cli(["--execute"], { route: "comment" });
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const firstUrl = putCall()?.url;
+    const second = cli(["--execute"], { route: "comment" });
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    expect(putCall()?.url).not.toBe(firstUrl);
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toHaveLength(2);
+    expect(records("writes.log")).toHaveLength(2);
   });
 
   it.each([
-    { flags: [], output: "noop: true" },
-    { flags: ["--execute"], output: "already in desired state (no-op)" },
-  ])("skips an unchanged comment with $flags and no audit", ({ flags, output }) => {
-    const result = cli(flags, { route: "comment", commentName: COMMENT, commentMessage: "Offline triage note" });
-    expect(result.status, result.stdout + result.stderr).toBe(0);
-    expect(result.stdout).toContain(output);
-    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toEqual([]);
+    { flags: ["--name", "00000000-0000-0000-0000-000000000064"] },
+    { flags: ["-n", "00000000-0000-0000-0000-000000000064"] },
+    { flags: ["--if-match", '\"fresh\"'] },
+    { flags: ["--execute", "--name", "00000000-0000-0000-0000-000000000064"] },
+    { flags: ["--execute", "-n", "00000000-0000-0000-0000-000000000064"] },
+    { flags: ["--execute", "--if-match", '\"fresh\"'] },
+  ])("rejects comment overwrite flags $flags before transport", ({ flags }) => {
+    const result = cli(flags, { route: "comment" });
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("code: UNKNOWN_FLAG");
+    expect(records("requests.jsonl")).toEqual([]);
     expect(records("writes.log")).toEqual([]);
   });
 
@@ -363,7 +356,7 @@ describe("built Sentinel incident comment create, offline only", () => {
   });
 
   it.each(["async", "no-wait", "precondition", "failure"])("uses shared %s execution and audit handling", (scenario) => {
-    const result = cli(["--execute", "--name", COMMENT, ...(scenario === "no-wait" ? ["--no-wait"] : [])], { route: "comment", scenario });
+    const result = cli(["--execute", ...(scenario === "no-wait" ? ["--no-wait"] : [])], { route: "comment", scenario });
     expect(result.status).toBe(["precondition", "failure"].includes(scenario) ? 1 : 0);
     expect(result.stdout).toContain(scenario === "precondition" ? "PRECONDITION_FAILED" : scenario === "failure" ? "OPERATION_FAILED" : scenario === "no-wait" ? "operation accepted" : "result: done");
     expect(records("writes.log")).toHaveLength(1);

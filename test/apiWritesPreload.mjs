@@ -43,13 +43,8 @@ globalThis.fetch = async (url, init = {}) => {
     const incidentsPath = new URL(url).pathname;
     if (incidentsPath.includes("/incidents/") || incidentsPath.endsWith("/incidents")) {
       const path = incidentsPath;
-      // A comment that was never created reads back missing, so comment
-      // previews report `creates: true` and executions skip the no-op check.
-      // AZ_AXI_TEST_COMMENT_MESSAGE simulates re-reading an existing comment.
       if (path.includes("/comments/")) {
-        const existing = process.env.AZ_AXI_TEST_COMMENT_MESSAGE;
-        if (existing === undefined) return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
-        return json({ properties: { message: existing } }, 200, { etag: '"fresh"' });
+        return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
       }
       if (path.endsWith("/incidents")) {
         return json({ value: [incidentBody("00000000-0000-0000-0000-000000000063", 3177)] });

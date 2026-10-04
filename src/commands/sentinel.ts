@@ -764,7 +764,7 @@ const UPDATE_CLASSIFICATION_REASONS: Record<string, string> = {
 const UPDATE_PROTECTION =
   "compare-and-swap on the incident ETag (re-read before send; --if-match pins a reviewed value)";
 const COMMENT_PROTECTION =
-  "new comment ID, so there is no current state to compare; reuse --name to update one comment idempotently, --if-match to guard it";
+  "new generated comment ID, so there is no current state to compare";
 
 function writeInvalid(leaf: string, message: string): never {
   throw new AxiError(message, "VALIDATION_ERROR", [`Run \`az-axi ${leaf} --help\``]);
@@ -982,9 +982,7 @@ async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeo
   if (incidentIdFlag && !NUMBER.test(incidentIdFlag.trim()) && !GUID.test(incidentIdFlag.trim())) {
     bad("--incident-id must be the incident GUID or its incident number; full ARM IDs need --ids");
   }
-  const commentName = flagText(args, "name");
-  if (commentName && !GUID.test(commentName.trim())) bad("--name must be the comment GUID; without it a random ID is generated");
-  const commentId = commentName ? commentName.trim() : randomUUID();
+  const commentId = randomUUID();
   const execute = refuseBeforeTransport(profile, args, subscription);
 
   const selection = await resolveIncidentTarget(profile, args, subscription,
@@ -995,30 +993,27 @@ async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeo
   const shape = { resource: "arm" as const, method: "PUT", path };
   const cls = classifyRequest(shape);
   assertReadOnlyBoundary(shape, cls);
-  const ifMatch = flagText(args, "if-match");
   const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
   const selectors = gateSelectorFlags(args);
   const workspaceFlags = ids ? [] : flagText(args, "workspace") !== undefined
     ? [formatFlagValue("workspace", flagText(args, "workspace")!)]
     : [formatFlagValue("resource-group", selection.target!.resourceGroup),
       formatFlagValue("workspace-name", selection.target!.workspaceName)];
-  const command = (etag: string | undefined) => ["az-axi sentinel incident comment create", selectors, formatFlagValue("subscription", subscription),
+  const command = ["az-axi sentinel incident comment create", selectors, formatFlagValue("subscription", subscription),
     ...(ids ? [formatFlagValue("ids", ids.trim())]
       : [formatFlagValue("incident-id", incidentIdFlag!.trim()), ...workspaceFlags]),
     formatFlagValue("message", message!),
-    ...(commentName === undefined ? [] : [formatFlagValue("name", commentId)]),
-    ...(etag === undefined ? [] : [formatFlagValue("if-match", etag)]),
     ...(flagText(args, "timeout") === undefined ? [] : [formatFlagValue("timeout", flagText(args, "timeout")!)]),
     ...(flagBool(args, "no-wait") ? ["--no-wait"] : []), "--execute"].filter(Boolean).join(" ");
   if (execute) {
     return executeWrite({ profile, method: "PUT", path: buildUrl({ path, apiVersion: SENTINEL_INCIDENTS }),
-      cls: "write", body, protection: COMMENT_PROTECTION, ifMatch,
+      cls: "write", body, protection: COMMENT_PROTECTION,
       selectors, timeoutMs, noWait: flagBool(args, "no-wait") });
   }
   const preview = await dryRun({ profile, resource: "arm", method: "PUT", path, cls,
-    body, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
+    body, apiVersion: SENTINEL_INCIDENTS, selectors });
   return { ...preview, protection: COMMENT_PROTECTION,
-    help: [`\`${command(typeof preview.etag === "string" ? preview.etag : ifMatch)}\``] };
+    help: [`\`${command}\``] };
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {

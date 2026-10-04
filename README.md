@@ -607,9 +607,10 @@ Execution re-reads again, returns a no-op without a PUT or log entry when nothin
 Compare-and-swap uses the fresh re-read ETag; pass `--if-match <etag>` from the reviewed preview to pin a reviewed value.
 
 `sentinel incident comment create` appends one comment to exactly one Sentinel incident, selected with `--incident-id` (GUID or number, with workspace selectors) or `--ids`.
-`--message` is required; `--name / -n` optionally sets the comment GUID (without it a random GUID is generated, and reusing a name updates that comment idempotently).
+`--message` is required; each invocation generates a new comment GUID.
 The preview reports the new comment resource; execution sends one `PUT .../incidents/<incident-id>/comments/<comment-id>?api-version=2025-09-01` with `{properties:{message}}` through the shared pipeline.
-`--execute`, `--if-match`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
+`--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
+`--if-match` applies to incident updates.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 

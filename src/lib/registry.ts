@@ -65,7 +65,7 @@ export const COMMAND_LEAVES = [
   { path: "sentinel incident list-alert", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value" } },
   { path: "sentinel incident list-entity", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value" } },
   { path: "sentinel incident update", effect: "write", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value", status: "value", severity: "value", owner: "value", classification: "value", "classification-reason": "value", "classification-comment": "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
-  { path: "sentinel incident comment create", effect: "write", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", "incident-id": "value", name: "value", ids: "value", message: "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
+  { path: "sentinel incident comment create", effect: "write", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", "incident-id": "value", ids: "value", message: "value", execute: "boolean", timeout: "value", "no-wait": "boolean" } },
   { path: "exposure", effect: "read", capability: "native", flags: { check: "value", "show-query": "boolean" } },
   { path: "monitor log-analytics query", handlerPath: "logs query", aliases: ["logs query"], effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" }, canonicalFlags: { "analytics-query": "value" } },
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
@@ -237,11 +237,11 @@ export const SENTINEL_UPDATE_HELP = [
 ].join("\n");
 
 export const SENTINEL_COMMENT_HELP = [
-  "az-axi sentinel incident comment create --subscription <id> (--incident-id <incident-id|number> | --ids <incident-ARM-id>) [--workspace-name <workspace> --resource-group <group> | --workspace <alias|guid>] --message <text> [--name <comment-guid>]",
+  "az-axi sentinel incident comment create --subscription <id> (--incident-id <incident-id|number> | --ids <incident-ARM-id>) [--workspace-name <workspace> --resource-group <group> | --workspace <alias|guid>] --message <text>",
   "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
-  "--message is required. --name / -n optionally sets the comment GUID (az parity); without it a random GUID is generated. Reusing a --name updates that comment idempotently.",
+  "--message is required. Each invocation generates a new comment GUID.",
   "Writes require the existing profile permission and subscription allowlist. Default: dry run showing the new comment resource; --execute sends one PUT with {properties:{message}}.",
-  "--if-match guards an update to an existing comment. --timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log, LRO handling and approval hook apply.",
+  "--timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log, LRO handling and approval hook apply.",
   "Examples: az-axi sentinel incident comment create -s <id> --incident-id <incident-id> -g <group> --workspace-name <workspace> --message Triaged --execute",
 ].join("\n");
 
