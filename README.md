@@ -602,6 +602,7 @@ Incident selection mirrors `incident show`: `--name / --incident-id` takes the i
 At least one of `--status New|Active|Closed`, `--severity High|Medium|Low|Informational`, `--owner <object-id|email|name>` or `--classification Undetermined|TruePositive|BenignPositive|FalsePositive` is required.
 Closing (`--status Closed`) requires `--classification`; a concrete classification requires `--classification-reason SuspiciousActivity|SuspiciousButExpected|IncorrectAlertLogic|InaccurateData`, with optional `--classification-comment`.
 `--owner` takes one identity: a GUID becomes `objectId`, text with `@` becomes email, anything else becomes the assigned-to name.
+When that identity already matches the current owner, its existing metadata is preserved: object IDs and email or user principal name match case-insensitively; assigned-to names match exactly.
 The preview re-reads the incident and shows the field-level diff plus the exact native execute command.
 Execution re-reads again, returns a no-op without a PUT or log entry when nothing would change, and otherwise sends one merged `PUT .../Microsoft.SecurityInsights/incidents/<incident-id>?api-version=2025-09-01` (GET-merge-PUT, as az does) through the shared pipeline.
 The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
@@ -613,6 +614,7 @@ Existing comments cannot be edited with this command; repeated execution adds an
 The preview reports the new comment resource; execution sends one `PUT .../incidents/<incident-id>/comments/<comment-id>?api-version=2025-09-01` with `{properties:{message}}` through the shared pipeline.
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
 `--if-match` applies to incident updates.
+Both Sentinel previews include the redacted request body; `--full` expands a truncated body.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 
@@ -631,7 +633,7 @@ Prefer PIM-eligible roles with temporary activation over standing Owner or Contr
 Use the [agent approval hook](#agent-integration) when an agent performs writes, and review the preview before approving execution.
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
-The following preview details apply to `api`; native alert previews are described above.
+The following preview details apply to `api`; native write previews are described above.
 For example, `az-axi api PATCH <resource-path> --api-version <version> --body-file body.json --profile <profile>` previews a field-level diff.
 PUT and PATCH previews show `changes[]{path,from,to}`, capped at 20 rows with `remaining` for additional changes, and `noop: true` when nothing would change.
 PUT also lists omitted fields as removals; PATCH normally compares supplied fields, but supplying `tags` replaces the tag set, so omitted tags appear as removals.
