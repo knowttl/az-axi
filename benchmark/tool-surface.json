@@ -6,13 +6,13 @@
     "total": 5569
   },
   "help": {
-    "topLevel": 883,
+    "topLevel": 923,
     "home": 244,
     "doctor": 231,
     "config": 171,
     "sub": 58,
     "account": 231,
-    "monitor": 315,
+    "monitor": 350,
     "group": 178,
     "resource": 327,
     "tag": 428,
@@ -36,5 +36,5 @@
     "deny-assignment": 514,
     "role": 449
   },
-  "helpTotal": 12130
+  "helpTotal": 12205
 }

@@ -13,7 +13,29 @@ function objectOf(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
 
+interface DriftCheckCatalogue {
+  schemaVersion: unknown;
+  generatedFrom?: { azureCliVersion?: unknown };
+  entries: ReadonlyArray<{ effect?: unknown; runtime?: { version?: unknown } }>;
+}
+
+/** Fail closed when the shipped catalogue disagrees with what it was generated from.
+ * Installed-runtime drift is refused later against the version probe; this refuses
+ * stale or hand-edited catalogue data before any probe or child execution. */
+export function assertNoCatalogueDrift(catalogue: DriftCheckCatalogue = AZ_READ_CATALOGUE): void {
+  const generated = catalogue.generatedFrom;
+  if (catalogue.schemaVersion !== 1 || typeof generated?.azureCliVersion !== "string") {
+    refuse("read catalogue version drift; regenerate the catalogue and review the diff");
+  }
+  for (const entry of catalogue.entries) {
+    if (entry.effect !== "read" || entry.runtime?.version !== generated.azureCliVersion) {
+      refuse("read catalogue version drift; regenerate the catalogue and review the diff");
+    }
+  }
+}
+
 export async function run(argv: string[], signal?: AbortSignal): Promise<Record<string, unknown>> {
+  assertNoCatalogueDrift();
   const entry = AZ_READ_CATALOGUE.entries.find((candidate) => argv.slice(0, candidate.command.split(" ").length).join(" ") === candidate.command);
   if (!entry) refuse("unsupported passthrough command; only reviewed noncredential ARM reads can run");
   const flags: Record<string, string> = {};

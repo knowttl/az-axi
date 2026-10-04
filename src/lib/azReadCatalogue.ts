@@ -2,6 +2,12 @@
 export const AZ_READ_CATALOGUE = {
   "schemaVersion": 1,
   "status": "catalogue-only; no passthrough execution",
+  "generatedFrom": {
+    "azureCliVersion": "2.90.0",
+    "azureCliCommit": "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81",
+    "sdkPackage": "azure-mgmt-resource",
+    "sdkVersion": "24.0.0"
+  },
   "defaultEffect": "write",
   "defaultAction": "refuse",
   "entries": [
@@ -12,7 +18,7 @@ export const AZ_READ_CATALOGUE = {
       "handler": "azure.mgmt.resource.resources.operations#ResourceGroupsOperations.get",
       "runtime": {
         "package": "azure-cli",
-        "version": "2.77.0",
+        "version": "2.90.0",
         "distribution": "official trusted Azure CLI",
         "profile": "latest",
         "cloud": "AzureCloud",
@@ -23,7 +29,7 @@ export const AZ_READ_CATALOGUE = {
         ],
         "extensions": [],
         "sdkPackage": "azure-mgmt-resource",
-        "sdkVersion": "23.3.0"
+        "sdkVersion": "24.0.0"
       },
       "operations": [
         {
@@ -79,87 +85,87 @@ export const AZ_READ_CATALOGUE = {
       "provenance": [
         {
           "kind": "registration",
-          "source": "https://github.com/Azure/azure-cli/blob/387b2e460083431c2afdb45c976cb1b2c8a2aa83/src/azure-cli/azure/cli/command_modules/resource/commands.py",
-          "commit": "387b2e460083431c2afdb45c976cb1b2c8a2aa83",
+          "source": "https://github.com/Azure/azure-cli/blob/dc50d475a00ded4a1a1980d4a10a9fbd9a750a81/src/azure-cli/azure/cli/command_modules/resource/commands.py",
+          "commit": "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81",
           "lines": [
             [
               129,
               133
             ],
             [
-              289,
-              297
+              313,
+              321
             ]
           ],
-          "excerptSha256": "2fdae932246c4dd7e18e8e0f030917f498c8cea2d34398b9299a28a83d7f1d7e"
+          "excerptSha256": "cbfb199d1dcedac5acf63cd89d562546b723f141fa38167da2cb38e3ff30839e"
         },
         {
           "kind": "arguments",
-          "source": "https://github.com/Azure/azure-cli/blob/387b2e460083431c2afdb45c976cb1b2c8a2aa83/src/azure-cli/azure/cli/command_modules/resource/_params.py",
-          "commit": "387b2e460083431c2afdb45c976cb1b2c8a2aa83",
+          "source": "https://github.com/Azure/azure-cli/blob/dc50d475a00ded4a1a1980d4a10a9fbd9a750a81/src/azure-cli/azure/cli/command_modules/resource/_params.py",
+          "commit": "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81",
           "lines": [
             [
-              213,
-              216
+              226,
+              229
             ]
           ],
-          "excerptSha256": "de27a08af09b005a453a1322810c81ab8b41b68a3aafdc13410d2f4ff0a6da3b"
+          "excerptSha256": "41f5978309fa262c08698346014869957be549924b3c6682f17c3cd960c30d03"
         },
         {
           "kind": "profile",
-          "source": "https://github.com/Azure/azure-cli/blob/387b2e460083431c2afdb45c976cb1b2c8a2aa83/src/azure-cli-core/azure/cli/core/profiles/_shared.py",
-          "commit": "387b2e460083431c2afdb45c976cb1b2c8a2aa83",
+          "source": "https://github.com/Azure/azure-cli/blob/dc50d475a00ded4a1a1980d4a10a9fbd9a750a81/src/azure-cli-core/azure/cli/core/profiles/_shared.py",
+          "commit": "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81",
           "lines": [
             [
               178,
               178
             ]
           ],
-          "excerptSha256": "d7c3b14643a7f9eca0f165ad8e8ba3c27c3e99d17a19d4454b62d1d92188461d"
+          "excerptSha256": "b91cf48c8079ca0d77849e7cdb5fedcd7a12f157ce688344c5c5c3eacc60bd74"
         },
         {
           "kind": "dependency",
-          "source": "https://github.com/Azure/azure-cli/blob/387b2e460083431c2afdb45c976cb1b2c8a2aa83/src/azure-cli/setup.py",
-          "commit": "387b2e460083431c2afdb45c976cb1b2c8a2aa83",
+          "source": "https://github.com/Azure/azure-cli/blob/dc50d475a00ded4a1a1980d4a10a9fbd9a750a81/src/azure-cli/setup.py",
+          "commit": "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81",
           "lines": [
             [
-              111,
-              111
+              114,
+              114
             ]
           ],
-          "excerptSha256": "4494cd87162dc2fa006453d800f24aeff11b93def24aa0779bfb5f3903eee7f5"
+          "excerptSha256": "eb7eaee2957bb61f90d0809b98cf6af5c97fecda559a06faf5a3db58821caebe"
         },
         {
           "kind": "factory",
-          "source": "https://github.com/Azure/azure-cli/blob/387b2e460083431c2afdb45c976cb1b2c8a2aa83/src/azure-cli/azure/cli/command_modules/resource/_client_factory.py",
-          "commit": "387b2e460083431c2afdb45c976cb1b2c8a2aa83",
+          "source": "https://github.com/Azure/azure-cli/blob/dc50d475a00ded4a1a1980d4a10a9fbd9a750a81/src/azure-cli/azure/cli/command_modules/resource/_client_factory.py",
+          "commit": "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81",
           "lines": [
             [
               7,
               10
             ],
             [
-              86,
-              87
+              89,
+              90
             ]
           ],
           "excerptSha256": "3f4683bf09831d4ef18e9397595c79837762da758e890db99fde59cea152decb"
         },
         {
           "kind": "operation",
-          "source": "https://github.com/Azure/azure-sdk-for-python/blob/ef25316618ec0b3b55e49ea51e983809c82e1201/sdk/resources/azure-mgmt-resource/azure/mgmt/resource/resources/v2024_11_01/operations/_operations.py",
-          "commit": "ef25316618ec0b3b55e49ea51e983809c82e1201",
+          "source": "https://github.com/Azure/azure-sdk-for-python/blob/c21406d6ab40bfbf81e16ed3699c2dfb73002422/sdk/resources/azure-mgmt-resource/azure/mgmt/resource/resources/v2024_11_01/operations/_operations.py",
+          "commit": "c21406d6ab40bfbf81e16ed3699c2dfb73002422",
           "lines": [
             [
-              2356,
-              2380
+              914,
+              938
             ],
             [
-              10771,
-              10821
+              6046,
+              6096
             ]
           ],
-          "excerptSha256": "75141f5a2acd37e41aae4427a75d5e018bbd0af189f400f0f08fc0ecf4b6eba6"
+          "excerptSha256": "fcaea978a7e3257cf30fc9a842bdacc4e06e7b8bd9280003235db774905acc7f"
         }
       ]
     }

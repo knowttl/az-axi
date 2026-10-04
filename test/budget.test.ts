@@ -305,7 +305,7 @@ describe("token budgets", () => {
   it("reviewed group show stays under its ceiling", async () => {
     writeFileSync(join(dir, "config.json"), JSON.stringify({ defaultProfile: "work", profiles: { work: { auth: "az", tenant: TENANT, subscriptions: [SUB_A] } } }));
     runAzMock
-      .mockResolvedValueOnce(JSON.stringify({ "azure-cli": "2.77.0", "azure-cli-core": "2.77.0", extensions: {} }))
+      .mockResolvedValueOnce(JSON.stringify({ "azure-cli": "2.90.0", "azure-cli-core": "2.90.0", extensions: {} }))
       .mockResolvedValueOnce(JSON.stringify({ name: "AzureCloud", profile: "latest", endpoints: { resourceManager: "https://management.azure.com/" } }))
       .mockResolvedValueOnce(JSON.stringify({ id: SUB_A, tenantId: TENANT, environmentName: "AzureCloud", state: "Enabled", user: { name: "ada@contoso.com", type: "user" } }))
       .mockResolvedValueOnce(JSON.stringify(azResourceGroup));

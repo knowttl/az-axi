@@ -228,7 +228,7 @@ export function runAz(args: string[], signal?: AbortSignal, reviewedRead = false
         AZURE_CORE_ONLY_SHOW_ERRORS: "true",
         AZURE_CORE_DISABLE_CONFIRM_PROMPT: "1",
         ...(reviewedRead ? {
-          // Azure CLI 2.77.0 reads these overrides before loading extensions;
+          // The pinned Azure CLI runtime reads these overrides before loading extensions;
           // empty dev_sources also overrides a persisted config value.
           AZURE_EXTENSION_DIR: extensionDir!,
           AZURE_EXTENSION_SYS_DIR: extensionDir!,

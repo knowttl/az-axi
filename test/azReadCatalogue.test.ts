@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { decode } from "@toon-format/toon";
 import { describe, expect, it } from "vitest";
 import { AZ_READ_CATALOGUE } from "../src/lib/azReadCatalogue.js";
+import { assertNoCatalogueDrift } from "../src/commands/az.js";
 import { buildCatalogue, classifyCandidate, renderCatalogue } from "../scripts/az-read-catalogue.mjs";
 
 const sources = JSON.parse(readFileSync(new URL("../scripts/az-read-catalogue.sources.json", import.meta.url), "utf8"));
@@ -26,8 +27,8 @@ describe("pinned az read catalogue", () => {
     { command: "group delete" },
     { command: "group exists" },
     { command: "group show alias" },
-    { version: "2.77.1" },
-    { version: "2.77.0-dev" },
+    { version: "2.90.1" },
+    { version: "2.90.0-dev" },
     { version: undefined },
     { extensions: ["resource-graph"] },
     { extensions: ["unknown-extension"] },
@@ -81,13 +82,36 @@ describe("pinned az read catalogue", () => {
     ]);
     expect(entry.argumentPolicy).toMatchObject({ unknown: "refuse", positionals: "refuse", duplicateAliases: "refuse" });
     expect(entry.credentials).toMatchObject({ returns: "none", keyFallback: false });
-    expect(entry.runtime).toMatchObject({ version: "2.77.0", sdkVersion: "23.3.0", extensions: [] });
+    expect(entry.runtime).toMatchObject({ version: "2.90.0", sdkVersion: "24.0.0", extensions: [] });
     expect(entry.provenance).toHaveLength(6);
     for (const source of entry.provenance) {
       expect(source.source).toContain(`/blob/${source.commit}/`);
       expect(source.commit).toMatch(/^[a-f0-9]{40}$/);
       expect(source.excerptSha256).toMatch(/^[a-f0-9]{64}$/);
     }
+  });
+
+  it("records what the catalogue was generated from and matches every entry runtime", () => {
+    expect(AZ_READ_CATALOGUE.generatedFrom).toMatchObject({
+      azureCliVersion: "2.90.0",
+      azureCliCommit: expect.stringMatching(/^[a-f0-9]{40}$/),
+      sdkPackage: "azure-mgmt-resource",
+      sdkVersion: "24.0.0",
+    });
+    for (const approved of AZ_READ_CATALOGUE.entries) {
+      expect(approved.runtime.version).toBe(AZ_READ_CATALOGUE.generatedFrom.azureCliVersion);
+    }
+    expect(() => assertNoCatalogueDrift()).not.toThrow();
+  });
+
+  it.each([
+    { ...AZ_READ_CATALOGUE, schemaVersion: 2 },
+    { ...AZ_READ_CATALOGUE, generatedFrom: { ...AZ_READ_CATALOGUE.generatedFrom, azureCliVersion: "2.91.0" } },
+    { ...AZ_READ_CATALOGUE, generatedFrom: undefined },
+    { ...AZ_READ_CATALOGUE, entries: [{ ...entry, effect: "write" as const }] },
+    { ...AZ_READ_CATALOGUE, entries: [{ ...entry, runtime: { ...entry.runtime, version: "2.91.0" } }] },
+  ])("refuses catalogue drift %j before any probe or child execution", (catalogue) => {
+    expect(() => assertNoCatalogueDrift(catalogue)).toThrow("version drift");
   });
 });
 

@@ -601,7 +601,7 @@ Each entry records argument constraints, authentication and permission needs, ex
 The consumer validates its `arguments` and `argumentPolicy`, requires matching az-auth tenant/subscription context, forces JSON transport, disables prompts and dynamic extension installation, then normalizes output to TOON.
 Token profiles do not authorize ambient az identity use.
 
-Only `az-axi az group show --name <name> --subscription <uuid>` can run, using trusted official Azure CLI **2.77.0**, AzureCloud/latest and **no extensions in the isolated child runtime**.
+Only `az-axi az group show --name <name> --subscription <uuid>` can run, using trusted official Azure CLI **2.90.0**, AzureCloud/latest and **no extensions in the isolated child runtime**.
 The configured profile must use `auth: "az"`, an explicit tenant UUID and exactly one subscription matching the flag.
 Implicit profiles, management groups and environment tenant/subscription overrides are refused.
 `--profile` and `--config` select the wrapper profile; name aliases `-n`, `-g` and `--resource-group` come from the catalogue.
