@@ -117,6 +117,14 @@ const CLASSIFICATION: Row[] = [
   ["arm", "PUT", `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg-web`, "write"],
   ["arm", "PUT", `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg-web/defaultSecurityRules/AllowVnetInBound`, "write"],
   ["arm", "PUT", `${RG}/providers/Microsoft.Compute/virtualMachines/vm1/securityRules/deny-telnet`, "write"],
+  ...["PUT", "PATCH"].flatMap((method): Array<["arm", string, string, RequestClass]> => [
+    ["arm", method, `${SUB}/resourceGroups/Microsoft.Network/providers/Microsoft.Network/networkSecurityGroups/nsg/securityRules/deny`, "destructive"],
+    ["arm", method, `${SUB}/resourceGroups/providers/providers/Microsoft.Network/networkSecurityGroups/nsg/securityRules/deny`, "destructive"],
+    ["arm", method, `${RG}/providers/Microsoft.Network/networkSecurityGroups/securityRules`, "write"],
+    ["arm", method, `${RG}/providers/Microsoft.Network/networkSecurityGroups/securityRules/securityRules/deny`, "destructive"],
+    ["arm", method, `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg/defaultSecurityRules/securityRules`, "write"],
+    ["arm", method, `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg/securityRules`, "destructive"],
+  ]),
   // write: any other PUT, PATCH or POST on arm, and anything unrecognized
   ["arm", "PUT", STORAGE, "write"],
   ["arm", "PATCH", RG, "write"],
@@ -353,6 +361,16 @@ describe("client enforces policy before anything is sent", () => {
       body: { query: "Resources | take 1" },
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["PUT", "PATCH"])("requires confirmation for %s on NSG rules in a group named Microsoft.Network", async (method) => {
+    await expect(sendRequest(profile({ allowWrites: true, writeSubscriptions: [SUB.slice("/subscriptions/".length)] }), {
+      method,
+      path: `${SUB}/resourceGroups/Microsoft.Network/providers/Microsoft.Network/networkSecurityGroups/nsg/securityRules/deny`,
+      apiVersion: "2024-05-01",
+      execute: true,
+    })).rejects.toMatchObject({ code: "CONFIRM_REQUIRED" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks a command declared read that sends a write, before the gates", async () => {

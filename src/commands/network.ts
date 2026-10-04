@@ -4,7 +4,7 @@ import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText,
 import { buildUrl, request, requestAll, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { subscriptions } from "../lib/discovery.js";
-import { executeWrite } from "../lib/execute.js";
+import { executeWrite, WriteExecutionError } from "../lib/execute.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import { enforceGates } from "../lib/gates.js";
 import { parseTimeoutFlag } from "../lib/lro.js";
@@ -641,7 +641,7 @@ const NSG_RULE_PROTOCOLS: Record<string, string> = {
   "*": "*", tcp: "Tcp", udp: "Udp", icmp: "Icmp", esp: "Esp", ah: "Ah",
 };
 const NSG_RULE_PROTECTION =
-  "Security rule creation documents no ETag/If-Match protection; an explicit --if-match is forwarded but no concurrency guarantee is claimed";
+  "Parent NSG PUT uses the fetched ETag in If-Match; execution refuses without an ETag or when the NSG changes";
 const NSG_RULE_ROW_FIELDS = ["name", "priority", "direction", "access"];
 const PORT_ENTRY = /^(\*|\d+(-\d+)?)$/;
 
@@ -772,12 +772,8 @@ async function runNsgRuleCreate(
       "This is an az-axi bug: the request class does not match the leaf effect",
     ]);
   }
-  // Refuse before any transport: gates need only the subscription scope, so a
-  // refused write never sends even the preview GET. The exact request is
-  // re-gated by the client backstop at send time.
   const execute = enforceGates(profile, shape, cls, { execute: flagBool(args, "execute"), confirm });
 
-  // Current-state probe: the NSG's existing custom rules plus the exact rule.
   const probed = await sendRequest<NsgItem>(profile, { method: "GET", path: nsgPath, apiVersion: NETWORK });
   const etag = probed.headers["etag"] ?? (typeof probed.body.etag === "string" ? probed.body.etag : undefined);
   const existing = (probed.body.properties?.securityRules ?? []).filter((rule) => !!rule && typeof rule === "object")
@@ -856,7 +852,7 @@ async function runNsgRuleCreate(
     dryRun: true,
     class: cls,
     method: "PUT",
-    target: shortenResourceId(rulePath),
+    target: shortenResourceId(nsgPath),
     subscription,
     nsg: nsgLabel,
     rule: body,
@@ -872,36 +868,44 @@ async function runNsgRuleCreate(
         ...(shown.length < existing.length && !full
           ? [`Run \`${showCommand}\` for every existing rule`]
           : []),
-        `\`${command(ifMatch ?? etag)}\``,
+        `\`${command(etag)}\``,
       ],
     };
   }
-  return executeWrite({
-    profile,
-    method: "PUT",
-    path: buildUrl({ path: rulePath, apiVersion: NETWORK }),
-    cls: "destructive",
-    body,
-    // The preview refused an existing name, but a rule created after the
-    // preview must refuse too: creation never overwrites, so any current
-    // state here is a conflict rather than a no-op.
-    isNoop: (current) => {
-      if (current !== undefined) {
-        throw new AxiError(
-          `refusing to overwrite rule '${ruleName}' created after the preview on NSG '${nsgLabel}'`,
-          "CONFLICT",
-          ["Re-run the dry run without --execute to review the current rules before retrying"],
-        );
-      }
-      return false;
-    },
-    protection: NSG_RULE_PROTECTION,
-    ifMatch,
-    confirm,
-    selectors,
-    timeoutMs,
-    noWait,
-  });
+  const retryHelp = ["Re-run the dry run without --execute to review the current rules before retrying"];
+  if (!etag?.trim() || etag === "*") {
+    throw new AxiError("refusing: the NSG did not return an ETag for conditional creation", "CONFLICT", retryHelp);
+  }
+  if (ifMatch !== undefined && ifMatch !== etag) {
+    throw new AxiError("refusing: --if-match does not match the fetched NSG ETag", "CONFLICT", retryHelp);
+  }
+  try {
+    return await executeWrite({
+      profile,
+      method: "PUT",
+      path: buildUrl({ path: nsgPath, apiVersion: NETWORK }),
+      cls: "destructive",
+      body: {
+        ...probed.body,
+        properties: {
+          ...probed.body.properties,
+          securityRules: [...(probed.body.properties?.securityRules ?? []), body],
+        },
+      },
+      isNoop: () => false,
+      protection: NSG_RULE_PROTECTION,
+      ifMatch: etag,
+      confirm,
+      selectors,
+      timeoutMs,
+      noWait,
+    });
+  } catch (error) {
+    if (error instanceof WriteExecutionError && error.code === "PRECONDITION_FAILED") {
+      throw new WriteExecutionError(new AxiError("NSG changed during creation; no rule was added", "CONFLICT"), error.output, retryHelp);
+    }
+    throw error;
+  }
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {

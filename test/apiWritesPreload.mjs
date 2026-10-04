@@ -1,5 +1,5 @@
 // Offline built-CLI fixture. This replaces fetch completely, with no network fallback.
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 
 const scenario = process.env.AZ_AXI_TEST_OUTCOME;
 let incidentReads = 0;
@@ -52,11 +52,6 @@ const tagsGet = () => {
   return json(tagsBody(), 200, { etag: '"tags1"' });
 };
 
-// Synthetic NSG shaped like the 2024-05-01 contract. The custom rule list
-// follows AZ_AXI_TEST_NSG_RULES so previews, name/priority conflicts and the
-// execute-time race stay deterministic; AZ_AXI_TEST_NSG_MISSING=1 simulates a
-// missing NSG, and AZ_AXI_TEST_NSG_RULE_EXISTS=1 makes the rule GET find a
-// rule the preview did not see (creation must then refuse, never overwrite).
 const nsgRules = () => {
   if (process.env.AZ_AXI_TEST_NSG_RULES !== undefined) return JSON.parse(process.env.AZ_AXI_TEST_NSG_RULES);
   return [
@@ -72,35 +67,37 @@ const nsgBody = (nsgName) => ({
   name: nsgName,
   type: "Microsoft.Network/networkSecurityGroups",
   location: "westus",
-  etag: '"nsg1"',
+  tags: { env: "dev" },
+  ...(scenario === "nsg-no-etag" ? {} : { etag: '"nsg1"' }),
   properties: { provisioningState: "Succeeded", securityRules: nsgRules() },
 });
 
 const nsgNameOf = (pathname) => decodeURIComponent(pathname.split("/networkSecurityGroups/")[1].split("/")[0]);
-const ruleNameOf = (pathname) => decodeURIComponent(pathname.split("/securityRules/")[1].split("/")[0]);
+let nsgState;
 
 const nsgGet = (pathname) => {
   if (process.env.AZ_AXI_TEST_NSG_MISSING === "1" || scenario === "gone") {
     return json({ error: { code: "ResourceNotFound", message: "no such NSG" } }, 404);
   }
-  if (pathname.includes("/securityRules/")) {
-    if (process.env.AZ_AXI_TEST_NSG_RULE_EXISTS === "1") {
-      const name = ruleNameOf(pathname);
-      return json({ id: `https://management.azure.com${pathname.split("?")[0]}`, name,
-        type: "Microsoft.Network/networkSecurityGroups/securityRules", etag: '"rule1"',
-        properties: { access: "Deny", priority: 400, direction: "Inbound", protocol: "Tcp" } }, 200, { etag: '"rule1"' });
-    }
-    return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
-  }
-  return json(nsgBody(nsgNameOf(pathname)), 200, { etag: '"nsg1"' });
+  nsgState ??= nsgBody(nsgNameOf(pathname));
+  return json(nsgState, 200, scenario === "nsg-no-etag" ? {} : { etag: nsgState.etag });
 };
 
-const nsgRulePut = (url, body) => {
-  const pathname = new URL(url).pathname;
-  const ruleUrl = `https://management.azure.com${pathname}`;
-  return json({ id: ruleUrl, name: ruleNameOf(pathname),
-    type: "Microsoft.Network/networkSecurityGroups/securityRules", etag: '"rule1"',
-    properties: { ...(body?.properties ?? {}), provisioningState: "Succeeded" } }, 201);
+const nsgPut = (body, ifMatch) => {
+  if (scenario === "nsg-concurrent-create" || scenario === "nsg-concurrent-priority") {
+    nsgState.etag = '"nsg2"';
+    nsgState.properties.securityRules.push({
+      name: scenario === "nsg-concurrent-create" ? "deny-telnet" : "operator-rule",
+      properties: { access: "Allow", priority: 400, direction: "Inbound", protocol: "Tcp", destinationPortRange: "443" },
+    });
+  }
+  if (ifMatch !== nsgState.etag) {
+    writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
+    return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
+  }
+  nsgState = body;
+  writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
+  return json(nsgState, 201);
 };
 
 const tagsPatch = (body) => {
@@ -183,7 +180,7 @@ globalThis.fetch = async (url, init = {}) => {
       "retry-after": scenario === "timeout" ? "1" : "0" });
   }
   if (scenario === "created") return json({}, 201);
-  if (method === "PUT" && new URL(url).pathname.includes("/securityRules/")) return nsgRulePut(url, body);
+  if (method === "PUT" && new URL(url).pathname.includes("/networkSecurityGroups/")) return nsgPut(body, init.headers?.["If-Match"]);
   if (new URL(url).pathname.includes("/alerts/")) return new Response(null, { status: 204, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test" } });
   if (new URL(url).pathname.includes("/incidents/") && method === "PUT") {
     // A comment PUT against a missing incident surfaces the missing target.

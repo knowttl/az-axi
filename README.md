@@ -779,8 +779,10 @@ Select the NSG with `--nsg-name` plus `--resource-group` / `-g`, or with `--ids 
 `--direction` defaults to Inbound and `--protocol` to `*`; the four address/port lists default to `*` (unlike az, whose destination-port default is 80).
 Application security groups are unsupported and rejected as unknown flags.
 The preview reads the NSG (`GET .../networkSecurityGroups/<nsg>?api-version=2024-05-01`) and lists its existing rules plus the exact rule to be added, with the native execute command.
-Execution re-reads, refuses a rule created after the preview instead of overwriting it, and otherwise sends one `PUT .../securityRules/<rule>?api-version=2024-05-01` through the shared pipeline.
-Security rule creation documents no ETag/If-Match protection; an explicit `--if-match` is forwarded but no concurrency guarantee is claimed.
+Execution sends one parent NSG `PUT .../networkSecurityGroups/<nsg>?api-version=2024-05-01` through the shared pipeline, preserving the fetched body with exactly one new rule appended.
+The PUT carries `If-Match` with the ETag from the initial NSG GET; execution refuses if that ETag is missing or an explicit `--if-match` differs from it.
+A concurrent NSG change yields HTTP 412, reported as a conflict asking for a fresh preview, without overwriting the concurrent change.
+The child [Security Rules Create Or Update](https://learn.microsoft.com/en-us/rest/api/virtualnetwork/security-rules/create-or-update) operation does not document create-only conditional headers, so the command uses the parent NSG operation and retains the mandatory destructive `--confirm <rule-name>` gate.
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).

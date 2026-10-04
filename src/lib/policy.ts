@@ -171,8 +171,8 @@ function touchesProtectedAuthorizationType(s: string[]): boolean {
  * other Microsoft.Network types stay on their default class.
  */
 function touchesNsgSecurityRule(s: string[]): boolean {
-  const net = s.indexOf("microsoft.network");
-  return net >= 0 && s[net + 1] === "networksecuritygroups" && s.includes("securityrules", net + 2);
+  return s.some((segment, i) => i % 2 === 0 && segment === "providers" &&
+    s[i + 1] === "microsoft.network" && s[i + 2] === "networksecuritygroups" && s[i + 4] === "securityrules");
 }
 
 export function classifyRequest({ resource, method, path }: RequestShape): RequestClass {

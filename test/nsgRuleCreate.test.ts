@@ -10,7 +10,6 @@ const SUB = "00000000-0000-0000-0000-000000000021";
 const OTHER = "00000000-0000-0000-0000-000000000022";
 const NSG_ID = `/subscriptions/${SUB}/resourceGroups/rg-demo/providers/Microsoft.Network/networkSecurityGroups/nsg-web`;
 const RULE = "deny-telnet";
-const RULE_URL = `https://management.azure.com${NSG_ID}/securityRules/${RULE}?api-version=2024-05-01`;
 const NSG_URL = `https://management.azure.com${NSG_ID}?api-version=2024-05-01`;
 let dir: string;
 
@@ -35,7 +34,6 @@ function cli(extra: string[] = [], options: {
   priority?: string | null;
   nsgRules?: string;
   nsgMissing?: boolean;
-  ruleExists?: boolean;
 } = {}) {
   const argv = ["network", "nsg", "rule", "create", "--profile", options.profile ?? "writer"];
   if (options.subscription !== null) argv.push("-s", options.subscription ?? SUB);
@@ -63,7 +61,7 @@ function cli(extra: string[] = [], options: {
       AZ_AXI_TEST_OUTCOME: options.scenario ?? "sync",
       ...(options.nsgRules === undefined ? {} : { AZ_AXI_TEST_NSG_RULES: options.nsgRules }),
       ...(options.nsgMissing ? { AZ_AXI_TEST_NSG_MISSING: "1" } : {}),
-      ...(options.ruleExists ? { AZ_AXI_TEST_NSG_RULE_EXISTS: "1" } : {}),
+      AZ_AXI_TEST_NSG_STATE: join(dir, "nsg-state.json"),
       AZ_AXI_TEST_CAPTURE_URL: "1",
       AZ_AXI_TEST_CAPTURE_BODY: "1",
       AZ_AXI_TEST_REQUESTS: join(dir, "requests.jsonl") },
@@ -82,12 +80,12 @@ describe("built NSG deny-rule create, offline only", () => {
     expect(result.stdout).toContain("dryRun: true");
     expect(result.stdout).toContain("class: destructive");
     expect(result.stdout).toContain("method: PUT");
-    expect(result.stdout).toContain("securityRules/deny-telnet");
+    expect(decode(result.stdout)).toMatchObject({ target: `${SUB}/rg-demo/nsg/nsg-web` });
     expect(result.stdout).toContain("allow-https");
     expect(result.stdout).toContain("deny-ssh");
     expect(result.stdout).toContain("totalRules: 2");
     expect(result.stdout).toContain("access: Deny");
-    expect(result.stdout).toContain("no concurrency guarantee");
+    expect(result.stdout).toContain("Parent NSG PUT uses the fetched ETag");
     expect(result.stdout).toContain(
       String.raw`az-axi network nsg rule create --profile writer --nsg-name nsg-web --resource-group rg-demo --name deny-telnet --priority 400 --direction Inbound --access Deny --protocol Tcp --source-address-prefixes '*' --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 23 --description 'block telnet' --subscription ${SUB} --if-match '\"nsg1\"' --execute --confirm deny-telnet`,
     );
@@ -99,7 +97,7 @@ describe("built NSG deny-rule create, offline only", () => {
     const result = cli([], { ids: true });
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain("dryRun: true");
-    expect(result.stdout).toContain("securityRules/deny-telnet");
+    expect(decode(result.stdout)).toMatchObject({ target: `${SUB}/rg-demo/nsg/nsg-web` });
     expect(result.stdout).toContain("--ids");
     expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL }]);
     expect(records("writes.log")).toEqual([]);
@@ -127,21 +125,29 @@ describe("built NSG deny-rule create, offline only", () => {
   });
 
   it("executes exactly one destructive PUT and audits it", () => {
+    const existing = [{ name: "operator-rule", properties: { access: "Allow", priority: 100, direction: "Inbound", sourceAddressPrefixes: ["10.0.0.0/8"], custom: "preserve" } }];
     const result = cli(["--protocol", "Tcp", "--destination-port-ranges", "23", "--direction", "Outbound",
-      "--execute", "--confirm", RULE]);
+      "--execute", "--confirm", RULE], { nsgRules: JSON.stringify(existing) });
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain("result: done");
     expect(result.stdout).toContain("status: 201");
     const calls = records("requests.jsonl");
     expect(calls.map((call) => call.method)).toEqual(["GET", "GET", "PUT"]);
-    expect(calls.at(-1)).toEqual({ method: "PUT", url: RULE_URL,
-      body: { name: RULE, properties: {
-        protocol: "Tcp", sourcePortRange: "*", destinationPortRange: "23",
-        sourceAddressPrefix: "*", destinationAddressPrefix: "*",
-        access: "Deny", priority: 400, direction: "Outbound",
-      } } });
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: NSG_URL, ifMatch: '"nsg1"',
+      body: {
+        id: NSG_ID, name: "nsg-web", type: "Microsoft.Network/networkSecurityGroups", location: "westus",
+        tags: { env: "dev" }, etag: '"nsg1"',
+        properties: {
+          provisioningState: "Succeeded",
+          securityRules: [...existing, { name: RULE, properties: {
+            protocol: "Tcp", sourcePortRange: "*", destinationPortRange: "23",
+            sourceAddressPrefix: "*", destinationAddressPrefix: "*",
+            access: "Deny", priority: 400, direction: "Outbound",
+          } }],
+        },
+      } });
     expect(records("writes.log")).toEqual([expect.objectContaining({ class: "destructive", method: "PUT",
-      url: RULE_URL, outcome: "success", httpStatus: 201, requestId: "req-test" })]);
+      url: NSG_URL, outcome: "success", httpStatus: 201, requestId: "req-test" })]);
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toMatch(/offline-nsg-token|"body"|"headers"|"properties"/);
   });
 
@@ -150,10 +156,10 @@ describe("built NSG deny-rule create, offline only", () => {
       "--execute", "--confirm", RULE]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(records("requests.jsonl").at(-1)).toMatchObject({ method: "PUT",
-      body: { properties: {
+      body: { properties: { securityRules: expect.arrayContaining([expect.objectContaining({ properties: expect.objectContaining({
         destinationPortRanges: ["23", "80-90"],
         sourceAddressPrefixes: ["10.0.0.0/8", "Internet"],
-      } } });
+      }) })]) } } });
   });
 
   it("polls a 202 operation to completion through the shared LRO handling", () => {
@@ -188,12 +194,50 @@ describe("built NSG deny-rule create, offline only", () => {
     expect(records("writes.log")).toEqual([]);
   });
 
-  it("refuses a rule created after the preview instead of overwriting it", () => {
-    const result = cli(["--execute", "--confirm", RULE], { ruleExists: true });
+  describe.each([false, true])("conditional creation with ids=%s", (ids) => {
+    it.each(["Inbound", "Outbound"])("preserves a concurrent rule during %s creation", (direction) => {
+      const result = cli(["--direction", direction, "--execute", "--confirm", RULE], { ids, scenario: "nsg-concurrent-create" });
+      expect(result.status, result.stdout + result.stderr).toBe(1);
+      expect(result.stdout).toContain("CONFLICT");
+      expect(result.stdout).toContain("Re-run the dry run without --execute");
+      expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PUT"]);
+      const state = JSON.parse(readFileSync(join(dir, "nsg-state.json"), "utf8"));
+      expect(state.properties.securityRules).toHaveLength(3);
+      expect(state.properties.securityRules[2]).toEqual({ name: RULE, properties: {
+        access: "Allow", priority: 400, direction: "Inbound", protocol: "Tcp", destinationPortRange: "443",
+      } });
+      expect(records("writes.log")).toEqual([expect.objectContaining({ url: NSG_URL, outcome: "PRECONDITION_FAILED", httpStatus: 412 })]);
+    });
+  });
+
+  it("preserves a concurrent priority conflict", () => {
+    const result = cli(["--execute", "--confirm", RULE], { scenario: "nsg-concurrent-priority" });
+    expect(result.status, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout).toContain("CONFLICT");
+    const state = JSON.parse(readFileSync(join(dir, "nsg-state.json"), "utf8"));
+    expect(state.properties.securityRules.map((rule: { name: string }) => rule.name)).toEqual(["allow-https", "deny-ssh", "operator-rule"]);
+  });
+
+  it("refuses execution when the NSG has no ETag", () => {
+    const result = cli(["--execute", "--confirm", RULE], { scenario: "nsg-no-etag" });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("did not return an ETag");
+    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL }]);
+    expect(records("writes.log")).toEqual([]);
+  });
+
+  it("accepts a resource group named Microsoft.Network", () => {
+    const result = cli([], { group: "Microsoft.Network" });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("class: destructive");
+    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL.replace("rg-demo", "Microsoft.Network") }]);
+  });
+
+  it.each(['"stale"', "*"])("refuses --if-match %s that differs from the fetched ETag", (etag) => {
+    const result = cli(["--if-match", etag, "--execute", "--confirm", RULE]);
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("CONFLICT");
-    expect(result.stdout).toContain("created after the preview");
-    expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET"]);
+    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL }]);
     expect(records("writes.log")).toEqual([]);
   });
 
@@ -264,9 +308,9 @@ describe("built NSG deny-rule create, offline only", () => {
   it("reports a failed PUT and audits the failure", () => {
     const result = cli(["--execute", "--confirm", RULE], { scenario: "precondition" });
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("PRECONDITION_FAILED");
+    expect(result.stdout).toContain("CONFLICT");
     expect(records("writes.log")).toEqual([expect.objectContaining({ class: "destructive", method: "PUT",
-      url: RULE_URL, outcome: "PRECONDITION_FAILED", httpStatus: 412 })]);
+      url: NSG_URL, outcome: "PRECONDITION_FAILED", httpStatus: 412 })]);
   });
 
   describe.each([{ flags: [] as string[] }, { flags: ["--execute", "--confirm", RULE] }])("subscription validation with $flags", ({ flags }) => {
