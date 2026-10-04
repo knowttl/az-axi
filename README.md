@@ -249,6 +249,10 @@ az-axi group list
 az-axi group show -n rg-demo -s <subscription>
 az-axi resource list -g rg-demo
 az-axi resource show --ids <ARM-id> --full
+az-axi account list
+az-axi account show -s <subscription> --full
+az-axi monitor log-analytics workspace list -g rg-demo
+az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
 ```
 
 Discovery uses live ARM GETs.
@@ -268,6 +272,18 @@ Show by name requires one subscription; resource show also requires `--resource-
 Resource show selects the newest stable provider API version unless `--api-version` is supplied.
 Credential-bearing child resources and actions are refused before retrieval.
 Management-group discovery is unsupported; select subscriptions explicitly.
+
+`account list/show` reads live ARM subscription metadata within the same discovery scope, resolving subscription names to IDs.
+This differs from Azure CLI's cached account list: it uses the selected profile identity and flags/environment/profile subscriptions, otherwise all accessible subscriptions.
+`account show` requires exactly one selected subscription and never changes defaults or chooses an ambient Azure CLI account.
+The legacy `sub list` still lists all visible subscriptions with `inScope` markers.
+Account defaults are name, subscription GUID id, state and tenantId; `--full` adds armId, authorizationSource and subscription policy metadata.
+Workspace lists default to name, ARM id, location and customerId (the GUID used for Log Analytics queries).
+Workspace show accepts exactly one workspace `--ids`, or `--resource-group` plus `--workspace-name` (also `--name` / `-n`) within one subscription.
+An ID's subscription is used only when no subscription scope is configured; otherwise it must belong to selected scope.
+Full workspace views and `--fields` expose only documented metadata: name, id, type, location, tags, customerId, state, retentionInDays, sku, publicNetworkAccessForIngestion and publicNetworkAccessForQuery.
+Shared keys, arbitrary provider properties and credential-bearing children/actions are excluded before output; child/action selectors are refused before retrieval.
+Both new lists default to 50 rows and follow up to 100 pages; `--full` shows all fetched rows, and incomplete counts are lower bounds.
 Existing command scope, defaults and aliases are unchanged.
 
 One example per inspection command; see [Profiles](#profiles) for `config init` and `config path` examples.

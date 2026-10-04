@@ -86,11 +86,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 15, notes: ["Skipped group-show", "Skipped resource-show"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 16, notes: ["Skipped resource-show"], detailCalls: [
+    { details: {}, count: 18, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 19, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 16, notes: ["Skipped group-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 19, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -146,8 +146,8 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[17]", notes: [] },
-    { omitted: ["group-show", "resource-show"], rows: "rows[15]", notes: ["Skipped group-show", "Skipped resource-show"] },
+    { omitted: [], rows: "rows[21]", notes: [] },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[18]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"] },
   ])("runs available scenarios through offline replay with omitted $omitted captures", ({ omitted, rows, notes }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
@@ -163,7 +163,15 @@ describe("benchmark surface", () => {
     for (const scenario of scenarios) {
       if (omitted.includes(scenario.name)) continue;
       let responses;
-      if (scenario.name === "group-list") {
+      if (scenario.name === "account-list") {
+        responses = [subscriptions()];
+      } else if (scenario.name === "account-show") {
+        responses = [response("GET", { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" })];
+      } else if (scenario.name === "workspace-list") {
+        responses = [response("GET", { value: [] })];
+      } else if (scenario.name === "workspace-show") {
+        responses = [response("GET", { id: `/subscriptions/${sub}/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo`, name: "logs-demo", location: "westus", properties: { customerId: "00000000-0000-0000-0000-000000000010" } })];
+      } else if (scenario.name === "group-list") {
         responses = [response("GET", { value: [] })];
       } else if (scenario.name === "group-show") {
         responses = [response("GET", { id: `/subscriptions/${sub}/resourceGroups/rg-demo`, name: "rg-demo", location: "westus" })];
@@ -218,12 +226,13 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(18);
+    expect(Object.keys(result.help)).toHaveLength(20);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 
   it("keeps owner selectors out of scenario argv", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
+      "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
       "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);

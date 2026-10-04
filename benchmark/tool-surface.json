@@ -2,15 +2,17 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 62,
-    "body": 3714,
-    "total": 3775
+    "body": 3785,
+    "total": 3846
   },
   "help": {
-    "topLevel": 507,
+    "topLevel": 543,
     "home": 244,
     "doctor": 231,
     "config": 171,
     "sub": 58,
+    "account": 231,
+    "monitor": 315,
     "group": 178,
     "resource": 327,
     "rg": 186,
@@ -25,5 +27,5 @@
     "az": 308,
     "storage": 359
   },
-  "helpTotal": 4715
+  "helpTotal": 5297
 }

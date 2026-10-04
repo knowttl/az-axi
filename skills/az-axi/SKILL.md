@@ -33,6 +33,10 @@ The offline test suite checks this list against the registry.
 | `az-axi config list` | native | read |
 | `az-axi config path` | native | read |
 | `az-axi sub list` | native | read |
+| `az-axi account list` | native | read |
+| `az-axi account show` | native | read |
+| `az-axi monitor log-analytics workspace list` | native | read |
+| `az-axi monitor log-analytics workspace show` | native | read |
 | `az-axi group list` | native | read |
 | `az-axi group show` | native | read |
 | `az-axi resource list` | native | read |
@@ -118,6 +122,10 @@ az-axi group list
 az-axi group show -n rg-demo -s <subscription>
 az-axi resource list -g rg-demo
 az-axi resource show --ids <ARM-id> --full
+az-axi account list
+az-axi account show -s <subscription> --full
+az-axi monitor log-analytics workspace list -g rg-demo
+az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
 ```
 
 See [README.md#use](../../README.md#use) for discovery subscription scope, including `resource show --ids`.
@@ -133,6 +141,15 @@ Show by name requires one subscription; resource show also requires `--resource-
 Resource show selects the newest stable provider API version unless `--api-version` is supplied.
 Credential-bearing child resources and actions are refused before retrieval.
 Management-group discovery is unsupported; select subscriptions explicitly.
+
+`account list/show` reads live ARM subscription metadata in selected scope, resolving names as discovery does.
+`account show` requires exactly one selected subscription; it never chooses an ambient Azure CLI default or changes account/profile settings.
+The legacy `sub list` remains the all-visible list with `inScope` markers.
+Workspace lists default to name, ARM id, location and customerId (the GUID used for queries).
+Workspace show accepts one workspace ARM ID, or a resource group and workspace name in one subscription.
+`--workspace-name` and `--name` / `-n` are synonyms on workspace show.
+Full workspace views and `--fields` expose only documented metadata, including state, retentionInDays, sku and public network settings; arbitrary properties, shared keys and credential-bearing child resources/actions are excluded.
+All new lists default to 50 rows and follow up to 100 pages; `--full` shows all fetched rows and incomplete counts are marked as lower bounds.
 Existing command scope, defaults and aliases are unchanged.
 
 ```sh

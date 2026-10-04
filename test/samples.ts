@@ -47,6 +47,20 @@ export const discoveryResource = {
   properties: { provisioningState: "Succeeded" },
 };
 
+// source: WorkspacesSubscriptionListForWorkSpace.json and WorkspacesGet.json, REST Log Analytics@2025-07-01 (synthetic).
+export const discoveryWorkspace = {
+  id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo`,
+  name: "logs-demo", type: "Microsoft.OperationalInsights/workspaces", location: "westus", tags: { env: "test" },
+  properties: { customerId: WORKSPACE, provisioningState: "Succeeded", retentionInDays: 30,
+    sku: { name: "PerGB2018" }, publicNetworkAccessForIngestion: "Enabled", publicNetworkAccessForQuery: "Enabled" },
+};
+
+// source: resources/resource-manager/Microsoft.Resources/subscriptions/stable/2022-12-01/examples/GetSubscription.json
+export const discoveryAccount = {
+  id: `/subscriptions/${SUB_A}`, subscriptionId: SUB_A, displayName: "Sandbox", state: "Enabled", tenantId: TENANT,
+  authorizationSource: "RoleBased", subscriptionPolicies: { quotaId: "PayAsYouGo", spendingLimit: "Off", locationPlacementId: "Public" },
+};
+
 export const discoveryWorkflow = {
   id: `${discoveryGroup.id}/providers/Microsoft.Logic/workflows/http-demo`,
   name: "http-demo", type: "Microsoft.Logic/workflows", location: "westus",
