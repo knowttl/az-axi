@@ -138,8 +138,8 @@ describe("built API body inputs, offline only", () => {
     }
   });
 
-  it.each(["inline", "file", "stdin"])("preserves %s JSON strings through queries, execution and deployment previews", (form) => {
-    for (const body of ["text", "false", '{"tags":{"env":"prod"}}']) {
+  describe.each(["inline", "file", "stdin"])("%s JSON strings", (form) => {
+    it.each(["text", "false", '{"tags":{"env":"prod"}}'])("preserves %j through queries, execution and deployment previews", (body) => {
       const input = JSON.stringify(body);
       writeFileSync(join(dir, "body file.json"), input);
       const flags = form === "inline" ? ["--body", input] : form === "file" ? ["--body-file", join(dir, "body file.json")] : [];
@@ -154,6 +154,6 @@ describe("built API body inputs, offline only", () => {
         expect(result.status, result.stdout + result.stderr).toBe(0);
         expect(requests().at(-1)).toMatchObject({ method: request.method === "PUT" ? "POST" : request.method, body });
       }
-    }
+    });
   });
 });

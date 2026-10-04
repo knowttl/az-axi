@@ -20,7 +20,7 @@
     "activity": 172,
     "defender": 262,
     "security": 266,
-    "sentinel": 1451,
+    "sentinel": 1406,
     "exposure": 311,
     "logs": 296,
     "api": 533,
@@ -29,5 +29,5 @@
     "storage": 359,
     "keyvault": 359
   },
-  "helpTotal": 7161
+  "helpTotal": 7116
 }
