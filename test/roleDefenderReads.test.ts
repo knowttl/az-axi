@@ -128,6 +128,29 @@ describe("role definition list and show", () => {
     });
   });
 
+  it.each(["--custom-role-only", "--custom-role-only=true"])("preserves %s in truncated list expansion", async (filter) => {
+    allMock.mockResolvedValue({ items: [
+      ...roleDefinitions,
+      { ...roleDefinition, id: `${roleDefinition.id}-second`, name: "second" },
+    ] });
+    const result = await runRole(["definition", "list", filter, "--limit", "1"]);
+    expect(result).toMatchObject({ total: 2, byType: { CustomRole: 2 } });
+    expect(result.help).toContain("Run `az-axi role definition list --custom-role-only --full` to show every fetched row");
+    const expansion = (result.help as string[]).at(-1)!.split("`")[1]!.split(" ").slice(2);
+    expect(await runRole(expansion))
+      .toMatchObject({ total: 2, rows: expect.arrayContaining([expect.objectContaining({ name: "second" })]) });
+  });
+
+  it.each([
+    ["--custom-role-only", " --custom-role-only"],
+    ["--custom-role-only=false", ""],
+  ])("preserves the filter state for empty lists with %s", async (filter, suffix) => {
+    const result = await runRole(["definition", "list", "--name", "missing", filter]);
+    expect(result.help).toEqual([
+      `Run \`az-axi role definition list --name missing${suffix} --full\` to show every fetched row`,
+    ]);
+  });
+
   it("shows a custom definition by GUID and a built-in by tenant ARM ID", async () => {
     const custom = await runRole(["definition", "show", "--name", SYN(40)]);
     expect(custom).toMatchObject({
@@ -252,6 +275,42 @@ describe("security sub-assessment list and show", () => {
     expect(full).not.toHaveProperty("help");
   });
 
+  const resource = `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm1`;
+  const findingId = `${resource}/providers/Microsoft.Security/assessments/${SYN(50)}/subAssessments/${SYN(51)}`;
+  it.each([
+    { representation: "id", id: findingId, resourceId: "", selector: resource },
+    { representation: "normalized id", id: findingId, resourceId: "", selector: ` ${resource.toUpperCase()}/ ` },
+    { representation: "resourceDetails", id: securitySubAssessment.id, resourceId: resource, selector: resource },
+    { representation: "normalized resourceDetails", id: securitySubAssessment.id, resourceId: `${resource}/`, selector: ` ${resource.toUpperCase()}/ ` },
+  ])("matches assessed resources at path boundaries using $representation", async ({ id, resourceId, selector }) => {
+    const related = {
+      ...securitySubAssessment,
+      id,
+      properties: { ...securitySubAssessment.properties, resourceDetails: { id: resourceId } },
+    };
+    const unrelated = {
+      ...securitySubAssessments[1]!,
+      id: `${resource}0/providers/Microsoft.Security/assessments/${SYN(50)}/subAssessments/${SYN(52)}`,
+      properties: { ...securitySubAssessments[1]!.properties, resourceDetails: { id: `${resource}0` } },
+    };
+    allMock.mockResolvedValue({ items: [related, unrelated] });
+    const result = await runSecurity(["sub-assessment", "list", "--assessed-resource-id", selector]);
+    expect(result).toMatchObject({
+      total: 1, byStatus: { Unhealthy: 1 }, bySeverity: { High: 1 },
+      rows: [expect.objectContaining({ name: SYN(51) })],
+    });
+  });
+
+  it("normalizes the assessed resource for named show paths", async () => {
+    requestMock.mockResolvedValueOnce(securitySubAssessment as never);
+    const resource = securitySubAssessment.properties.resourceDetails.id;
+    await runSecurity(["sub-assessment", "show", "--name", SYN(51), "--assessment-name", SYN(50),
+      "--assessed-resource-id", ` ${resource}/ `]);
+    expect(requestMock.mock.calls.at(-1)?.[1]).toMatchObject({
+      path: `${resource}/providers/Microsoft.Security/assessments/${SYN(50)}/subAssessments/${SYN(51)}`,
+    });
+  });
+
   it("shows a resource-scoped finding by ARM ID", async () => {
     const shown = await runSecurity(["sub-assessment", "show", "--ids", securitySubAssessment.id]);
     expect(shown).toMatchObject({ name: SYN(51), status: "Unhealthy" });
@@ -259,6 +318,18 @@ describe("security sub-assessment list and show", () => {
 });
 
 describe("role and Defender reads stay read-only and validate before transport", () => {
+  it.each([
+    ["--assessment-name", "other-assessment"],
+    ["--assessed-resource-id", `/subscriptions/${SUB_A}/resourceGroups/other`],
+    ["--assessment-name", "other-assessment", "--assessed-resource-id", `/subscriptions/${SUB_A}/resourceGroups/other`],
+  ])("rejects ID show with named selectors %j before discovery", async (...selectors) => {
+    useProfile("ci", { auth: "token" });
+    await expect(runSecurity(["sub-assessment", "show", "--ids", securitySubAssessment.id, ...selectors]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("not accepted with --ids") });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown verbs and leaves without transport", async () => {
     await expect(runRole(["definition", "update"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(runRole(["assignment", "list"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });

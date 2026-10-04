@@ -189,8 +189,9 @@ const SUB_ASSESSMENT: GovernanceCollection = {
     const assessed = args.flags["assessed-resource-id"];
     if (typeof assessed === "string") {
       const prefix = assessed.toLowerCase();
-      const resource = str(objOf(objOf(item.properties).resourceDetails).id).toLowerCase();
-      if (!item.id.toLowerCase().startsWith(prefix) && resource !== prefix) return false;
+      const resource = str(objOf(objOf(item.properties).resourceDetails).id).trim().replace(/\/+$/, "").toLowerCase();
+      const id = item.id.toLowerCase();
+      if (id !== prefix && !id.startsWith(`${prefix}/`) && resource !== prefix) return false;
     }
     return true;
   },
@@ -283,13 +284,19 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     invalid(`unexpected argument \`${args.positionals[words.length + 1]}\` for \`${path}\``, path);
   }
   assertKnownFlags(args, commandFlags(path), path, securityReadLeafHelp(path));
+  if (verb === "show" && collection === SUB_ASSESSMENT && "ids" in args.flags &&
+    ("assessment-name" in args.flags || "assessed-resource-id" in args.flags)) {
+    governanceInvalid("--ids selects the resource itself; --assessment-name and --assessed-resource-id are not accepted with --ids", path);
+  }
+  const assessedFlag = flagText(args, "assessed-resource-id");
+  const assessed = assessedFlag?.replace(/\/+$/, "");
+  if (assessed !== undefined) args.flags["assessed-resource-id"] = assessed;
   const profile = profileFromArgs(args);
   if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
     governanceInvalid("management-group scope is unsupported for Defender reads; select subscriptions explicitly", path);
   }
-  const assessed = args.flags["assessed-resource-id"];
   if (typeof assessed === "string") {
-    const scopeSub = /^\/subscriptions\/([^/]+)/i.exec(assessed.trim())?.[1];
+    const scopeSub = /^\/subscriptions\/([^/]+)/i.exec(assessed)?.[1];
     if (!scopeSub || !GUID.test(scopeSub)) {
       governanceInvalid("--assessed-resource-id must be an ARM ID under /subscriptions/<id>", path);
     }
@@ -308,9 +315,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     if (typeof assessment !== "string" || !assessment.trim()) {
       governanceInvalid("security sub-assessment show by name needs --assessment-name <assessment>", path);
     }
-    const scope = typeof assessed === "string" && assessed.trim()
-      ? assessed.trim()
-      : `/subscriptions/${subscription}`;
+    const scope = assessed ?? `/subscriptions/${subscription}`;
     return `${scope}/providers/Microsoft.Security/assessments/` +
       `${governanceSegment(assessment.trim(), "assessment-name", path)}/subAssessments/${name}`;
   });

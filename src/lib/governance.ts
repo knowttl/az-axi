@@ -125,10 +125,10 @@ export function governanceLimit(args: ParsedArgs, path: string): number {
   return limit;
 }
 
-export function selectorSuffix(args: ParsedArgs, keys = ["profile", "config", "tenant", "subscription", "resource-group", "name", "ids", "assignment", "compliance", "assessment-name", "assessed-resource-id"]): string {
+export function selectorSuffix(args: ParsedArgs, keys = ["profile", "config", "tenant", "subscription", "resource-group", "name", "ids", "assignment", "compliance", "assessment-name", "assessed-resource-id", "custom-role-only"]): string {
   return keys
-    .filter((key) => typeof args.flags[key] === "string")
-    .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
+    .filter((key) => key === "custom-role-only" ? flagBool(args, key) : typeof args.flags[key] === "string")
+    .map((key) => key === "custom-role-only" ? ` --${key}` : ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 }
 
 function defaultFollowHint(collection: GovernanceCollection, first: GovernanceItem, args: ParsedArgs): string {
