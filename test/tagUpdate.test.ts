@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { decode } from "@toon-format/toon";
 
 const SUB = "00000000-0000-0000-0000-000000000021";
 const OTHER = "00000000-0000-0000-0000-000000000022";
@@ -198,13 +199,27 @@ describe("built tag update, offline only", () => {
       body: { operation: "Merge", properties: { tags: { Env: "prod" } } } });
   });
 
-  it.each([
-    { resourceId: RG_ID, url: `https://management.azure.com${RG_ID}/providers/Microsoft.Resources/tags/default?api-version=2021-04-01` },
-    { resourceId: SUB_ID, url: `https://management.azure.com${SUB_ID}/providers/Microsoft.Resources/tags/default?api-version=2021-04-01` },
-  ])("targets a resource group and a subscription scope exactly", ({ resourceId, url }) => {
-    const result = cli(["--execute"], { resourceId });
+  it("targets a resource group exactly", () => {
+    const result = cli(["--execute"], { resourceId: RG_ID });
     expect(result.status, result.stdout + result.stderr).toBe(0);
-    expect(records("requests.jsonl").at(-1)).toMatchObject({ method: "PATCH", url });
+    expect(records("requests.jsonl").at(-1)).toMatchObject({ method: "PATCH",
+      url: `https://management.azure.com${RG_ID}/providers/Microsoft.Resources/tags/default?api-version=2021-04-01` });
+  });
+
+  describe.each(["merge", "delete"])("subscription-only scope refusal for %s", (operation) => {
+    it.each([
+      { flags: [], resourceId: SUB_ID },
+      { flags: ["--execute"], resourceId: SUB_ID },
+      { flags: [], resourceId: `${SUB_ID.toUpperCase()}/` },
+      { flags: ["--execute"], resourceId: `${SUB_ID.toUpperCase()}/` },
+    ])("refuses $resourceId with $flags before transport or audit", ({ flags, resourceId }) => {
+      const result = cli(flags, { operation, resourceId });
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("VALIDATION_ERROR");
+      expect(result.stdout).toContain("subscription-only scopes are not supported");
+      expect(records("requests.jsonl")).toEqual([]);
+      expect(records("writes.log")).toEqual([]);
+    });
   });
 
   it.each([
@@ -302,12 +317,28 @@ describe("built tag update, offline only", () => {
     expect(records("writes.log")).toEqual([]);
   });
 
-  it("accepts repeated identical tags and comma lists", () => {
+  it("accepts repeated identical tag arguments", () => {
     const repeated = cli([], { tags: ["env=prod", "env=prod"] });
     expect(repeated.status, repeated.stdout + repeated.stderr).toBe(0);
-    const listed = cli([], { tags: ["env=prod,owner=team"], tagsEnv: '{"env":"dev","owner":"nobody"}' });
-    expect(listed.status, listed.stdout + listed.stderr).toBe(0);
-    expect(listed.stdout).toContain("tags.owner,nobody,team");
+    expect(decode(repeated.stdout)).toMatchObject({ changes: [{ path: "tags.env", from: "dev", to: "prod" }] });
+  });
+
+  it.each([
+    { flags: ["--tags", "note=a,b=c", "owner=team "], tags: { note: "a,b=c", owner: "team " } },
+    { flags: ["--tags", "note=a,b=c", "--tags", "owner=team "], tags: { note: "a,b=c", owner: "team " } },
+    { flags: ["--tags=note=a,b=c", "--tags=owner=team "], tags: { note: "a,b=c", owner: "team " } },
+    { flags: ["--tags", "note= a=b,c ", "owner="], tags: { note: " a=b,c ", owner: "" } },
+  ])("preserves individual tag values through preview and execution with $flags", ({ flags, tags }) => {
+    const preview = cli(flags, { tags: null, tagsEnv: '{}' });
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    expect(decode(preview.stdout)).toMatchObject({ changes: [
+      { path: "tags.note", from: null, to: tags.note },
+      { path: "tags.owner", from: null, to: tags.owner },
+    ] });
+    const result = cli([...flags, "--execute"], { tags: null, tagsEnv: '{}' });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(records("requests.jsonl").at(-1)).toMatchObject({ method: "PATCH",
+      body: { operation: "Merge", properties: { tags } } });
   });
 
   it.each([

@@ -1,11 +1,12 @@
 import { AxiError } from "axi-sdk-js";
 import { RESOURCE_TAGS } from "../lib/apiVersions.js";
 import {
-  assertKnownFlags,
   flagBool,
   flagList,
   flagText,
-  parseArgs,
+  GLOBAL_FLAG_SCHEMA,
+  parseLeafArgs,
+  type ParsedArgs,
 } from "../lib/args.js";
 import { buildUrl, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
@@ -15,7 +16,7 @@ import { enforceGates } from "../lib/gates.js";
 import { parseTimeoutFlag } from "../lib/lro.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
 import { redact } from "../lib/redact.js";
-import { commandFlags, commandMeta } from "../lib/registry.js";
+import { commandMeta, TAG_UPDATE_FLAGS } from "../lib/registry.js";
 import { shortenResourceId } from "../lib/scope.js";
 import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
 
@@ -43,7 +44,7 @@ function invalid(message: string): never {
 }
 
 /** Exactly one explicit subscription GUID: names and implicit env/profile scope are refused. */
-function explicitSubscription(args: ReturnType<typeof parseArgs>): string {
+function explicitSubscription(args: ParsedArgs): string {
   if (flagText(args, "management-group")) {
     throw new AxiError("tag updates require one subscription, not a management group", "VALIDATION_ERROR", [
       "Pass --subscription <id>",
@@ -60,7 +61,7 @@ function explicitSubscription(args: ReturnType<typeof parseArgs>): string {
 }
 
 /**
- * One exact ARM scope: a resource, a resource group or the subscription itself.
+ * One exact ARM scope: a resource or resource group.
  * The subscription segment must agree with --subscription; the tags wrapper,
  * query strings and subscriptionless scopes are refused.
  */
@@ -80,6 +81,9 @@ function parseScope(raw: string | undefined, subscription: string): string {
   }
   if (match[1]!.toLowerCase() !== subscription.toLowerCase()) {
     invalid("--resource-id conflicts with --subscription <id>");
+  }
+  if (scope.toLowerCase() === match[0].toLowerCase()) {
+    invalid("--resource-id must identify a resource or resource group; subscription-only scopes are not supported");
   }
   return scope;
 }
@@ -124,7 +128,7 @@ function tagsOf(body: unknown): Record<string, string> {
   );
 }
 
-function gateSelectorFlags(args: ReturnType<typeof parseArgs>): string {
+function gateSelectorFlags(args: ParsedArgs): string {
   return ["profile", "tenant", "config"]
     .map((key) => (flagText(args, key) === undefined ? "" : formatFlagValue(key, flagText(args, key)!)))
     .filter(Boolean)
@@ -132,8 +136,7 @@ function gateSelectorFlags(args: ReturnType<typeof parseArgs>): string {
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
-  const args = parseArgs(argv);
-  assertKnownFlags(args, commandFlags("tag update"), "tag update");
+  const args = parseLeafArgs(argv, { ...GLOBAL_FLAG_SCHEMA, ...TAG_UPDATE_FLAGS }, "tag update", "Run `az-axi tag update --help`");
   if (args.positionals.join(" ") !== "update") {
     throw new AxiError("expected `tag update` with no other positional arguments", "VALIDATION_ERROR", [
       "Run `az-axi tag update --help`",
@@ -142,7 +145,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const subscription = explicitSubscription(args);
   const scope = parseScope(flagText(args, "resource-id"), subscription);
   const operation = parseOperation(flagText(args, "operation"));
-  const entries = parseTags(flagList(args, "tags"));
+  const entries = parseTags(Array.isArray(args.flags.tags) ? args.flags.tags : undefined);
   const ifMatch = flagText(args, "if-match");
   const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
   const noWait = flagBool(args, "no-wait");

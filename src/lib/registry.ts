@@ -37,6 +37,8 @@ export interface CommandLeaf {
   positionalInput?: boolean;
 }
 
+export const TAG_UPDATE_FLAGS: FlagSchema = { "resource-id": "value", operation: "value", tags: "literal-list", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" };
+
 /** Current executable leaves. API methods are arguments of the dynamic `api` leaf. */
 export const COMMAND_LEAVES = [
   { path: "home", effect: "read", capability: "native" },
@@ -53,7 +55,7 @@ export const COMMAND_LEAVES = [
   { path: "group show", effect: "read", capability: "native", flags: { name: "value" } },
   { path: "resource list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", "resource-type": "value" } },
   { path: "resource show", effect: "read", capability: "native", flags: { ids: "value", name: "value", "resource-group": "value", "resource-type": "value", "api-version": "value" } },
-  { path: "tag update", effect: "write", capability: "native", flags: { "resource-id": "value", operation: "value", tags: "list", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
+  { path: "tag update", effect: "write", capability: "native", flags: TAG_UPDATE_FLAGS },
   { path: "graph query", handlerPath: "rg query", aliases: ["rg query"], effect: "read", capability: "native", positionalInput: true, flags: { "skip-token": "value", file: "value" }, canonicalFlags: { "graph-query": "value", subscriptions: "list", "management-groups": "list" }, canonicalFlagAliases: { first: "limit" }, handlerFlags: { "management-groups": "list" } },
   { path: "rbac list", effect: "read", capability: "native", aliases: ["role assignment list"], aliasFlags: { assignee: "principal" }, flags: { principal: "value", role: "value", scope: "value", privileged: "boolean", "show-query": "boolean" } },
   { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
@@ -186,7 +188,7 @@ const HELP_OVERVIEWS = {
   monitor: "az-axi monitor log-analytics workspace list|show  # workspace metadata, no shared keys",
   group: "az-axi group list|show                    # resource groups in selected subscriptions",
   resource: "az-axi resource list|show                 # ARM resource inventory and detail",
-  tag: "az-axi tag update --operation merge|delete   # set or remove tags on one resource, group or subscription",
+  tag: "az-axi tag update --operation merge|delete   # set or remove tags on one resource or resource group",
   rg: "az-axi rg query \"<kql>\"                  # Resource Graph query across subscriptions",
   rbac: "az-axi rbac list [--privileged]           # role assignments with principal names",
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
@@ -217,7 +219,7 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
     `Native operation: az-axi ${leaf.handlerPath ?? leaf.path}; existing scope, defaults and TOON output apply.`,
     `Flags: ${[...flags, ...Object.keys(canonical ? leaf.canonicalFlagAliases ?? {} : {})].map((name) => `--${name}`).join(", ")}`,
     "Short flags where accepted: -h help, -s subscription, -g resource-group, -n name, -w workspace, -t timespan.",
-    leaf.positionalInput && !canonical ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
+    leaf.path === "tag update" ? "--tags accepts individual k=v arguments or repeated flags; commas remain part of values. List selectors such as --subscription accept comma-separated values." : leaf.positionalInput && !canonical ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
     "Booleans accept bare flags or true/false. Conflicting scalar values are refused.",
     ...(path === "role assignment list" ? ["--assignee aliases --principal; inherited assignments are always included."] : []),
     ...(path === "monitor activity-log list" ? ["--offset aliases --since (default 24h)."] : []),
@@ -262,9 +264,9 @@ export const SENTINEL_COMMENT_HELP = [
 export const TAG_UPDATE_HELP = [
   "az-axi tag update --subscription <id> --resource-id <ARM-id> --operation merge|delete --tags k=v [k=v ...]",
   "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
-  "--resource-id takes one exact ARM ID in that subscription: a resource, a resource group or the subscription itself. The tags wrapper, query strings and other scopes are refused.",
+  "--resource-id takes one exact ARM ID for a resource or resource group in that subscription. Subscription-only IDs, the tags wrapper, query strings and other scopes are refused.",
   "--operation merge adds the named tags or overwrites their values; --operation delete removes the named tags. replace is refused: it rewrites the whole tag set.",
-  "--tags takes space-separated, comma-separated or repeated k=v pairs; names are case-insensitive and conflicting values for one name are refused. Delete matches by name; supplied values are ignored and sent as null.",
+  "--tags takes individual k=v arguments after one flag or repeated flags; values retain commas, spaces and additional equals signs. Names are case-insensitive and conflicting values for one name are refused. Delete matches by name; supplied values are ignored and sent as null.",
   "Writes require the existing profile permission and subscription allowlist. Default: dry run with the tag-map diff against the current tags; --execute sends one PATCH .../providers/Microsoft.Resources/tags/default with {operation, properties:{tags}} (api-version 2021-04-01).",
   "Nothing to change: no-op. Merge on untagged scope previews creation; delete on missing tags is a no-op.",
   "--if-match pins a reviewed ETag; without it execution uses the fresh re-read ETag when the service returns one. The Tags API documents no ETag guarantee.",
