@@ -24,7 +24,7 @@ beforeEach(() => {
   }
   profile = { auth: "az", tenant: TENANT, subscriptions: [SUB_A] };
   responses = {
-    version: { "azure-cli": "2.77.0", "azure-cli-core": "2.77.0", extensions: {} },
+    version: { "azure-cli": "2.90.0", "azure-cli-core": "2.90.0", extensions: {} },
     "cloud show": { name: "AzureCloud", profile: "latest", endpoints: { resourceManager: "https://management.azure.com/" } },
     "account show": { id: SUB_A, tenantId: TENANT, environmentName: "AzureCloud", state: "Enabled", user: { name: "ada@contoso.com", type: "user" } },
     "group show": azResourceGroup,
@@ -137,7 +137,7 @@ describe("built CLI reviewed passthrough", () => {
     expect(invoke(args, { AZ_AXI_SUBSCRIPTION: SUB_B })).toMatchObject({ status: 2, calls: [] });
   });
   it.each([
-    { "azure-cli": "2.78.0" }, { "azure-cli-core": "2.78.0" }, { extensions: { untrusted: "1" } },
+    { "azure-cli": "2.91.0" }, { "azure-cli-core": "2.91.0" }, { extensions: { untrusted: "1" } },
     { extensions: undefined },
   ])("refuses unsupported runtime %j after only the version probe", (change) => {
     responses.version = { ...(responses.version as object), ...change };

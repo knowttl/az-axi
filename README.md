@@ -601,7 +601,7 @@ Each entry records argument constraints, authentication and permission needs, ex
 The consumer validates its `arguments` and `argumentPolicy`, requires matching az-auth tenant/subscription context, forces JSON transport, disables prompts and dynamic extension installation, then normalizes output to TOON.
 Token profiles do not authorize ambient az identity use.
 
-Only `az-axi az group show --name <name> --subscription <uuid>` can run, using trusted official Azure CLI **2.77.0**, AzureCloud/latest and **no extensions in the isolated child runtime**.
+Only `az-axi az group show --name <name> --subscription <uuid>` can run, using the trusted official Azure CLI version pinned in the [generated catalogue](src/lib/azReadCatalogue.ts), AzureCloud/latest and **no extensions in the isolated child runtime**.
 The configured profile must use `auth: "az"`, an explicit tenant UUID and exactly one subscription matching the flag.
 Implicit profiles, management groups and environment tenant/subscription overrides are refused.
 `--profile` and `--config` select the wrapper profile; name aliases `-n`, `-g` and `--resource-group` come from the catalogue.
@@ -612,6 +612,8 @@ Default TOON reports `resourceGroup` with id, name, location and state; `--field
 Raw resource properties are never returned, including with `--full`.
 
 Unknown commands, mutations, credential commands, unsupported flags, duplicate aliases and invalid arguments produce **zero child executions**, including preflight probes.
+Before any probe, the consumer refuses an unsupported catalogue schema, a missing generation version, a non-read entry or an entry runtime version that differs from `generatedFrom.azureCliVersion`.
+Regenerate and review the catalogue to resolve these inconsistencies; installed CLI/core version mismatches are refused by the version probe.
 Approved arguments permit only fixed `az version --output json`, `az cloud show --output json` and `az account show --output json` probes, in that order.
 These validate CLI/core versions, extension set, cloud/API profile, ARM endpoint and an enabled account with a named user/service principal matching the profile tenant/subscription.
 Profiles do not pin a principal name; identity matching means the selected az-auth account in that tenant/subscription.
@@ -644,7 +646,8 @@ pnpm catalogue:check
 
 These maintenance commands require a source checkout with development dependencies installed.
 [scripts/az-read-catalogue.sources.json](scripts/az-read-catalogue.sources.json) holds the reviewed excerpts.
-To refresh, retrieve the referenced files at immutable Microsoft commits using `gh-axi api repos/<owner>/<repo>/contents/<path>?ref=<commit>`, review the registration, arguments, client factory, dependency/profile and complete SDK operation chain, then update the source snapshots and generator's integrity pins together.
+To refresh, retrieve the referenced files at immutable Microsoft commits using `gh-axi api repos/<owner>/<repo>/contents/<path>?ref=<commit>`, review the registration, arguments, client factory, dependency/profile and complete SDK operation chain, then update the source snapshots and generator's integrity and CLI/SDK provenance pins together.
+The generated `generatedFrom` metadata records the CLI version and commit and SDK package and version.
 Excerpts preserve each inclusive line range with its surrounding whitespace trimmed; separated ranges are then joined by a newline.
 Regenerate and review the artifact diff, then run the catalogue tests and full offline suite.
 The generator never promotes newly discovered commands; broadening the allowlist requires explicit code and provenance review.

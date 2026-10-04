@@ -72,7 +72,7 @@ export const acrMetadataRows = {
 };
 export const WORKSPACE = SYN(10);
 
-// source: azure-mgmt-resource 23.3.0 ResourceGroup (catalogue-pinned GET)
+// source: azure-mgmt-resource 24.0.0 ResourceGroup (catalogue-pinned GET)
 export const azResourceGroup = {
   id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, name: "rg-demo", location: "westeurope",
   properties: { provisioningState: "Succeeded" }, tags: { owner: "ops" },

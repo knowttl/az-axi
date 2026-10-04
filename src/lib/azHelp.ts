@@ -4,7 +4,7 @@ export const AZ_HELP = [
   "az-axi az group show --name <name> --subscription <uuid> [--profile <name>] [--config <path>] [--full] [--fields a,b]",
   "Approved reads: " + AZ_READ_CATALOGUE.entries.map((entry) => entry.command).join(", "),
   "Requires a configured az-auth profile with an explicit tenant and exactly one matching subscription.",
-  "Runtime: Azure CLI 2.77.0, AzureCloud/latest; every child has fresh empty user/system extension directories and cleared dev sources.",
+  `Runtime: Azure CLI ${AZ_READ_CATALOGUE.generatedFrom?.azureCliVersion ?? "unknown"}, AzureCloud/latest; every child has fresh empty user/system extension directories and cleared dev sources.`,
   "Trusted official distributions only; the signed-in AZURE_CONFIG_DIR is preserved. Temporary extension directories are cleaned up.",
   "Fixed version, cloud show and account show JSON probes run before the requested read; mismatches never execute that read.",
   "Unknown commands, mutations, credentials, duplicate flags and unsupported globals fail before any probe.",

@@ -14,14 +14,17 @@ const SOURCE_FILE = new URL("./az-read-catalogue.sources.json", import.meta.url)
 const OUTPUT_FILE = new URL("../src/lib/azReadCatalogue.ts", import.meta.url);
 // These digests lock the reviewed excerpts, source identities and line ranges together.
 const PINS = {
-  registration: "fca267cc3e1ab90e1faee5876b28f886a46cf0105e58937360069e7527d76f8a",
-  arguments: "4edcf7d929fa8c5a6a0f8562d610c4edd69d46655d52b3e59100f1b81f4aebc4",
-  profile: "bc56550e29074493b6d1a2255dbbb64885c0804f06b1a3729718ff722392c46a",
-  dependency: "27267bb4dfb90c6882c5571665f690ca96725ee7c1d2fbf6daae79b3056d2959",
-  factory: "fbec12c7cd90ea8f5d0c8bb61dd629e5397d8069143d40cb911bc8cc67690f04",
-  operation: "33cb04855779d33322944a70c1022c3085ec6ce7d518d4ef2318833551ccbd50",
+  registration: "892b5e9eacc600bc62607794a1862a706a27e2cbb398fcc63e9a0d8e53eea2b3",
+  arguments: "0eaf42a43cc09d2e44095791d92bbb84c9110c75a82ab11a7051ffdf4521a139",
+  profile: "a8584140f119768159bf62ad2717b2a8f7b7272209f57529bdae109bf609e000",
+  dependency: "690ce970a64adfbc6a160d7dabbf487ace5ffc8ea1b2d3793216f07f75cf165e",
+  factory: "f7ad9ff9636b8cc0b359d022b2d3065fc6982179a52abcfe6407883706d0cdaa",
+  operation: "1f92cfe360d23ffd247862f7bcbfd64b46ea9c3b7af8c5ce663c5d754d59732f",
 };
-const VERSION = "2.77.0";
+const VERSION = "2.90.0";
+const AZ_CLI_COMMIT = "dc50d475a00ded4a1a1980d4a10a9fbd9a750a81";
+const SDK_PACKAGE = "azure-mgmt-resource";
+const SDK_VERSION = "24.0.0";
 const HANDLER = "azure.mgmt.resource.resources.operations#ResourceGroupsOperations.get";
 const OPERATION = {
   method: "GET",
@@ -79,6 +82,12 @@ export function buildCatalogue(sources) {
   return {
     schemaVersion: 1,
     status: "catalogue-only; no passthrough execution",
+    generatedFrom: {
+      azureCliVersion: VERSION,
+      azureCliCommit: AZ_CLI_COMMIT,
+      sdkPackage: SDK_PACKAGE,
+      sdkVersion: SDK_VERSION,
+    },
     defaultEffect: "write",
     defaultAction: "refuse",
     entries: [{
@@ -89,7 +98,7 @@ export function buildCatalogue(sources) {
       runtime: {
         package: "azure-cli", version: VERSION, distribution: "official trusted Azure CLI",
         profile: "latest", cloud: "AzureCloud", platforms: ["linux", "macos", "windows"],
-        extensions: [], sdkPackage: "azure-mgmt-resource", sdkVersion: "23.3.0",
+        extensions: [], sdkPackage: SDK_PACKAGE, sdkVersion: SDK_VERSION,
       },
       operations: candidate.operations,
       credentials: {
