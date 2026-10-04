@@ -275,6 +275,17 @@ az-axi network dns zone list -g rg-demo
 az-axi network dns zone show --name example.com -g rg-demo
 az-axi network dns record-set list -g rg-demo --zone-name example.com
 az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
+az-axi policy assignment list -g rg-demo
+az-axi policy assignment show --name CostManagement
+az-axi policy definition list
+az-axi policy definition show --ids <definition-ARM-id>
+az-axi policy set-definition list
+az-axi policy set-definition show --ids <initiative-ARM-id>
+az-axi policy state list --compliance NonCompliant
+az-axi lock list
+az-axi lock show --name sub-lock
+az-axi deny-assignment list
+az-axi deny-assignment show --ids <deny-assignment-ARM-id>
 ```
 
 Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -329,6 +340,22 @@ For show, `--full` also adds safe metadata; `--fields` can select that metadata 
 DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of literal records; TXT chunks concatenate within each record, and SOA values include all seven components in host, email, serial, refresh, retry, expiry and minimum TTL order.
 `--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
 Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys, private DNS zones and any network mutation stay out of scope; `exposure` keeps its canned checks unchanged.
+Management-group scope is unsupported; select subscriptions explicitly.
+
+Governance reads (`policy assignment|definition|set-definition list|show`, `policy state list`, `lock list|show`, `deny-assignment list|show`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01.
+Compliance states (`policy state list`) query the latest states through a reviewed bodyless read POST against Microsoft.PolicyInsights (api-version 2024-10-01); scan triggers, summaries, exemptions and remediations stay out of scope.
+Lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping (definitions and initiatives are subscription-scoped and reject `--resource-group`) and exact, case-insensitive `--name` / `-n` filtering.
+State list adds `--assignment` (exact assignment name) and `--compliance` (Compliant or NonCompliant) filters and sorts newest first with `byCompliance` counts; assignment lists carry `byEnforcement` counts, definition and initiative lists `byType` counts, lock lists `byLevel` counts and deny lists `byScopeKind` counts.
+Assignment rows default to name, scope, definition (the assigned policy or initiative) and enforcement; the effect lives on the definition, so the assignment hint points at `policy definition show`.
+Definition rows default to name, display, type (BuiltIn or Custom), effect and category; initiative rows replace the effect with the member definition count.
+State rows default to resource, assignment, compliance, definition and evaluation time; full views expand ARM IDs.
+Lock rows default to name, level (CanNotDelete or ReadOnly) and scope; deny rows default to name, scope and denied actions.
+Show by name needs exactly one subscription with optional `--resource-group` scoping (assignments, locks, denies); definitions and initiatives show customs by name in one subscription and built-ins (tenant-scoped) with `--ids`.
+`--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
+Long descriptions, rules, parameters, notes and action lists truncate at 200 characters with a selector-preserving `--full` hint; `--limit` defaults to 50 and accepts integers from 1 to 1000.
+ARM lists follow up to 100 pages per subscription and compliance queries up to 10 pages of 100 states; incomplete counts are disclosed as lower bounds.
+Assignment, lock and deny-assignment mutations are destructive under policy and stay blocked; there is no governance write command.
+Deny assignments have no dedicated Azure CLI group: the spelling follows the ARM resource type.
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Discovery uses live ARM GETs.

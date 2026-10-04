@@ -713,3 +713,129 @@ export const networkDnsRecordSets = [
     properties: { TTL: 3600, fqdn: "example.com.", TXTRecords: [{ value: ["v=spf1 include:contoso.com ~all"] }] } },
 ];
 export const networkDnsRecordSetDetail = networkDnsRecordSets[0];
+
+// source: resources/resource-manager/Microsoft.Authorization/policy/stable/2021-06-01/examples/
+// createPolicyAssignment_* and getPolicyAssignment_* (response shape `{ value: T[] }`,
+// identifiers replaced). The unfiltered subscription list also carries inherited scopes.
+const policyScopeId = (collection: string, name: string) =>
+  `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/${collection}/${name}`;
+export const policyAssignment = {
+  id: policyScopeId("policyAssignments", "CostManagement"), name: "CostManagement",
+  type: "Microsoft.Authorization/policyAssignments",
+  properties: {
+    displayName: "Storage Cost Management", description: "Minimize the risk of accidental cost overruns",
+    policyDefinitionId: policyScopeId("policyDefinitions", "ResourceNaming"),
+    scope: `/subscriptions/${SUB_A}`, enforcementMode: "Default",
+    parameters: { allowedSkus: { value: "Standard_A1" } },
+    nonComplianceMessages: [{ message: "Storage SKU is not approved" }],
+  },
+};
+export const policyAssignments = [policyAssignment, {
+  id: `${discoveryGroup.id}/providers/Microsoft.Authorization/policyAssignments/TagEnforcement`,
+  name: "TagEnforcement", type: "Microsoft.Authorization/policyAssignments",
+  properties: {
+    displayName: "Enforces a tag key and value", description: "Ensure a given tag key and value are present",
+    policyDefinitionId: `/providers/Microsoft.Authorization/policyDefinitions/${SYN(42)}`,
+    scope: discoveryGroup.id, enforcementMode: "DoNotEnforce", parameters: {}, nonComplianceMessages: [],
+  },
+}];
+// source: resources/resource-manager/Microsoft.Authorization/policy/stable/2021-06-01/examples/
+// createPolicyDefinition_* and getPolicyDefinition_* (identifiers replaced). The
+// subscription list carries built-in definitions with tenant-scoped IDs alongside customs.
+export const policyDefinition = {
+  id: `/providers/Microsoft.Authorization/policyDefinitions/${SYN(42)}`,
+  name: SYN(42), type: "Microsoft.Authorization/policyDefinitions",
+  properties: {
+    displayName: "Allowed storage account SKUs", description: "Specify a set of storage account SKUs to deploy",
+    mode: "All", policyType: "BuiltIn", version: "1.2.1", metadata: { category: "Storage" },
+    policyRule: { if: { field: "type", equals: "Microsoft.Storage/storageAccounts" }, then: { effect: "Deny" } },
+    parameters: { listOfAllowedSKUs: { type: "Array", metadata: { displayName: "Allowed SKUs" } } },
+  },
+};
+export const policyDefinitions = [policyDefinition, {
+  id: policyScopeId("policyDefinitions", "ResourceNaming"), name: "ResourceNaming",
+  type: "Microsoft.Authorization/policyDefinitions",
+  properties: {
+    displayName: "Naming Convention", description: "Force resource names to begin with a prefix",
+    mode: "All", policyType: "Custom", version: "1.0.0", metadata: { category: "Naming" },
+    policyRule: { if: { field: "name", like: "prefix*suffix" }, then: { effect: "deny" } },
+    parameters: { prefix: { type: "String", metadata: { displayName: "Prefix" } } },
+  },
+}];
+// source: resources/resource-manager/Microsoft.Authorization/policy/stable/2021-06-01/examples/
+// createPolicySetDefinition_* and getPolicySetDefinition_* (identifiers replaced).
+export const policySetDefinition = {
+  id: `/providers/Microsoft.Authorization/policySetDefinitions/${SYN(43)}`,
+  name: SYN(43), type: "Microsoft.Authorization/policySetDefinitions",
+  properties: {
+    displayName: "Audit public network access", description: "Audit storage and SQL public access",
+    policyType: "BuiltIn", metadata: { category: "Network" },
+    policyDefinitions: [
+      { policyDefinitionId: `/providers/Microsoft.Authorization/policyDefinitions/${SYN(42)}`,
+        policyDefinitionReferenceId: "storageSkus" },
+      { policyDefinitionId: policyScopeId("policyDefinitions", "ResourceNaming"),
+        policyDefinitionReferenceId: "naming" },
+    ],
+    parameters: {},
+  },
+};
+export const policySetDefinitions = [policySetDefinition];
+// source: learn.microsoft.com/rest/api/policyinsights/policy-states/list-query-results-for-subscription
+// (2024-10-01 "Query latest at subscription scope" example, identifiers replaced).
+// The POST envelope is `{ value: PolicyState[], @odata.count, @odata.nextLink }`.
+export const policyStates = [
+  { complianceState: "NonCompliant", isCompliant: false,
+    policyAssignmentId: policyScopeId("policyAssignments", "CostManagement"),
+    policyAssignmentName: "CostManagement", policyAssignmentScope: `/subscriptions/${SUB_A}`,
+    policyDefinitionAction: "Audit", policyDefinitionId: policyScopeId("policyDefinitions", "storageSkus"),
+    policyDefinitionName: "storageSkus",
+    resourceId: `${discoveryGroup.id}/providers/Microsoft.Network/publicIPAddresses/mypubip1`,
+    resourceGroup: "rg-demo", subscriptionId: SUB_A, timestamp: "2026-10-03T17:48:05Z" },
+  { complianceState: "Compliant", isCompliant: true,
+    policyAssignmentId: `${discoveryGroup.id}/providers/Microsoft.Authorization/policyAssignments/TagEnforcement`,
+    policyAssignmentName: "TagEnforcement", policyAssignmentScope: discoveryGroup.id,
+    policyDefinitionAction: "Modify", policyDefinitionId: policyScopeId("policyDefinitions", "ResourceNaming"),
+    policyDefinitionName: "ResourceNaming",
+    resourceId: `${discoveryGroup.id}/providers/Microsoft.Storage/storageAccounts/mysa1`,
+    resourceGroup: "rg-demo", subscriptionId: SUB_A, timestamp: "2026-10-03T18:02:11Z" },
+];
+export const policyStateEnvelope = (value: unknown[], count: number, nextLink: string | null) =>
+  ({ value, "@odata.count": count, "@odata.nextLink": nextLink });
+// source: resources/resource-manager/Microsoft.Authorization/locks/stable/2020-05-01/examples/
+// ManagementLocks_ListAtSubscriptionLevel.json and ManagementLocks_Get.json (identifiers replaced).
+export const managementLock = {
+  id: `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/locks/sub-lock`, name: "sub-lock",
+  type: "Microsoft.Authorization/locks",
+  properties: { level: "CanNotDelete", notes: "Protect the subscription from accidental deletion",
+    owners: [{ applicationId: SYN(30) }] },
+};
+export const managementLocks = [managementLock, {
+  id: `${discoveryGroup.id}/providers/Microsoft.Authorization/locks/rg-lock`, name: "rg-lock",
+  type: "Microsoft.Authorization/locks",
+  properties: { level: "ReadOnly", notes: "", owners: [] },
+}];
+// source: learn.microsoft.com/rest/api/authorization/deny-assignments/get
+// (2022-04-01 "Get deny assignment by name" example, identifiers replaced).
+export const denyAssignment = {
+  id: `${discoveryGroup.id}/providers/Microsoft.Authorization/denyAssignments/deny-example`,
+  name: "deny-example", type: "Microsoft.Authorization/denyAssignments",
+  properties: {
+    description: "Deny assignment description", denyAssignmentName: "Deny assignment name",
+    doNotApplyToChildScopes: false, isSystemProtected: true, scope: discoveryGroup.id,
+    permissions: [{ actions: ["Microsoft.Storage/storageAccounts/write"], dataActions: [],
+      notActions: [], notDataActions: [] }],
+    principals: [{ id: SYN(31), type: "User" }],
+    excludePrincipals: [{ id: SYN(32), type: "Group" }],
+  },
+};
+export const denyAssignments = [denyAssignment, {
+  id: `/subscriptions/${SUB_A}/providers/Microsoft.Authorization/denyAssignments/sub-deny`,
+  name: "sub-deny", type: "Microsoft.Authorization/denyAssignments",
+  properties: {
+    description: "", denyAssignmentName: "Subscription deny", doNotApplyToChildScopes: true,
+    isSystemProtected: false, scope: `/subscriptions/${SUB_A}`,
+    permissions: [{ actions: ["*"], dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],
+      notActions: ["Microsoft.Resources/subscriptions/resourceGroups/read"], notDataActions: [] }],
+    principals: [], excludePrincipals: [],
+  },
+}];

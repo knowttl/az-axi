@@ -73,6 +73,7 @@ export const PROTECTED_AUTHORIZATION_TYPES: readonly string[] = [
   "roleDefinitions",
   "locks",
   "policyAssignments",
+  "denyAssignments",
 ];
 
 const lower = (values: readonly string[]) => new Set(values.map((v) => v.toLowerCase()));
@@ -121,6 +122,26 @@ function isQueryPost(resource: Resource, s: string[]): boolean {
 }
 
 /**
+ * Reviewed read POSTs: policy compliance state queries. The operation is a
+ * bodyless management-plane POST that only returns data
+ * (`PolicyStates_ListQueryResultsForSubscription` and
+ * `..._ListQueryResultsForResourceGroup` on
+ * `.../policyStates/latest/queryResults`, api-version 2024-10-01; OData
+ * `$top`/`$filter`/`$skiptoken` travel as query parameters, never a body).
+ * The rule names the exact action, never a generic POST-is-read shape: the
+ * provider, the `policyStates` collection, the `latest` virtual resource and
+ * the terminal action must all match, so sibling actions (summarize, scan
+ * triggers, remediations, attestations) stay writes.
+ */
+function isPolicyStateQueryRead(s: string[]): boolean {
+  if (s.length < 5) return false;
+  if (s[s.length - 1] !== "queryresults") return false;
+  if (s[s.length - 2] !== "latest") return false;
+  if (s[s.length - 3] !== "policystates") return false;
+  return s.includes("microsoft.policyinsights");
+}
+
+/**
  * Reviewed read POSTs: Sentinel incident related alerts and entities.
  * Both operations are bodyless management-plane POSTs that only return data
  * (`Incidents_ListAlerts` on `.../incidents/{id}/alerts`, `Incidents_ListEntities`
@@ -150,6 +171,7 @@ export function classifyRequest({ resource, method, path }: RequestShape): Reque
   if (verb === "POST") {
     if (isQueryPost(resource, s)) return "query";
     if (resource === "arm" && isSentinelIncidentRelatedRead(s)) return "query";
+    if (resource === "arm" && isPolicyStateQueryRead(s)) return "query";
     if (SECRET_SET.has(last)) return "secret";
     if (s[s.length - 6] === "providers" && s[s.length - 5] === "microsoft.search" &&
         s[s.length - 4] === "searchservices" && SECRET_PARAMETER_SET.has(s[s.length - 2] ?? "")) return "secret";
