@@ -37,7 +37,7 @@ describe("exact leaf contracts", () => {
       "storage container list", "storage container show", "storage blob list", "storage blob show",
       "keyvault secret list", "keyvault key list", "keyvault certificate list",
       "acr repository list", "acr repository show-tags", "acr manifest show-metadata",
-      "network nsg list", "network nsg show", "network nic list", "network nic show",
+      "network nsg list", "network nsg show", "network nsg rule create", "network nic list", "network nic show",
       "network vnet list", "network vnet show", "network public-ip list", "network public-ip show",
       "network private-endpoint list", "network private-endpoint show",
       "network dns zone list", "network dns zone show",
@@ -62,7 +62,7 @@ describe("exact leaf contracts", () => {
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
     for (const leaf of COMMAND_LEAVES) {
       expect(leaf.capability).toBe(leaf.path === "az group show" ? "passthrough" : "native");
-      expect(leaf.effect).toBe(leaf.path === "api" ? "dynamic" : ["security alert update", "sentinel incident update", "sentinel incident comment create", "tag update"].includes(leaf.path) ? "write" : "read");
+      expect(leaf.effect).toBe(leaf.path === "api" ? "dynamic" : leaf.path === "network nsg rule create" ? "destructive" : ["security alert update", "sentinel incident update", "sentinel incident comment create", "tag update"].includes(leaf.path) ? "write" : "read");
     }
   });
 
@@ -85,6 +85,10 @@ describe("exact leaf contracts", () => {
           expect(["sentinel incident update", "sentinel incident comment create"]).toContain(leaf.path);
         } else if (name === "security" && leaf.effect === "write") {
           expect(["security alert update"]).toContain(leaf.path);
+        } else if (name === "network" && leaf.effect === "destructive") {
+          // Network stays a read-effect module; the deny-rule verb elevates to
+          // the destructive effect for its own requests only, as Sentinel does.
+          expect(["network nsg rule create"]).toContain(leaf.path);
         } else {
           expect(leaf.effect).toBe(module.meta.effect);
         }

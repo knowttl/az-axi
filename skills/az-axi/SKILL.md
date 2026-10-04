@@ -93,6 +93,7 @@ The offline test suite checks this list against the registry.
 | `az-axi acr manifest show-metadata` | native | read |
 | `az-axi network nsg list` | native | read |
 | `az-axi network nsg show` | native | read |
+| `az-axi network nsg rule create` | native | destructive |
 | `az-axi network nic list` | native | read |
 | `az-axi network nic show` | native | read |
 | `az-axi network vnet list` | native | read |
@@ -312,6 +313,7 @@ az-axi network dns record-set a show -g rg-demo --zone-name example.com --name w
 ```
 
 See [network reads](../../README.md#use) for collection scope, name and ARM ID selectors, DNS zone selectors and type subgroups, output fields, paging limits and the effective-rule, watcher, DNSSEC and private-DNS exclusions.
+For the native network write, see [Writes](../../README.md#writes).
 
 ```sh
 az-axi policy assignment list -g rg-demo
@@ -409,6 +411,7 @@ Writes are disabled by default.
 See [README.md#writes](../../README.md#writes) for `security alert update`, its `defender alerts update` alias, required selectors, supported statuses, preview and no-op behavior, and concurrency limits.
 See the same reference for `sentinel incident update` (status, severity, owner, classification) and `sentinel incident comment create`, their required selectors, close/classification rules, preview and no-op behavior, and ETag handling.
 See the same reference for `tag update` (`--resource-id` with `--operation merge|delete`), its single-scope rule, tag-map preview and no-op behavior, and ETag handling.
+See the same reference for `network nsg rule create` (one Deny rule on one NSG with az's flag spellings), its destructive `--confirm`, name/priority conflict refusal, existing-rules preview, and concurrency limits.
 Write execution needs `--execute`; see the README reference above for `--if-match`, `--confirm`, `--timeout` and `--no-wait`.
 Show a dry run first (what would change, with the exact command to execute), and obtain human approval on every invocation - never batch, chain, or pre-approve writes.
 The human owns write access; this skill does not describe how to enable it.

@@ -200,6 +200,7 @@ const CEILINGS: Record<string, number> = {
   "acr manifest show-metadata": 269,
   "network nsg list": 161,
   "network nsg show": 236,
+  "network nsg rule create": 384,
   "network nic list": 170,
   "network nic show": 176,
   "network vnet list": 177,
@@ -529,6 +530,15 @@ describe("token budgets", () => {
     sendMock.mockResolvedValue(ok(tagUpdateState));
     const { argv } = routeArgv([...offlineWritePreviews[3]!.argv, "--subscription", SUB_A]);
     await expectUnderBudget("tag update", await runTag(argv.slice(1)));
+  });
+
+  it("nsg deny-rule create preview stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+      writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
+    } }));
+    sendMock.mockResolvedValue(ok(networkNsg));
+    const { argv } = routeArgv([...offlineWritePreviews[4]!.argv, "--subscription", SUB_A]);
+    await expectUnderBudget("network nsg rule create", await runNetwork(argv.slice(1)));
   });
 
   it("sentinel incident comment create preview stays under its ceiling", async () => {

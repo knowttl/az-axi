@@ -271,6 +271,7 @@ az-axi sentinel data-connector list -g rg-demo --workspace-name logs-demo
 az-axi sentinel data-connector show --name <connector-id> --workspace sentinel
 az-axi network nsg list -g rg-demo
 az-axi network nsg show --name nsg-web -g rg-demo
+az-axi network nsg rule create --nsg-name nsg-web -g rg-demo --name deny-telnet --priority 400 --destination-port-ranges 23 --protocol Tcp -s <subscription>
 az-axi network nic list -g rg-demo
 az-axi network nic show --name nic-demo -g rg-demo
 az-axi network vnet list -g rg-demo
@@ -359,6 +360,7 @@ Type subgroups (`a`, `aaaa`, `caa`, `cname`, `mx`, `ns`, `ptr`, `soa`, `srv`, `t
 Typed show needs `--zone-name`, `--resource-group` and `--name`, or one record-set `--ids` of the selected type alone.
 NSG show returns custom security rules (name, priority, direction, access, protocol, source, destination, ports) plus attached subnets and NICs; VNet show returns the address space, every subnet (prefix, NSG, route table) and every peering (state, remote VNet); NIC show returns every IP configuration plus NSG, virtual machine and MAC address; public-IP show returns the address, allocation, association, FQDN, SKU and zones; private-endpoint show returns the target service, connection state, subnet, NICs and custom DNS configs; zone show returns record counts and name servers; record-set show returns the TTL, FQDN and every routed value.
 NSG list `rules` and show `totalRules` count custom rules only; Azure default security rules are excluded, including with `--full`.
+`network nsg rule create` is the one native NSG write: it adds a single Deny rule to one existing NSG and is classified destructive, so it needs `--confirm <rule-name>` on top of every write gate; see [Writes](#writes).
 Long nested rule, subnet, peering and IP-configuration lists are capped at `--limit` with their totals disclosed; `--full` shows every nested row.
 Joined rule sources, destinations and ports, VNet list prefixes and subnet prefix lists, DNS list targets and individual DNS show values are shortened to 200 characters by default; shortened output includes a selector-preserving `--full` hint.
 List rows default to compact fields (NSGs add the custom rule count, NICs the first IP configuration's private IP and the attached VM, VNets the prefixes and subnet count, public IPs the address and attachment, private endpoints the service and status, zones the record and name-server counts, record sets the type, TTL and joined targets); `--full` shows every fetched row with untruncated values.
@@ -366,7 +368,8 @@ For show, `--full` also adds safe metadata; `--fields` can select that metadata 
 `--fields` selects only the list or show fields advertised by that leaf's `--help`, even when combined with `--full`; list and show field sets differ.
 DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of literal records; TXT chunks concatenate within each record, and SOA values include all seven components in host, email, serial, refresh, retry, expiry and minimum TTL order.
 `--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
-Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys, private DNS zones and any network mutation stay out of scope; `exposure` keeps its canned checks unchanged.
+Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys and private DNS zones stay out of scope; native network writes are limited to [`network nsg rule create`](#writes).
+`exposure` keeps its canned checks unchanged.
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Governance inventory reads (`policy assignment|definition|set-definition list|show`, `lock list|show`, `deny-assignment list|show`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01.
@@ -714,7 +717,8 @@ See [Writes](#writes) for the read-only policy.
 | `PRECONDITION_FAILED` | 1 | HTTP 412: ETag mismatch; re-run the dry run before retrying |
 | `OPERATION_FAILED` | 1 | Long-running operation reported Failed or Canceled |
 | `OPERATION_TIMEOUT` | 1 | Polling budget expired; use the suggested `op status` command |
-| `CONFLICT` | 1 | HTTP 409 from ARM |
+| `CONFLICT` | 1 | HTTP 409 from ARM, an NSG rule found at the pre-write check, or a post-write rule mismatch; see [Writes](#writes) |
+| `VERIFY_FAILED` | 1 | NSG rule PUT was sent, but the immediate post-write read failed; see [Writes](#writes) |
 | `TLS_ERROR` | 1 | Certificate trust failure; see TLS-inspecting proxies in Configure |
 | `RATE_LIMITED` | 1 | HTTP 429 or throttled; the hint carries the retry delay |
 | `NETWORK_ERROR` | 1 | The request could not be sent |
@@ -788,6 +792,27 @@ Execution re-reads, returns a no-op without a PATCH or log entry when nothing wo
 The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
 Without `--if-match`, execution uses the fresh re-read ETag when the service returns one; the Tags API documents no ETag guarantee.
 `--execute`, `--timeout`, `--no-wait`, write logging, read-only gates and the Claude approval hook apply as for `api`.
+
+`network nsg rule create` adds one Deny security rule to exactly one existing network security group, using az's `network nsg rule create` flag spellings.
+Select the NSG with `--nsg-name` plus `--resource-group` / `-g`, or with `--ids <nsg-ARM-id>` alone (which still needs `--name` for the new rule).
+`--subscription` / `-s` requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.
+`--name` / `-n` names the new rule and `--priority` takes one integer 100-4096; a name or priority that already exists on the NSG refuses instead of overwriting, and rule updates and deletes stay out of scope.
+`--access` takes Deny alone and defaults to Deny; Allow is refused.
+`--direction` takes Inbound or Outbound and defaults to Inbound; `--protocol` takes Tcp, Udp, Icmp, Esp, Ah or `*` and defaults to `*`.
+The four address/port lists default to `*` (unlike az, whose destination-port default is 80).
+Multiple source or destination address values must be IP addresses or CIDR prefixes; use a service tag or `*` alone.
+Source and destination ports accept `*`, individual ports in 0-65535, or ascending ranges within those bounds; invalid ports are refused before reading the NSG.
+Application security groups are unsupported and rejected as unknown flags.
+The preview reads the NSG (`GET .../networkSecurityGroups/<nsg>?api-version=2024-05-01`) and lists its existing rules plus the exact rule to be added, with the native execute command.
+Execution checks the exact rule for existence and sends one child `PUT .../securityRules/<rule>?api-version=2024-05-01` through the shared pipeline, retaining mandatory destructive `--confirm <rule-name>`.
+This is best-effort creation: Azure's documented [Security Rules Create Or Update](https://learn.microsoft.com/en-us/rest/api/virtualnetwork/security-rules/create-or-update) API cannot rule out a concurrent create of the same rule name in the seconds between preview and execution; such a create can be overwritten.
+No `If-Match` header is sent and the native command does not accept `--if-match`, because Azure does not document rule-absence protection.
+Immediately after the PUT, including asynchronous acceptance and `--no-wait`, the command re-reads the rule and compares its name and writable properties with the rule sent, excluding service metadata.
+A differing rule or failed read is reported clearly with the write outcome and an inspection command; a matching readback does not prove that no concurrent rule was overwritten, and asynchronous acceptance remains acceptance rather than completion.
+If readback fails after asynchronous acceptance, automatic polling stops; the error retains the validated `operationUrl` and an `az-axi op status` command so the accepted operation can still be monitored.
+Owner-run live check: in an isolated NSG, create the same rule name concurrently between the existence check and PUT, inspect overwrite behavior and post-write readback, and confirm the documented best-effort limitation.
+Offline tests use fake transports and do not perform this live check.
+`--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 
@@ -820,14 +845,14 @@ File bodies retain their `--body-file` path; stdin and redacted inline bodies us
 
 Add `--execute` to send the write after all gates pass.
 Destructive execution requires `--confirm <resource-name>`, matching the percent-decoded resource name exactly; for destructive POST actions, use the name preceding the action segment.
-DELETE, recognized disruptive POST actions, and PUT/PATCH on protected Microsoft.Authorization types require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
+DELETE, recognized disruptive POST actions, PUT/PATCH on protected Microsoft.Authorization types, and PUT/PATCH on NSG security rules require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
 Execution re-reads the resource, or the parent resource for POST actions, before sending.
 For APIs supporting conditional writes, use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
 Without it, execution uses the fresh GET's ETag when available; generic `api` execution reports that review-to-execute protection was not used.
 Native execution reports its operation-specific protection limits as described above.
 An unchanged PUT/PATCH or DELETE of an already absent resource returns `result: already in desired state (no-op)` without sending or logging a write.
 
-Async writes with HTTP 201/202 and an operation URL poll automatically, preferring `Azure-AsyncOperation` over `Location`.
+Async writes with HTTP 201/202 and an operation URL poll automatically after any immediate post-write verification succeeds, preferring `Azure-AsyncOperation` over `Location`.
 `--timeout <seconds>` sets a positive polling budget, defaulting to 600 seconds; it does not bound the initial resource read or write request.
 `--no-wait` returns `result: operation accepted`, the operation URL and an `op status` command instead of polling.
 HTTP 202 without an operation URL reports `API_ERROR` because completion cannot be tracked.

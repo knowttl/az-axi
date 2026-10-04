@@ -1,13 +1,19 @@
+import { isIP } from "node:net";
 import { AxiError } from "axi-sdk-js";
 import { NETWORK, NETWORK_DNS } from "../lib/apiVersions.js";
-import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
-import { request, requestAll } from "../lib/client.js";
+import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
+import { buildUrl, request, requestAll, sendRequest } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
+import { diffResource } from "../lib/diff.js";
 import { subscriptions } from "../lib/discovery.js";
+import { executeWrite } from "../lib/execute.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
+import { enforceGates } from "../lib/gates.js";
+import { parseTimeoutFlag } from "../lib/lro.js";
 import { NETWORK_RECORD_TYPES, networkLeafHelp } from "../lib/networkHelp.js";
-import { commandFlags, commandMeta } from "../lib/registry.js";
-import { parseSubscriptionId } from "../lib/scope.js";
+import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
+import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
+import { parseSubscriptionId, shortenResourceId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 
 export const meta = commandMeta("network");
@@ -623,9 +629,314 @@ async function runShow(
   };
 }
 
+/**
+ * Slice 10c: one Deny rule on one existing NSG (destructive). Deny rules can
+ * cut live traffic, so this is the first native leaf with the destructive
+ * effect: typed --confirm on top of every write gate. Existence checks refuse
+ * known conflicts, but the child PUT has no documented atomic create-only
+ * protection. See README.md#writes for the concurrency limits.
+ */
+const NSG_ID =
+  /^\/subscriptions\/([^/]+)\/resourceGroups\/([^/]+)\/providers\/Microsoft\.Network\/networkSecurityGroups\/([^/]+)$/i;
+const NSG_RULE_DIRECTIONS: Record<string, string> = { inbound: "Inbound", outbound: "Outbound" };
+const NSG_RULE_PROTOCOLS: Record<string, string> = {
+  "*": "*", tcp: "Tcp", udp: "Udp", icmp: "Icmp", esp: "Esp", ah: "Ah",
+};
+const NSG_RULE_PROTECTION =
+  "Best effort: Azure documents no atomic create-only protection; a concurrent create of the same rule name between preview and execution cannot be ruled out";
+const NSG_RULE_ROW_FIELDS = ["name", "priority", "direction", "access"];
+const PORT_ENTRY = /^(\*|\d+(-\d+)?)$/;
+
+interface NsgRuleItem {
+  name?: string;
+  properties?: { priority?: number; direction?: string; access?: string };
+}
+
+interface NsgItem {
+  id: string;
+  name: string;
+  etag?: string;
+  properties?: { securityRules?: NsgRuleItem[] };
+}
+
+/** Exactly one explicit subscription GUID: names and implicit env/profile scope are refused. */
+function explicitSubscriptionId(args: ReturnType<typeof parseArgs>, path: string): string {
+  if (flagText(args, "management-group")) {
+    invalid("rule creation requires one subscription, not a management group", path);
+  }
+  const subs = flagList(args, "subscription");
+  if (subs?.length !== 1 || !GUID.test(subs[0]!)) {
+    invalid("rule creation requires exactly one explicit subscription ID", path);
+  }
+  return subs[0]!;
+}
+
+/** One address/port list flag, defaulting to `*` like az's source selectors. */
+function selectorList(args: ReturnType<typeof parseArgs>, name: string, path: string): string[] {
+  const list = flagList(args, name) ?? ["*"];
+  if (!list.length) invalid(`flag --${name} needs a non-empty value`, path);
+  return list;
+}
+
+function portRanges(args: ReturnType<typeof parseArgs>, name: string, path: string): string[] {
+  const ranges = selectorList(args, name, path);
+  for (const entry of ranges) {
+    if (!PORT_ENTRY.test(entry)) invalid(`--${name} entry '${entry}' must be * or a port or range 0-65535`, path);
+    if (entry === "*") continue;
+    const [start, end = start] = entry.split("-").map(Number);
+    if (start! > 65535 || end! > 65535 || start! > end!) {
+      invalid(`--${name} entry '${entry}' must be an ascending port or range 0-65535`, path);
+    }
+  }
+  return ranges;
+}
+
+function addressPrefixes(args: ReturnType<typeof parseArgs>, name: string, path: string): string[] {
+  const prefixes = selectorList(args, name, path);
+  if (prefixes.length > 1) {
+    for (const entry of prefixes) {
+      const [address, prefix, ...extra] = entry.split("/");
+      const version = isIP(address!);
+      if (!version || address!.includes("%") || extra.length ||
+          (prefix !== undefined && (!/^\d+$/.test(prefix) || Number(prefix) > (version === 4 ? 32 : 128)))) {
+        invalid(`--${name} with multiple values supports only IP addresses or CIDR prefixes; use a service tag or * alone`, path);
+      }
+    }
+  }
+  return prefixes;
+}
+
+/** Singular ARM field for one value, plural for several. */
+function ranged(values: string[], single: string, plural: string): Record<string, unknown> {
+  return values.length === 1 ? { [single]: values[0] } : { [plural]: values };
+}
+
+function gateSelectorFlags(args: ReturnType<typeof parseArgs>): string {
+  return ["profile", "tenant", "config"]
+    .map((key) => (flagText(args, key) === undefined ? "" : formatFlagValue(key, flagText(args, key)!)))
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function runNsgRuleCreate(
+  profile: ReturnType<typeof profileFromArgs>,
+  args: ReturnType<typeof parseArgs>,
+  path: string,
+): Promise<Record<string, unknown>> {
+  const subscription = explicitSubscriptionId(args, path);
+  const ids = flagText(args, "ids");
+  const nsgName = flagText(args, "nsg-name");
+  const groupFlag = flagText(args, "resource-group");
+  if (ids && (nsgName || groupFlag)) {
+    invalid("--ids selects the NSG itself; --nsg-name and --resource-group are not accepted with --ids", path);
+  }
+  let nsgPath: string;
+  let nsgLabel: string;
+  if (ids) {
+    const id = ids.trim();
+    if (/[?#%\\]/.test(id)) invalid("--ids requires an unescaped ARM NSG ID without a query or fragment", path);
+    const match = NSG_ID.exec(id);
+    if (!match || !GUID.test(match[1]!)) invalid("--ids must be one NSG ARM ID under Microsoft.Network/networkSecurityGroups", path);
+    if (match[1]!.toLowerCase() !== subscription.toLowerCase()) invalid("--ids conflicts with --subscription <id>", path);
+    nsgPath = id.replace(/\/+$/, "");
+    nsgLabel = match[3]!;
+  } else {
+    if (!nsgName || !groupFlag) invalid("rule creation needs --nsg-name with --resource-group, or --ids <nsg-ARM-id>", path);
+    nsgLabel = nsgName.trim();
+    nsgPath = `/subscriptions/${subscription}/resourceGroups/${segment(groupFlag, "resource-group", path)}` +
+      `/providers/Microsoft.Network/networkSecurityGroups/${segment(nsgLabel, "nsg-name", path)}`;
+  }
+  const selectors = gateSelectorFlags(args);
+  const showCommand = [
+    "az-axi network nsg show",
+    selectors,
+    ...(ids
+      ? [formatFlagValue("ids", ids.trim())]
+      : [formatFlagValue("name", nsgLabel), formatFlagValue("resource-group", groupFlag!.trim())]),
+    formatFlagValue("subscription", subscription),
+    "--full",
+  ].filter(Boolean).join(" ");
+  const rawName = flagText(args, "name");
+  if (!rawName) invalid("rule creation needs --name <rule-name>", path);
+  const ruleName = rawName.trim();
+  segment(ruleName, "name", path);
+  const priority = Number(flagText(args, "priority") ?? "");
+  if (flagText(args, "priority") === undefined || !Number.isInteger(priority) || priority < 100 || priority > 4096) {
+    invalid("--priority must be an integer 100-4096", path);
+  }
+  const directionKey = flagText(args, "direction")?.toLowerCase() ?? "inbound";
+  if (!Object.hasOwn(NSG_RULE_DIRECTIONS, directionKey)) invalid("--direction must be Inbound or Outbound", path);
+  const direction = NSG_RULE_DIRECTIONS[directionKey]!;
+  if ((flagText(args, "access")?.toLowerCase() ?? "deny") !== "deny") {
+    invalid("--access takes Deny alone; Allow rules are out of scope", path);
+  }
+  const protocolKey = flagText(args, "protocol")?.toLowerCase() ?? "*";
+  if (!Object.hasOwn(NSG_RULE_PROTOCOLS, protocolKey)) invalid("--protocol must be Tcp, Udp, Icmp, Esp, Ah or *", path);
+  const protocol = NSG_RULE_PROTOCOLS[protocolKey]!;
+  const description = flagText(args, "description");
+  if (description !== undefined && description.length > 140) invalid("--description is restricted to 140 chars", path);
+  const sourceAddresses = addressPrefixes(args, "source-address-prefixes", path);
+  const sourcePorts = portRanges(args, "source-port-ranges", path);
+  const destAddresses = addressPrefixes(args, "destination-address-prefixes", path);
+  const destPorts = portRanges(args, "destination-port-ranges", path);
+  const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
+  const noWait = flagBool(args, "no-wait");
+  const timeoutRaw = flagText(args, "timeout");
+  const confirm = flagString(args, "confirm") || undefined;
+
+  const rulePath = `${nsgPath}/securityRules/${encodeURIComponent(ruleName)}`;
+  const shape = { resource: "arm" as const, method: "PUT", path: rulePath };
+  const cls = classifyRequest(shape);
+  assertReadOnlyBoundary(shape, cls);
+  // A deny rule can cut live traffic: without the destructive class the typed
+  // --confirm below would never run, so a quieter policy is a bug, not a pass.
+  if (cls !== "destructive") {
+    throw new AxiError("refusing: NSG security-rule creation must classify as destructive", "READ_ONLY", [
+      "This is an az-axi bug: the request class does not match the leaf effect",
+    ]);
+  }
+  const execute = enforceGates(profile, shape, cls, { execute: flagBool(args, "execute"), confirm });
+
+  const probed = await sendRequest<NsgItem>(profile, { method: "GET", path: nsgPath, apiVersion: NETWORK });
+  const etag = probed.headers["etag"] ?? (typeof probed.body.etag === "string" ? probed.body.etag : undefined);
+  const existing = (probed.body.properties?.securityRules ?? []).filter((rule) => !!rule && typeof rule === "object")
+    .map((rule) => ({
+      name: typeof rule.name === "string" ? rule.name : "",
+      priority: typeof rule.properties?.priority === "number" ? rule.properties.priority : Number.NaN,
+      direction: rule.properties?.direction ?? "",
+      access: rule.properties?.access ?? "",
+    }))
+    .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+  const nameHit = existing.find((rule) => rule.name.toLowerCase() === ruleName.toLowerCase());
+  if (nameHit) {
+    throw new AxiError(`refusing to overwrite existing rule '${nameHit.name}' on NSG '${nsgLabel}'`, "VALIDATION_ERROR", [
+      "Rule updates and deletes are out of scope; choose an unused --name",
+      `Run \`${showCommand}\` for the current rules`,
+    ]);
+  }
+  const priorityHit = existing.find((rule) => rule.priority === priority);
+  if (priorityHit) {
+    throw new AxiError(`priority ${priority} is already used by rule '${priorityHit.name}' on NSG '${nsgLabel}'`, "VALIDATION_ERROR", [
+      "Priorities must be unique per NSG; choose an unused --priority",
+      `Run \`${showCommand}\` for the current rules`,
+    ]);
+  }
+
+  const body = {
+    name: ruleName,
+    properties: {
+      ...(description === undefined ? {} : { description }),
+      protocol,
+      ...ranged(sourcePorts, "sourcePortRange", "sourcePortRanges"),
+      ...ranged(destPorts, "destinationPortRange", "destinationPortRanges"),
+      ...ranged(sourceAddresses, "sourceAddressPrefix", "sourceAddressPrefixes"),
+      ...ranged(destAddresses, "destinationAddressPrefix", "destinationAddressPrefixes"),
+      access: "Deny",
+      priority,
+      direction,
+    },
+  };
+  const full = flagBool(args, "full");
+  const fields = flagList(args, "fields");
+  if (fields?.some((field) => !NSG_RULE_ROW_FIELDS.includes(field))) {
+    invalid(`rule create --fields supports only: ${NSG_RULE_ROW_FIELDS.join(", ")}`, path);
+  }
+  const limit = limitValue(args, path);
+  const shown = pickFields(full ? existing : existing.slice(0, limit), fields);
+  const scopeFlags = ids
+    ? [formatFlagValue("ids", ids.trim())]
+    : [formatFlagValue("nsg-name", nsgLabel), formatFlagValue("resource-group", groupFlag!.trim())];
+  const listFlags = [
+    ["source-address-prefixes", sourceAddresses], ["source-port-ranges", sourcePorts],
+    ["destination-address-prefixes", destAddresses], ["destination-port-ranges", destPorts],
+  ] as const;
+  const command = () =>
+    [
+      "az-axi network nsg rule create",
+      selectors,
+      ...scopeFlags,
+      formatFlagValue("name", ruleName),
+      formatFlagValue("priority", String(priority)),
+      formatFlagValue("direction", direction),
+      formatFlagValue("access", "Deny"),
+      formatFlagValue("protocol", protocol),
+      ...listFlags.map(([flag, values]) => formatFlagValue(flag, values.join(","))),
+      ...(description === undefined ? [] : [formatFlagValue("description", description)]),
+      formatFlagValue("subscription", subscription),
+      ...(timeoutRaw === undefined ? [] : [formatFlagValue("timeout", timeoutRaw)]),
+      ...(noWait ? ["--no-wait"] : []),
+      "--execute",
+      formatFlagValue("confirm", ruleName),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  const base = {
+    dryRun: true,
+    class: cls,
+    method: "PUT",
+    target: shortenResourceId(rulePath),
+    subscription,
+    nsg: nsgLabel,
+    rule: body,
+  };
+  if (!execute) {
+    return {
+      ...base,
+      existingRules: shown,
+      totalRules: existing.length,
+      ...(etag ? { etag } : {}),
+      protection: NSG_RULE_PROTECTION,
+      help: [
+        ...(shown.length < existing.length && !full
+          ? [`Run \`${showCommand}\` for every existing rule`]
+          : []),
+        `\`${command()}\``,
+      ],
+    };
+  }
+  return executeWrite({
+    profile,
+    method: "PUT",
+    path: buildUrl({ path: rulePath, apiVersion: NETWORK }),
+    cls: "destructive",
+    body,
+    isNoop: (current) => {
+      if (current !== undefined) {
+        throw new AxiError(`refusing to overwrite rule '${ruleName}' found before the PUT`, "CONFLICT", [
+          `Run \`${showCommand}\` to review the current rules before retrying`,
+        ]);
+      }
+      return false;
+    },
+    verify: async () => {
+      let current: AnyObj;
+      try {
+        current = (await sendRequest<AnyObj>(profile, { method: "GET", path: rulePath, apiVersion: NETWORK })).body;
+      } catch (error) {
+        if (!(error instanceof AxiError)) throw error;
+        throw new AxiError(`Rule PUT was sent, but the post-write read failed: ${error.message}`, "VERIFY_FAILED", [
+          `Run \`${showCommand}\` to inspect the rule; do not retry the write without reviewing it`,
+        ]);
+      }
+      const properties = { ...objOf(current.properties) };
+      delete properties.provisioningState;
+      if (!diffResource({ name: current.name, properties }, body, "PUT").noop) {
+        throw new AxiError("Rule PUT was sent, but the rule read back does not match the rule sent", "CONFLICT", [
+          `Run \`${showCommand}\` to inspect the rule; a concurrent change may have occurred`,
+        ]);
+      }
+    },
+    protection: NSG_RULE_PROTECTION,
+    confirm,
+    selectors,
+    timeoutMs,
+    noWait,
+  });
+}
+
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const args = parseArgs(argv);
-  const positionalWords = args.positionals.slice(0, args.positionals[0] === "dns" ? 4 : 2);
+  const positionalWords = args.positionals.slice(0, args.positionals[0] === "dns" ? 4 : args.positionals[0] === "nsg" && args.positionals[1] === "rule" ? 3 : 2);
   const verb = positionalWords[positionalWords.length - 1];
   const words = positionalWords.slice(0, -1);
   const path = `network ${words.join(" ")} ${verb}`;
@@ -637,9 +948,19 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   if (isRecordSet && verb === "show" && !recordType) {
     invalid("record-set show needs a type subgroup, for example: network dns record-set a show", path);
   }
+  // The network module stays read-effect; the rule-create verb elevates to
+  // the destructive effect for its own requests only, as Sentinel does.
+  if (words.join(" ") === "nsg rule") {
+    if (verb !== "create" || args.positionals.length !== 3) {
+      invalid("expected `network nsg rule create` with no other positional arguments", path);
+    }
+    assertKnownFlags(args, commandFlags(path), path, networkLeafHelp(path));
+    const profile = profileFromArgs(args);
+    return runWithEffect("destructive", () => runNsgRuleCreate(profile, args, path));
+  }
   const collection = collectionFor(recordType ? words.slice(0, 2) : words, path);
   if (verb !== "list" && verb !== "show") {
-    invalid("expected network nsg|nic|vnet|public-ip|private-endpoint list|show, dns zone list|show, or dns record-set [a|aaaa|caa|cname|mx|ns|ptr|soa|srv|txt] list|show", path);
+    invalid("expected network nsg|nic|vnet|public-ip|private-endpoint list|show, network nsg rule create, dns zone list|show, or dns record-set [a|aaaa|caa|cname|mx|ns|ptr|soa|srv|txt] list|show", path);
   }
   if (args.positionals.length !== words.length + 1) {
     invalid(`unexpected argument \`${args.positionals[words.length + 1]}\` for \`${path}\``, path);

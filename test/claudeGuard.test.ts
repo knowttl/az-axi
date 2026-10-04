@@ -24,6 +24,7 @@ describe("Claude Code Bash write guard", () => {
     "az-axi sentinel incident update --name 3177 --status closed --classification FalsePositive --execute",
     "az-axi sentinel incident comment create --incident-id 00000000-0000-0000-0000-000000000063 --message Triaged --execute",
     "az-axi tag update --resource-id /subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo --operation merge --tags env=prod --execute",
+    "az-axi network nsg rule create --nsg-name nsg-web --resource-group rg-demo --name deny-telnet --priority 400 --execute --confirm deny-telnet",
     "az-axi api PATCH /target --execute",
     "az-axi api PATCH /target --body-file 'body file.json' --execute",
     "az-axi api PATCH /target --execute < body.json",
