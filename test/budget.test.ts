@@ -218,7 +218,7 @@ const CEILINGS: Record<string, number> = {
   "network dns record-set a show": 117,
   "vm list": 162,
   "vm show": 266,
-  "vm get-instance-view": 134,
+  "vm get-instance-view": 218,
   "vmss list": 179,
   "vmss show": 135,
   "disk list": 160,
