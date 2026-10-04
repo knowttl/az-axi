@@ -370,7 +370,7 @@ Increasing `--limit` cannot extend the 40-page scan cap; an incomplete empty sca
 Lists default to name, enabled and expiresOn; `--fields` or `--full` expands to the safe schema (notBefore, created, updated, contentType for secrets, thumbprint for certificates, managed).
 `--full` retains both the row limit and scan cap; `--fields` selects only safe columns and takes precedence over `--full`.
 Tags, secret values, key material and certificate bytes are excluded, including from errors.
-Redirects and arbitrary endpoints are refused; requests have a 30-second deadline and list bodies have a 1 MiB bound.
+Redirects and arbitrary endpoints are refused; credential acquisition and all list pages share a 30-second deadline, and each list body has a 1 MiB bound.
 Entra access needs Key Vault data-plane list permission for the collection; a denied read fails without trying other authentication.
 See Microsoft's [Get Secrets](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4), [Get Keys](https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4) and [Get Certificates](https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4) contracts.
 
