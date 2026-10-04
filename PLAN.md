@@ -871,17 +871,8 @@ Reference: [List Containers](https://learn.microsoft.com/rest/api/storageservice
 
 ### 6.15 Key Vault object metadata/expiry listing
 
-Native `keyvault secret|key|certificate list` are read-only and additive.
-`client.ts` exposes a dedicated key vault metadata operation with no arbitrary method, URL, body or query-map input.
-It constructs only the collection list GETs (`/secrets`, `/keys`, `/certificates` on `{vault}.vault.azure.net` with api-version 7.4) and follows only service continuations validated back to the same vault host and collection path.
-Single-object endpoints, which return secret values or key material, are never constructed.
-Secret download, key export and backup, certificate private-key download, deleted-object, purge, recover, set and rotation operations have no command path.
-Bearer auth uses the `https://vault.azure.net/` audience; az-auth acquisition is bounded and strips ambient overrides with extensions disabled, while token profiles use `AZ_AXI_VAULT_TOKEN` or `tokenEnv.vault`.
-Native ARM envelopes and the raw API host map are unchanged.
-Redirects are refused, requests have a 30-second deadline and list bodies are bounded to 1 MiB of JSON.
-Lists page to `--limit` (default 50, maximum 1000) and disclose further pages with a `+` count suffix; `--expiring-within Nd` filters client-side to items expiring soon.
-Lists default to name/enabled/expiresOn; `--fields` or `--full` expands to the safe schema (notBefore, created, updated, contentType for secrets, thumbprint for certificates, managed); tags, values, key material and certificate bytes are never requested or returned.
-Reference: [Get Secrets](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4), [Get Keys](https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4), [Get Certificates](https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4).
+This slice introduced collection-only metadata reads rather than value-returning single-object reads.
+See [Key Vault metadata reads](README.md#key-vault-metadata-reads) for the authoritative command, authentication, output and paging contracts.
 
 ## 7. Invariants
 
