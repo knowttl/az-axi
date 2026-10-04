@@ -21,17 +21,31 @@ const captures = files.map((file) => JSON.parse(readFileSync(file, "utf8")));
 const scratch = mkdtempSync(join(root, "benchmark/fixtures/replay-"));
 try {
   const config = join(scratch, "config.json");
+  const subscription = "00000000-0000-0000-0000-000000000001";
   writeFileSync(config, JSON.stringify({ defaultProfile: "benchmark", profiles: { benchmark: {
-    auth: "token", subscriptions: ["00000000-0000-0000-0000-000000000001"],
+    auth: "token", subscriptions: [subscription],
     workspaces: { benchmark: "00000000-0000-0000-0000-000000000010" },
   } } }), { mode: 0o600 });
   const rows = replayScenarios.map((scenario, index) => {
+    let replayFile = fileURLToPath(files[index]);
+    if (scenario.name === "account-list") {
+      const capture = structuredClone(captures[index]);
+      const accounts = capture.responses.flatMap((response) => response.body?.value ?? []);
+      const selectedId = accounts[0]?.subscriptionId;
+      for (const account of accounts) {
+        if (account.subscriptionId !== selectedId) continue;
+        account.subscriptionId = subscription;
+        if (account.id === `/subscriptions/${selectedId}`) account.id = `/subscriptions/${subscription}`;
+      }
+      replayFile = join(scratch, `${scenario.name}.json`);
+      writeFileSync(replayFile, JSON.stringify(capture));
+    }
     const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
-      ...scenario.argv, "--profile", "benchmark", "--subscription", "00000000-0000-0000-0000-000000000001"], {
+      ...scenario.argv, "--profile", "benchmark", "--subscription", subscription], {
       cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
       env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config, AZ_AXI_PROFILE: "benchmark",
         AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_READ_ONLY: "1", AZ_AXI_BENCH_MODE: "replay",
-        AZ_AXI_BENCH_FILE: fileURLToPath(files[index]), AZ_AXI_ARM_TOKEN: "benchmark-dummy",
+        AZ_AXI_BENCH_FILE: replayFile, AZ_AXI_ARM_TOKEN: "benchmark-dummy",
         AZ_AXI_LOGS_TOKEN: "benchmark-dummy", AZ_AXI_GRAPH_TOKEN: "benchmark-dummy" },
     });
     if (child.error || child.status !== 0) throw new Error(`Replay failed for ${scenario.name}; recapture with this build`);

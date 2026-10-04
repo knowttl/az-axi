@@ -4,5 +4,6 @@
   "workspace": "00000000-0000-0000-0000-000000000010",
   "resourceGroup": "",
   "resourceId": "",
+  "workspaceResourceId": "",
   "leakCheck": ["contoso", "contoso.com"]
 }

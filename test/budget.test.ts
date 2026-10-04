@@ -30,6 +30,8 @@ import { run as runHome } from "../src/commands/home.js";
 import { run as runDoctor } from "../src/commands/doctor.js";
 import { run as runConfig } from "../src/commands/config.js";
 import { run as runSub } from "../src/commands/sub.js";
+import { run as runAccount } from "../src/commands/account.js";
+import { run as runMonitor } from "../src/commands/monitor.js";
 import { run as runGroup } from "../src/commands/group.js";
 import { run as runResource } from "../src/commands/resource.js";
 import { run as runStorage } from "../src/commands/storage.js";
@@ -61,6 +63,8 @@ import {
   azResourceGroup,
   discoveryGroup,
   discoveryResource,
+  discoveryWorkspace,
+  discoveryAccount,
   WORKSPACE,
   activityEvents,
   apiListResponse,
@@ -99,6 +103,10 @@ const CEILINGS: Record<string, number> = {
   doctor: 132,
   "config list": 146,
   "sub list": 136,
+  "account list": 108,
+  "account show": 72,
+  "monitor log-analytics workspace list": 165,
+  "monitor log-analytics workspace show": 96,
   "group list": 111,
   "group show": 69,
   "resource list": 122,
@@ -204,6 +212,10 @@ describe("token budgets", () => {
   });
   it.each([
     { key: "group list", run: runGroup, sample: discoveryGroup, argv: ["list"] },
+    { key: "account list", run: runAccount, sample: discoveryAccount, argv: ["list"] },
+    { key: "account show", run: runAccount, sample: discoveryAccount, argv: ["show"] },
+    { key: "monitor log-analytics workspace list", run: runMonitor, sample: discoveryWorkspace, argv: ["log-analytics", "workspace", "list"] },
+    { key: "monitor log-analytics workspace show", run: runMonitor, sample: discoveryWorkspace, argv: ["log-analytics", "workspace", "show", "--ids", discoveryWorkspace.id] },
     { key: "group show", run: runGroup, sample: discoveryGroup, argv: ["show", "--name", "rg-demo"] },
     { key: "resource list", run: runResource, sample: discoveryResource, argv: ["list"] },
     { key: "resource show", run: runResource, sample: discoveryResource, argv: ["show", "--ids", discoveryResource.id, "--api-version", "2025-01-01"] },

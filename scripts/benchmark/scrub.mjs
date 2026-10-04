@@ -30,7 +30,7 @@ export const PUBLIC_VOCABULARY = Object.freeze([
   OWNER_ROLE_ID, CONTRIBUTOR_ROLE_ID, RBAC_ADMIN_ROLE_ID, USER_ACCESS_ADMIN_ROLE_ID,
   "id", "name", "type", "location", "tags", "properties", "provisioningState", "resourceGroup", "subscriptionId",
   "https", "management.azure.com", "graph.microsoft.com", "api.loganalytics.io",
-  "value", "nextLink", "displayName", "state", "userPrincipalName",
+  "value", "nextLink", "displayName", "state", "tenantId", "userPrincipalName",
   "data", "count", "totalRecords", "resultTruncated", "$skipToken", "$skiptoken",
   "true", "false", "managementGroups", "options", "$top", "resultFormat", "objectArray",
   "tables", "columns", "rows", "PrimaryResult", "string", "datetime", "long", "int", "real", "bool", "dynamic",

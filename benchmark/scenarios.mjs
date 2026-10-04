@@ -1,4 +1,8 @@
 export const scenarios = [
+  { name: "account-list", argv: ["account", "list"] },
+  { name: "account-show", argv: ["account", "show"] },
+  { name: "workspace-list", argv: ["monitor", "log-analytics", "workspace", "list"] },
+  { name: "workspace-show", ownerTarget: "workspaceResourceId", argv: ["monitor", "log-analytics", "workspace", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo"] },
   { name: "group-list", argv: ["group", "list"] },
   { name: "group-show", ownerTarget: "resourceGroup", argv: ["group", "show", "--name", "rg-demo"] },
   { name: "resource-list", argv: ["resource", "list"] },
