@@ -424,12 +424,14 @@ Token profiles require `$AZ_AXI_REGISTRY_TOKEN`, or a custom environment variabl
 `show-tags` requires `--repository`; `show-metadata` requires `--name` (`-n`) as `repository:tag` or `repository@digest` (login-server-qualified IDs are refused).
 Named tags resolve through one exact manifest GET, never by scanning tag lists.
 Lists fetch one page with `--limit` (default 50, integer 1-1000) and optional `--marker`, continuing from the service Link header; `show-tags` also accepts `--orderby time_asc|time_desc` (az vocabulary).
+`--limit` does not apply to `show-metadata` and is refused there.
 Registry, repository and reference values retain strict service-name validation.
 When `nextMarker` is present, the count is a lower bound and the output includes a continuation command; an empty page can still have a continuation.
-Repository rows carry only the name; tag rows carry name, digest, createdTime and lastUpdateTime; manifests project digest (from `Docker-Content-Digest`), mediaType, schemaVersion and config/layer descriptors only.
+Repository rows carry only the name; tag rows carry name, digest, createdTime and lastUpdateTime; manifests project digest (from `Docker-Content-Digest`), mediaType, schemaVersion, config, layers and manifests only.
+Config and layer descriptors contain digest and optional mediaType and size; manifest-list/index entries use the same descriptor fields plus optional platform architecture, os and variant.
 `--fields` selects from those properties; `--full` preserves the same safe schema and page bound.
 Signatures, history, download URLs, blob contents and all secret values are excluded, including from errors.
-Redirects and arbitrary endpoints are refused; token and data responses have a 30-second deadline and a 1 MiB bound.
+Redirects and arbitrary endpoints are refused; credential acquisition, token exchange and the metadata request share a 30-second deadline, and each token or data response has a 1 MiB bound.
 Entra access needs AcrPull on the registry; a denied read fails without trying other authentication.
 See Microsoft's [Get Repositories](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-repositories?view=rest-registry-dataplane-2021-07-01), [Get Tags](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-tags?view=rest-registry-dataplane-2021-07-01), [Get Manifest](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-manifest?view=rest-registry-dataplane-2021-07-01) and [token exchange](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/authentication/exchange-aad-access-token-for-acr-refresh-token?view=rest-registry-dataplane-2021-07-01) contracts (api-version 2021-07-01).
 
