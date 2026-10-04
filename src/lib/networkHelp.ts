@@ -51,6 +51,11 @@ const FIELDS: Record<string, string> = {
   "network dns record-set show": "--fields: name, id, type, ttl, fqdn, records, metadata.",
 };
 
+const FULL: Record<string, string> = {
+  "network public-ip list": "--fields selects listed fields and takes precedence over --full; --full shows every fetched row. No view returns secrets, keys or credential fields.",
+  "network public-ip show": "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, provisioningState, idleTimeout). No view returns secrets, keys or credential fields.",
+};
+
 export function networkLeafHelp(path: string): string {
   const show = path.endsWith(" show");
   const key = path.replace(/^(network dns record-set) [^ ]+ (list|show)$/, "$1 $2");
@@ -61,10 +66,10 @@ export function networkLeafHelp(path: string): string {
     "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. Lists follow up to 100 pages per subscription and disclose incomplete counts as lower bounds.",
     "Show by name needs exactly one subscription; --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when no scope is configured. --management-group scope is unsupported; select subscriptions explicitly.",
     DETAIL[key] ?? "",
-    "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, provisioningState, SKU details) and shows every fetched row. No view returns secrets, keys or credential fields.",
+    FULL[key] ?? "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, provisioningState, SKU details) and shows every fetched row. No view returns secrets, keys or credential fields.",
     FIELDS[key] ?? "",
     "Globals: --profile, --tenant, --subscription / -s, --management-group, --config, --fields, --full, --limit, --help / -h.",
-    `Examples: az-axi ${path}${show ? " --ids <ARM-id> --full" : ""}`,
+    `Examples: az-axi ${path}${show ? " --ids <ARM-id> --full" : key === "network dns record-set list" ? " --zone-name <zone> --resource-group <rg>" : ""}`,
   ].join("\n");
 }
 
