@@ -5,7 +5,7 @@ import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
 import { AZ_HELP } from "./azHelp.js";
 import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
 import { NETWORK_HELP, NETWORK_RECORD_TYPES, networkLeafHelp } from "./networkHelp.js";
-import { governanceLeafHelp, POLICY_HELP } from "./governanceHelp.js";
+import { DENY_ASSIGNMENT_HELP, governanceLeafHelp, LOCK_HELP, POLICY_HELP } from "./governanceHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 import { KEYVAULT_HELP, keyvaultLeafHelp } from "./keyvaultHelp.js";
 
@@ -110,6 +110,10 @@ export const COMMAND_LEAVES = [
   { path: "policy set-definition list", effect: "read", capability: "native", flags: { name: "value" } },
   { path: "policy set-definition show", effect: "read", capability: "native", flags: { ids: "value", name: "value" } },
   { path: "policy state list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", assignment: "value", compliance: "value" } },
+  { path: "lock list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "lock show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "deny-assignment list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "deny-assignment show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "network dns record-set list", effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
   ...NETWORK_RECORD_TYPES.flatMap((type) => [
     { path: `network dns record-set ${type} list`, effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
@@ -170,6 +174,8 @@ const LOADERS = {
   acr: () => import("../commands/acr.js"),
   network: () => import("../commands/network.js"),
   policy: () => import("../commands/policy.js"),
+  lock: () => import("../commands/lock.js"),
+  "deny-assignment": () => import("../commands/denyAssignment.js"),
 } satisfies Record<CommandName, () => Promise<CommandModule>>;
 
 let activeEffect: Effect | undefined;
@@ -233,6 +239,8 @@ const HELP_OVERVIEWS = {
   acr: "az-axi acr repository list|show-tags        # Entra-only registry catalog and tags",
   network: `az-axi network nsg|nic|vnet|public-ip|private-endpoint list|show  # NSG rules, NICs, VNets/subnets, public IPs, private endpoints\naz-axi network dns zone list|show\naz-axi network dns record-set list\naz-axi network dns record-set ${NETWORK_RECORD_TYPES.join("|")} list|show  # public DNS record sets`,
   policy: "az-axi policy assignment|definition|set-definition list|show  # assignments, definitions and initiatives\naz-axi policy state list  # compliance states with summaries",
+  lock: "az-axi lock list|show  # management locks by scope",
+  "deny-assignment": "az-axi deny-assignment list|show  # deny assignments by scope",
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
@@ -241,7 +249,9 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
   if (path.startsWith("keyvault ")) return keyvaultLeafHelp(path);
   if (path.startsWith("acr ")) return acrLeafHelp(path);
   if (path.startsWith("network ")) return networkLeafHelp(path);
-  if (path.startsWith("policy ")) return governanceLeafHelp(path);
+  if (path.startsWith("policy ") || path.startsWith("lock ") || path.startsWith("deny-assignment ")) {
+    return governanceLeafHelp(path);
+  }
   if (leaf.capability === "passthrough") return AZ_HELP;
   const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
   const canonical = path === leaf.path && leaf.handlerPath !== undefined;
@@ -352,6 +362,8 @@ const HELP_TEXT = {
   acr: ACR_HELP,
   network: NETWORK_HELP,
   policy: POLICY_HELP,
+  lock: LOCK_HELP,
+  "deny-assignment": DENY_ASSIGNMENT_HELP,
   account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
   monitor: ["az-axi monitor log-analytics workspace list|show", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"]].join("\n"),
   az: AZ_HELP,

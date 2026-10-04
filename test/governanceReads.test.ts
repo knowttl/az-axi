@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn(), request: vi.fn(), requestAll: vi.fn() }));
 
 import { run as runPolicy } from "../src/commands/policy.js";
+import { run as runLock } from "../src/commands/lock.js";
+import { run as runDeny } from "../src/commands/denyAssignment.js";
 import { request, requestAll } from "../src/lib/client.js";
 import { shortDate } from "../src/lib/format.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
@@ -15,6 +17,8 @@ import { routeArgv } from "../src/lib/router.js";
 import { quoteFlagValue } from "../src/lib/shell.js";
 import {
   SUB_A, SUB_B, SYN,
+  denyAssignment, denyAssignments,
+  managementLock, managementLocks,
   policyAssignment, policyAssignments,
   policyDefinition, policyDefinitions,
   policySetDefinition, policySetDefinitions,
@@ -37,6 +41,8 @@ function collectionItems(path: string): unknown[] | undefined {
   if (path.endsWith("/policyAssignments")) return policyAssignments;
   if (path.endsWith("/policyDefinitions")) return policyDefinitions;
   if (path.endsWith("/policySetDefinitions")) return policySetDefinitions;
+  if (path.endsWith("/locks")) return managementLocks;
+  if (path.endsWith("/denyAssignments")) return denyAssignments;
   return undefined;
 }
 
@@ -53,7 +59,8 @@ function mockTransport() {
     if (path.includes("/queryResults")) {
       return policyStateEnvelope(policyStates, policyStates.length, null) as never;
     }
-    const all = [...policyAssignments, ...policyDefinitions, ...policySetDefinitions];
+    const all = [...policyAssignments, ...policyDefinitions, ...policySetDefinitions,
+      ...managementLocks, ...denyAssignments];
     const found = all.find((item) => item.id.toLowerCase() === path.toLowerCase());
     if (!found) throw new AxiError(`not found: ${path}`, "NOT_FOUND", []);
     return found as never;
@@ -408,6 +415,134 @@ describe("policy state list", () => {
   }
 });
 
+describe("lock list and show", () => {
+  it("lists locks with levels, scopes and a level aggregate", async () => {
+    const result = await runLock(["list"]);
+    expect(result).toMatchObject({
+      profile: "ci",
+      total: 2,
+      count: "2 management locks",
+      byLevel: { CanNotDelete: 1, ReadOnly: 1 },
+      rows: [
+        { name: "rg-lock", level: "ReadOnly", scope: `${SUB_A}/rg-demo` },
+        { name: "sub-lock", level: "CanNotDelete", scope: SUB_A },
+      ],
+    });
+    const options = listCalls();
+    const list = options.find((call) => String(call["path"] ?? "").endsWith("/locks"))!;
+    expect(list["method"]).toBe("GET");
+    expect(list["apiVersion"]).toBe("2020-05-01");
+  });
+
+  it("shows notes and owners at subscription and resource-group scope", async () => {
+    const sub = await runLock(["show", "--name", "sub-lock"]);
+    expect(sub).toMatchObject({
+      name: "sub-lock", level: "CanNotDelete", scope: `/subscriptions/${SUB_A}`,
+      notes: "Protect the subscription from accidental deletion", subscription: SUB_A,
+    });
+    expect(sub.owners).toBe("00000000-0000-0000-0000-000000000030");
+    const rg = await runLock(["show", "--name", "rg-lock", "--resource-group", "rg-demo"]);
+    expect(rg).toMatchObject({ name: "rg-lock", level: "ReadOnly" });
+    await expect(runLock(["show", "--ids", managementLock.id]))
+      .resolves.toMatchObject({ name: "sub-lock" });
+  });
+});
+
+describe("deny-assignment list and show", () => {
+  it("lists denies with scopes, actions and a scope-kind aggregate", async () => {
+    const result = await runDeny(["list"]);
+    expect(result).toMatchObject({
+      profile: "ci",
+      total: 2,
+      count: "2 deny assignments",
+      byScopeKind: { subscription: 1, resourceGroup: 1 },
+      rows: [
+        { name: "deny-example", scope: `${SUB_A}/rg-demo`, actions: "Microsoft.Storage/storageAccounts/write", dataActions: "" },
+        { name: "sub-deny", scope: SUB_A,
+          actions: "*", dataActions: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read" },
+      ],
+    });
+    expect(result.help).toEqual([
+      `Run \`az-axi deny-assignment show --ids ${denyAssignment.id}\` for the first row in detail`,
+    ]);
+    const options = listCalls();
+    const list = options.find((call) => String(call["path"] ?? "").endsWith("/denyAssignments"))!;
+    expect(list["method"]).toBe("GET");
+    expect(list["apiVersion"]).toBe("2022-04-01");
+  });
+
+  it("shows permissions, principals and protection flags by ARM ID", async () => {
+    const show = await runDeny(["show", "--ids", denyAssignment.id]);
+    expect(show).toMatchObject({
+      name: "deny-example", scope: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`,
+      description: "Deny assignment description", totalPrincipals: 1,
+      doNotApplyToChildScopes: false, systemProtected: true, subscription: SUB_A,
+    });
+    expect(show.actions).toEqual(["Microsoft.Storage/storageAccounts/write"]);
+    expect(show.principals).toEqual(["00000000-0000-0000-0000-000000000031"]);
+    const sub = await runDeny(["show", "--name", "sub-deny"]);
+    expect(sub).toMatchObject({ name: "sub-deny", doNotApplyToChildScopes: true });
+    expect(sub.notActions).toEqual(["Microsoft.Resources/subscriptions/resourceGroups/read"]);
+  });
+
+  it.each([
+    { mode: "compact", flags: [] },
+    { mode: "full", flags: ["--full"] },
+    { mode: "selected", flags: ["--fields", "actions,dataActions,notActions,notDataActions"] },
+    { mode: "selected full", flags: ["--fields", "actions,dataActions,notActions,notDataActions", "--full"] },
+  ])("keeps permission planes and exceptions separate in $mode detail", async ({ flags }) => {
+    requestMock.mockResolvedValueOnce({
+      ...denyAssignment,
+      properties: { ...denyAssignment.properties, permissions: [{
+        actions: ["Microsoft.Storage/storageAccounts/write"],
+        dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write"],
+        notActions: ["Microsoft.Storage/storageAccounts/read"],
+        notDataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],
+      }] },
+    } as never);
+    expect(await runDeny(["show", "--ids", denyAssignment.id, ...flags])).toMatchObject({
+      actions: ["Microsoft.Storage/storageAccounts/write"],
+      dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write"],
+      notActions: ["Microsoft.Storage/storageAccounts/read"],
+      notDataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],
+    });
+  });
+
+  it("distinguishes control-plane and data-plane wildcards in full list output", async () => {
+    allMock.mockResolvedValueOnce({ items: [
+      { ...denyAssignment, name: "control-deny", properties: { ...denyAssignment.properties,
+        permissions: [{ actions: ["*"], dataActions: [], notActions: [], notDataActions: [] }] } },
+      { ...denyAssignment, id: denyAssignments[1]!.id, name: "data-deny", properties: { ...denyAssignment.properties,
+        permissions: [{ actions: [], dataActions: ["*"], notActions: [], notDataActions: [] }] } },
+    ] });
+    expect(await runDeny(["list", "--full", "--fields", "name,actions,dataActions"])).toMatchObject({ rows: [
+      { name: "control-deny", actions: "*", dataActions: "" },
+      { name: "data-deny", actions: "", dataActions: "*" },
+    ] });
+  });
+
+  it.each([
+    { mode: "compact", flags: [], expected: [`${SYN(32)}, ${SYN(33)}`] },
+    { mode: "full", flags: ["--full"], expected: [SYN(32), SYN(33)] },
+    { mode: "selected", flags: ["--fields", "excludePrincipals"], expected: [`${SYN(32)}, ${SYN(33)}`] },
+    { mode: "selected full", flags: ["--fields", "excludePrincipals", "--full"], expected: [SYN(32), SYN(33)] },
+  ])("preserves excluded principals in $mode detail output", async ({ flags, expected }) => {
+    requestMock.mockResolvedValueOnce({
+      ...denyAssignment,
+      properties: { ...denyAssignment.properties, excludePrincipals: [
+        { id: SYN(32), type: "Group" }, { id: SYN(33), type: "User" },
+      ] },
+    } as never);
+    const show = await runDeny(["show", "--ids", denyAssignment.id, ...flags]);
+    expect(show.excludePrincipals).toEqual(expected);
+  });
+
+  it("shows empty principal exclusions by name", async () => {
+    const show = await runDeny(["show", "--name", "sub-deny", "--fields", "excludePrincipals", "--full"]);
+    expect(show.excludePrincipals).toEqual([]);
+  });
+});
+
 describe("governance reads stay read-only and validate before transport", () => {
   describe.each([
     { scope: "another subscription", profile: { auth: "token", subscriptions: [SUB_B] }, subscription: SUB_A },
@@ -469,6 +604,9 @@ describe("governance reads stay read-only and validate before transport", () => 
     await expect(runPolicy(["state", "show"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(runPolicy(["definition", "delete"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(runPolicy(["exemption", "list"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(runLock(["delete"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(runLock([])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(runDeny(["create"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(runPolicy(["assignment"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(allMock).not.toHaveBeenCalled();
     expect(requestMock).not.toHaveBeenCalled();
@@ -482,6 +620,8 @@ describe("governance reads stay read-only and validate before transport", () => 
     await expect(runPolicy(["assignment", "show"]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--name or --ids") });
     await expect(runPolicy(["assignment", "show", "--ids", policyDefinition.id]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--ids must be one policy assignment") });
+    await expect(runPolicy(["assignment", "show", "--ids", managementLock.id]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--ids must be one policy assignment") });
     await expect(runPolicy(["assignment", "show", "--ids", `${policyAssignment.id}?api-version=2021-06-01`]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("unescaped") });
@@ -503,7 +643,17 @@ describe("governance reads stay read-only and validate before transport", () => 
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("management-group") });
     await expect(runPolicy(["assignment", "list", "--limit", "1001"]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(runLock(["show", "--name", "sub-lock", "--ids", managementLock.id]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("not both") });
+    await expect(runLock(["show", "--ids", denyAssignment.id]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--ids must be one management lock") });
+    await expect(runLock(["list", "--limit", "1001"]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(runDeny(["show", "--ids", managementLock.id]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("--ids must be one deny assignment") });
     for (const runArgs of [
+      runPolicy(["assignment", "show", "--ids", `${denyAssignment.id}`]),
+      runDeny(["show", "--name", "sub-deny", "--ids", denyAssignments[1]!.id]),
       runPolicy(["assignment", "show", "--ids", `${policyDefinition.id}`]),
       runPolicy(["definition", "show", "--name", "ResourceNaming", "--ids", policyDefinitions[1]!.id]),
     ]) {
@@ -529,6 +679,12 @@ describe("governance reads stay read-only and validate before transport", () => 
       .resolves.toMatchObject({ name: "CostManagement", subscription: SUB_A });
     useProfile("ci", { auth: "token", subscriptions: [SUB_B] });
     await expect(runPolicy(["assignment", "show", "--ids", policyAssignment.id]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("conflicts with selected subscriptions") });
+    useProfile("ci", { auth: "token" });
+    await expect(runLock(["show", "--ids", managementLock.id]))
+      .resolves.toMatchObject({ name: "sub-lock", subscription: SUB_A });
+    useProfile("ci", { auth: "token", subscriptions: [SUB_B] });
+    await expect(runLock(["show", "--ids", managementLock.id]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("conflicts with selected subscriptions") });
   });
 

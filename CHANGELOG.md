@@ -21,9 +21,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-- `policy assignment|definition|set-definition list|show` and `policy state list`: read-only policy inventory using az's own command spellings; assignments, definitions and initiatives resolve from plain ARM GETs with compact defaults, full views on request and bounded lower-bound paging, while compliance states query the latest states through a reviewed bodyless read POST with compliance summaries; assignment mutations stay destructive under policy with no governance write command, and scans, summaries, exemptions and remediations stay out of scope.
-- Slice 5b part 1 covers policy reads only under the supervisor's approved split decision.
-  Resource lock and deny-assignment reads are deliberately deferred to part 2, task `azx-p5b2-locks-deny`, preserved on branch `fm/azx-p5b2-locks-deny`.
+- `policy assignment|definition|set-definition list|show`, `policy state list`, `lock list|show` and `deny-assignment list|show`: read-only governance inventory using az's own command spellings; assignments, definitions and initiatives resolve from plain ARM GETs with compact defaults, full views on request and bounded lower-bound paging, while compliance states query the latest states through a reviewed bodyless read POST with compliance summaries; assignment, lock and deny-assignment mutations stay destructive under policy with no governance write command, and scans, summaries, exemptions and remediations stay out of scope.
 - README: `Install`, `Use` and `Behavior` sections (install, one example per command, error codes and exit codes).
 - `network nsg|nic|vnet|public-ip|private-endpoint list|show` and `network dns zone|record-set list|show`: read-only network inventory using az's own command spellings; NSG rules, VNet subnets and peerings, NIC IP configurations, public-IP associations, private-endpoint connection state and DNS records resolve from plain ARM GETs with compact defaults, full views on request and bounded lower-bound paging; effective rules and routes, Network Watcher diagnostics, DNSSEC keys, private DNS zones and any mutation stay out of scope.
 

@@ -44,6 +44,46 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe.each(["locks", "denyAssignments", "policyAssignments"])("protected authorization API writes: %s", (type) => {
+  describe.each(["DELETE", "PUT", "PATCH"])("%s", (method) => {
+    const path = `${TARGET}/providers/Microsoft.Authorization/${type}/protected1`;
+    const argv = [method, path, "--api-version", "1", "--body", '{"tags":{"env":"prod"}}', "--execute"];
+
+    it("refuses execution without destructive confirmation before transport", async () => {
+      await expect(run(argv)).rejects.toMatchObject({ code: "CONFIRM_REQUIRED" });
+      expect(send).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    });
+
+    it("refuses execution with the wrong resource confirmation before transport", async () => {
+      await expect(run([...argv, "--confirm", "wrong"])).rejects.toMatchObject({ code: "CONFIRM_MISMATCH" });
+      expect(send).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    });
+
+    it("refuses confirmed execution on a read-only profile before transport", async () => {
+      profile.allowWrites = false;
+      await expect(run([...argv, "--confirm", "protected1"])).rejects.toMatchObject({ code: "WRITES_DISABLED" });
+      expect(send).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    });
+
+    it("refuses confirmed execution when read-only is forced before transport", async () => {
+      vi.stubEnv("AZ_AXI_READ_ONLY", "1");
+      await expect(run([...argv, "--confirm", "protected1"])).rejects.toMatchObject({ code: "WRITES_DISABLED" });
+      expect(send).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    });
+
+    it("executes with the existing safeguards and records the destructive class", async () => {
+      send.mockResolvedValueOnce(response({}, 204));
+      expect(await run([...argv, "--confirm", "protected1"])).toMatchObject({ result: "done", status: 204 });
+      expect(send.mock.calls[1]?.[1]).toMatchObject({ method, execute: true, confirm: "protected1", body: { tags: { env: "prod" } } });
+      expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ class: "destructive", method }));
+    });
+  });
+});
+
 describe("API write execution", () => {
   it.each([
     ["Microsoft.ContainerRegistry/registries/registry1", "regenerateCredential", { name: "password" }],

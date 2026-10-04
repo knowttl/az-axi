@@ -178,7 +178,13 @@ describe("policy rule lists", () => {
       "reimageall",
       "simulateEviction",
     ]);
-    expect(PROTECTED_AUTHORIZATION_TYPES).toEqual(["roleAssignments", "roleDefinitions", "locks", "policyAssignments"]);
+    expect(PROTECTED_AUTHORIZATION_TYPES).toEqual([
+      "roleAssignments",
+      "roleDefinitions",
+      "locks",
+      "policyAssignments",
+      "denyAssignments",
+    ]);
   });
 });
 
@@ -214,6 +220,8 @@ describe("command effect registry", () => {
       tag: "write",
       network: "read",
       policy: "read",
+      lock: "read",
+      "deny-assignment": "read",
     });
   });
 

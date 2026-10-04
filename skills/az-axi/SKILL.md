@@ -1,13 +1,13 @@
 ---
 name: az-axi
-description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, network and public DNS resources, policy reads, NSG and public IP exposure, Log Analytics KQL queries.
+description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, network and public DNS resources, policy and governance reads, NSG and public IP exposure, Log Analytics KQL queries.
 user-invocable: false
 ---
 
 # az-axi
 
 Agent-ergonomic CLI for Azure, read-only by default.
-Resource inventory through Resource Graph, RBAC, activity log, Defender for Cloud, network and public DNS reads, policy reads, internet exposure checks, and Log Analytics KQL queries through token-efficient TOON output, with a raw REST escape hatch for everything else.
+Resource inventory through Resource Graph, RBAC, activity log, Defender for Cloud, network and public DNS reads, policy and governance reads, internet exposure checks, and Log Analytics KQL queries through token-efficient TOON output, with a raw REST escape hatch for everything else.
 
 Call the globally installed, pinned `az-axi` binary. Never use unpinned
 `npx -y`. If `az-axi` is not on PATH, install
@@ -99,6 +99,10 @@ The offline test suite checks this list against the registry.
 | `az-axi policy set-definition list` | native | read |
 | `az-axi policy set-definition show` | native | read |
 | `az-axi policy state list` | native | read |
+| `az-axi lock list` | native | read |
+| `az-axi lock show` | native | read |
+| `az-axi deny-assignment list` | native | read |
+| `az-axi deny-assignment show` | native | read |
 | `az-axi network dns record-set list` | native | read |
 | `az-axi network dns record-set a list` | native | read |
 | `az-axi network dns record-set a show` | native | read |
@@ -295,11 +299,13 @@ az-axi policy definition list
 az-axi policy definition show --ids <definition-ARM-id>
 az-axi policy set-definition list
 az-axi policy state list --compliance NonCompliant
+az-axi lock list
+az-axi lock show --name sub-lock
+az-axi deny-assignment list
+az-axi deny-assignment show --ids <deny-assignment-ARM-id>
 ```
 
-See [governance reads](../../README.md#use) for collection scope, name and ARM ID selectors, compliance filters, output fields, paging limits and the mutation, scan and summary exclusions.
-Slice 5b part 1 covers policy reads only under the supervisor's approved split decision.
-Resource lock and deny-assignment reads are deliberately deferred to part 2, task `azx-p5b2-locks-deny`, preserved on branch `fm/azx-p5b2-locks-deny`.
+See [governance reads](../../README.md#use) for collection scope, name and ARM ID selectors, compliance filters, output fields, paging limits, command naming and the mutation, scan and summary exclusions.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,
