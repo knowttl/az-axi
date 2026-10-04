@@ -248,6 +248,47 @@ export const SENTINEL_DATA_CONNECTORS = "2025-09-01";
 export const MANAGEMENT_LOCKS = "2020-05-01";
 
 /**
+ * Policy assignments, definitions and set definitions, list and get
+ * (`GET /{scope}/providers/Microsoft.Authorization/policyAssignments[/{name}]`,
+ * `GET {subscription|tenant}/providers/Microsoft.Authorization/policyDefinitions[/{name}]`,
+ * `GET {subscription|tenant}/providers/Microsoft.Authorization/policySetDefinitions[/{name}]`).
+ *
+ * Value: 2021-06-01. Newer stable: several (up to 2026-07-01), but 2024-04-01
+ * splits the family (assignments plus types only) while 2021-06-01 keeps all
+ * three list/get operations in one stable contract.
+ * Spec: resources/resource-manager/Microsoft.Authorization/policy/stable/2021-06-01/
+ * (policyAssignments.json, policyDefinitions.json, policySetDefinitions.json).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/policy-authorization/policy-assignments/list?view=rest-policy-authorization-2021-06-01
+ * and https://learn.microsoft.com/en-us/rest/api/policy-authorization/policy-definitions/list?view=rest-policy-authorization-2021-06-01
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * assignment reference documents the same list operation with the `{ value,
+ * nextLink }` shape and the policyDefinitionId/scope/enforcementMode record).
+ * Reason: long-standing stable version covering assignments, definitions and
+ * initiatives with `{ value: T[] }` plus `nextLink` list responses. Assignment
+ * and definition mutations stay destructive under policy and are never sent.
+ */
+export const POLICY = "2021-06-01";
+
+/**
+ * Policy compliance states, latest query results at subscription and resource
+ * group scope (`POST .../providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`).
+ *
+ * Value: 2024-10-01. Newer stable: none (2024-10-01 is the newest stable folder).
+ * Spec: policyinsights/resource-manager/Microsoft.PolicyInsights/PolicyInsights/stable/2024-10-01/
+ * Docs: https://learn.microsoft.com/en-us/rest/api/policyinsights/policy-states/list-query-results-for-subscription?view=rest-policyinsights-2024-10-01
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * reference documents the bodyless POST, the `$top`/`$filter`/`$skiptoken`
+ * query parameters, and the `{ value: PolicyState[], @odata.count,
+ * @odata.nextLink }` response with the complianceState, policyAssignmentId,
+ * policyDefinitionId and resourceId record shape).
+ * Reason: newest stable. The query is a bodyless management-plane read POST
+ * with OData query parameters only, classified as a reviewed read exactly like
+ * the Sentinel incident related-alert/entity POSTs. Summaries, scans and
+ * remediations are separate operations and are never constructed.
+ */
+export const POLICY_STATES = "2024-10-01";
+
+/**
  * Deployments - What If, used by deployment dry runs
  * (`POST .../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group
  * and subscription scope).

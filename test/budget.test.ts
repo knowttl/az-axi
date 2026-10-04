@@ -41,6 +41,7 @@ import { run as runStorage } from "../src/commands/storage.js";
 import { run as runKeyvault } from "../src/commands/keyvault.js";
 import { run as runAcr } from "../src/commands/acr.js";
 import { run as runNetwork } from "../src/commands/network.js";
+import { run as runPolicy } from "../src/commands/policy.js";
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runActivity } from "../src/commands/activity.js";
@@ -66,6 +67,11 @@ import { routeArgv } from "../src/lib/router.js";
 import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads, offlineKeyvaultReads, offlineAcrReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
+  policyAssignment,
+  policyDefinition,
+  policySetDefinition,
+  policyStateEnvelope,
+  policyStates,
   sentinelIncidentAlerts,
   sentinelIncidentDetail,
   sentinelIncidentEntities,
@@ -185,6 +191,13 @@ const CEILINGS: Record<string, number> = {
   "network dns zone show": 126,
   "network dns record-set list": 144,
   "network dns record-set a show": 117,
+  "policy assignment list": 138,
+  "policy assignment show": 221,
+  "policy definition list": 159,
+  "policy definition show": 222,
+  "policy set-definition list": 167,
+  "policy set-definition show": 280,
+  "policy state list": 143,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -303,6 +316,13 @@ describe("token budgets", () => {
     { key: "network dns zone show", run: runNetwork, sample: networkDnsZone, argv: ["dns", "zone", "show", "--name", "example.com", "--resource-group", "rg-demo"] },
     { key: "network dns record-set list", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo"] },
     { key: "network dns record-set a show", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "a", "show", "--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www"] },
+    { key: "policy assignment list", run: runPolicy, sample: policyAssignment, argv: ["assignment", "list"] },
+    { key: "policy assignment show", run: runPolicy, sample: policyAssignment, argv: ["assignment", "show", "--name", "CostManagement"] },
+    { key: "policy definition list", run: runPolicy, sample: policyDefinition, argv: ["definition", "list"] },
+    { key: "policy definition show", run: runPolicy, sample: policyDefinition, argv: ["definition", "show", "--name", "ResourceNaming"] },
+    { key: "policy set-definition list", run: runPolicy, sample: policySetDefinition, argv: ["set-definition", "list"] },
+    { key: "policy set-definition show", run: runPolicy, sample: policySetDefinition, argv: ["set-definition", "show", "--ids", policySetDefinition.id] },
+    { key: "policy state list", run: runPolicy, sample: policyStateEnvelope([policyStates[0]], 1, null), argv: ["state", "list"] },
   ])("$key stays under its ceiling", async ({ key, run, sample, argv }) => {
     allMock.mockResolvedValue({ items: [sample] } as never);
     vi.mocked(request).mockResolvedValue(sample);

@@ -275,6 +275,13 @@ az-axi network dns zone list -g rg-demo
 az-axi network dns zone show --name example.com -g rg-demo
 az-axi network dns record-set list -g rg-demo --zone-name example.com
 az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
+az-axi policy assignment list -g rg-demo
+az-axi policy assignment show --name CostManagement
+az-axi policy definition list
+az-axi policy definition show --ids <definition-ARM-id>
+az-axi policy set-definition list
+az-axi policy set-definition show --ids <initiative-ARM-id>
+az-axi policy state list --compliance NonCompliant
 ```
 
 Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -329,6 +336,27 @@ For show, `--full` also adds safe metadata; `--fields` can select that metadata 
 DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of literal records; TXT chunks concatenate within each record, and SOA values include all seven components in host, email, serial, refresh, retry, expiry and minimum TTL order.
 `--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
 Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys, private DNS zones and any network mutation stay out of scope; `exposure` keeps its canned checks unchanged.
+Management-group scope is unsupported; select subscriptions explicitly.
+
+Policy inventory reads (`policy assignment|definition|set-definition list|show`) use read-only ARM GETs against Microsoft.Authorization with api-version 2021-06-01.
+Slice 5b part 1 covers policy reads only under the supervisor's approved split decision.
+Resource lock and deny-assignment reads are deliberately deferred to part 2, task `azx-p5b2-locks-deny`, preserved on branch `fm/azx-p5b2-locks-deny`.
+Compliance states (`policy state list`) query the latest states through a reviewed bodyless read POST against Microsoft.PolicyInsights (api-version 2024-10-01); scan triggers, summaries, exemptions and remediations stay out of scope.
+Lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping (definitions and initiatives are subscription-scoped and reject `--resource-group`) and exact, case-insensitive `--name` / `-n` filtering.
+Inventory records are deduplicated by case-insensitive full ARM ID across subscriptions before filtering, counting and limiting, so shared tenant-scoped built-ins appear once while distinct custom definitions remain separate.
+State list applies client-side, case-insensitive filters: `--name` matches the exact resource name, `--assignment` the exact assignment name, and `--compliance` the compliance state (for example Compliant or NonCompliant).
+States sort newest first with `byCompliance` counts; assignment lists carry `byEnforcement` counts and definition and initiative lists `byType` counts.
+Totals and aggregates count fetched matches after filtering, before the display limit; incomplete paging leaves totals as lower bounds even when no fetched rows match.
+Assignment rows default to name, scope, definition (the assigned policy or initiative) and enforcement; the effect lives on the definition, so the assignment hint points at `policy definition show` or `policy set-definition show` as appropriate.
+Definition rows default to name, display, type (BuiltIn or Custom), effect and category; initiative rows replace the effect with the member definition count.
+State rows default to resource, assignment, compliance, definition and evaluation time; full views expand ARM IDs.
+Show by name needs exactly one subscription with optional `--resource-group` scoping for assignments; definitions and initiatives show customs by name in one subscription and built-ins (tenant-scoped) with `--ids`.
+`--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
+Long descriptions, rules and parameters truncate at 200 characters with a selector-preserving `--full` hint; `--limit` defaults to 50 and accepts integers from 1 to 1000.
+`--full` shows every fetched matching row, expands assignment definition IDs, and includes assignment exclusions and metadata or initiative member references in show views; `--fields` selects supported fields.
+Definition show reads its version from `metadata.version`.
+ARM lists follow up to 100 pages per subscription and compliance queries up to 10 service pages per subscription without imposing a query result limit; incomplete counts are disclosed as lower bounds.
+Assignment mutations are destructive under policy and stay blocked; there is no governance write command.
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Discovery uses live ARM GETs.
@@ -613,6 +641,8 @@ Paging hints retain `--body-file` paths; for stdin bodies, replace the hint's `<
 Use each command's `--help` for its defaults and paging limits.
 
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
+Parameter values, defaults and allowed values are redacted when their parameter name is recognized as secret or their declaration uses `secureString` or `secureObject`.
+Supplied deployment parameter values are also matched against secure declarations in the paired inline template, including nested deployments.
 Errors render as TOON with a `code` and `help[]` suggestions when available.
 Unexpected errors use `UNKNOWN` with exit code 1 and no `help[]`.
 Exit code 0 means successful completion; exit code 2 covers usage and access errors, and exit code 1 covers other failures, including network failures before a response is received.

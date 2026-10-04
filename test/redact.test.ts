@@ -6,6 +6,53 @@ import { REDACTED, redact } from "../src/lib/redact.js";
 const FAKE_JWT = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln";
 
 describe("redact", () => {
+  it.each([
+    { type: "secureString", value: "private-value" },
+    { type: "secureObject", value: { field: "private-value" } },
+  ])("redacts supplied $type values using inline template declarations", ({ type, value }) => {
+    const properties = {
+      parameters: { deploymentInput: { value }, region: { value: "westus" } },
+      template: { parameters: { deploymentInput: { type }, region: { type: "String" } } },
+    };
+    const nested = { resources: [{ properties }] };
+    expect(redact(nested)).toEqual({ resources: [{ properties: {
+      ...properties, parameters: { deploymentInput: { value: REDACTED }, region: { value: "westus" } },
+    } }] });
+    expect(properties.parameters.deploymentInput.value).toEqual(value);
+  });
+
+  it("keeps nested deployment declarations local to their supplied values", () => {
+    const nested = { parameters: { input: { value: "nested-private-value" } }, template: { parameters: { input: { type: "secureString" } } } };
+    const input = {
+      parameters: { input: { value: "outer-public-value" } },
+      template: { parameters: { input: { type: "String" } }, resources: [{ properties: nested }] },
+    };
+    expect(redact(input)).toEqual({
+      ...input,
+      template: { ...input.template, resources: [{ properties: {
+        ...nested, parameters: { input: { value: REDACTED } },
+      } }] },
+    });
+  });
+
+  it.each([
+    { name: "adminPassword", type: "String" },
+    { name: "clientSecret", type: "Object" },
+    { name: "deploymentInput", type: "secureString" },
+    { name: "deploymentInput", type: "SecureObject" },
+  ])("redacts values, defaults and allowed values for $name of type $type", ({ name, type }) => {
+    const parameter = { type, value: { nested: "private-value" }, defaultValue: "private-default", allowedValues: ["private-allowed"] };
+    expect(redact({ parameters: { [name]: parameter } })).toEqual({ parameters: {
+      [name]: { type, value: REDACTED, defaultValue: REDACTED, allowedValues: REDACTED },
+    } });
+    expect(parameter.defaultValue).toBe("private-default");
+  });
+
+  it("retains ordinary parameter values, defaults and allowed values", () => {
+    const input = { parameters: { region: { type: "String", value: "westus", defaultValue: "westus", allowedValues: ["westus", "eastus"] } } };
+    expect(redact(input)).toEqual(input);
+  });
+
   it("redacts a storage account keys list", () => {
     const out = redact({
       keys: [

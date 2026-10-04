@@ -50,6 +50,22 @@ const CLASSIFICATION: Row[] = [
   ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/entities`, "query"],
   ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/ALERTS`, "query"],
   ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts/?api-version=2025-09-01`, "query"],
+  // reviewed policy compliance state queries: the exact bodyless queryResults
+  // POST on the latest virtual resource only
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`, "query"],
+  ["arm", "POST", `${RG}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`, "query"],
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/QUERYRESULTS`, "query"],
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults?$top=100`, "query"],
+  // every neighboring policy-states POST shape stays a write: summaries, scan
+  // triggers, other virtual resources, other providers, child paths and non-POST verbs
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/summarize`, "write"],
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/triggerEvaluation`, "write"],
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/default/queryResults`, "write"],
+  ["arm", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults/extra`, "write"],
+  ["arm", "POST", `${SUB}/providers/Microsoft.Authorization/policyStates/latest/queryResults`, "write"],
+  ["logs", "POST", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`, "write"],
+  ["arm", "GET", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`, "read"],
+  ["arm", "PUT", `${SUB}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults`, "write"],
   // every neighboring POST shape stays a write: sibling actions, non-GUID
   // incidents, other providers, child paths and non-POST verbs
   ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/comments`, "write"],
@@ -197,6 +213,7 @@ describe("command effect registry", () => {
       acr: "read",
       tag: "write",
       network: "read",
+      policy: "read",
     });
   });
 

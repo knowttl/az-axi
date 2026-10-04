@@ -20,6 +20,62 @@ function scratch(): string {
 afterEach(() => { for (const path of scratchPaths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 describe("benchmark preload", () => {
+  it.each(["assignment", "definition", "set-definition", "state"])("replays nonempty scrubbed policy %s recordings without network", (kind) => {
+    const dir = scratch();
+    const file = join(dir, "recording.json");
+    const bootstrap = join(dir, "bootstrap.mjs");
+    const config = join(dir, "config.json");
+    const sub = "00000000-0000-0000-0000-000000000001";
+    const assignmentId = `/subscriptions/${sub}/providers/Microsoft.Authorization/policyAssignments/private-policy`;
+    const definitionId = "/providers/Microsoft.Authorization/policyDefinitions/private-definition";
+    const state = {
+      resourceId: `/subscriptions/${sub}/resourceGroups/private-group/providers/Microsoft.Compute/virtualMachines/private-vm`,
+      policyAssignmentId: assignmentId, policyDefinitionId: definitionId,
+      complianceState: "NonCompliant", timestamp: "2026-10-02T12:34:56Z",
+    };
+    const inventory = { id: assignmentId, name: "private-policy", properties: {
+      scope: `/subscriptions/${sub}`, policyDefinitionId: definitionId, enforcementMode: "DoNotEnforce",
+      policyType: "BuiltIn", displayName: "private-display", metadata: { category: "private-category" },
+      parameters: { adminPassword: { value: "private-password" } },
+      policyRule: { then: { effect: "deny" } },
+      policyDefinitions: [{ policyDefinitionId: definitionId }],
+    } };
+    const nextLink = `https://management.azure.com/subscriptions/${sub}/providers/Microsoft.PolicyInsights/policyStates/latest/queryResults?api-version=2024-10-01&$skiptoken=private-page`;
+    const bodies = kind === "state" ? [
+      { value: [state], "@odata.count": 1, "@odata.nextLink": nextLink },
+      { value: [{ ...state, complianceState: "Compliant" }], "@odata.count": 1, "@odata.nextLink": null },
+    ] : [{ value: [inventory] }];
+    const recording = { responses: bodies.map((body) => ({
+      method: kind === "state" ? "POST" : "GET", host: "management.azure.com", status: 200,
+      body: scrub(body, { leakCheck: [sub, "private-password", "private-page", "private-category", "private-policy"] }),
+    })) };
+    expect(recording.responses[0]!.body.value[0]).toMatchObject(kind === "state" ? {
+      complianceState: "NonCompliant", policyAssignmentId: scrub(assignmentId),
+      policyDefinitionId: scrub(definitionId), timestamp: state.timestamp,
+    } : { properties: {
+      parameters: { [scrub("adminPassword")]: { value: scrub("private-password") } },
+      policyRule: { then: { effect: "deny" } },
+    } });
+    writeFileSync(file, JSON.stringify(recording));
+    writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
+    writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token", subscriptions: [sub] } } }));
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+      "dist/bin/az-axi.js", "policy", kind, "list"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
+        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
+        AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
+    });
+    expect(child.status, child.stderr + child.stdout).toBe(0);
+    const output = decode(child.stdout) as Record<string, unknown>;
+    expect(output.total).toBe(kind === "state" ? 2 : 1);
+    const rows = output.rows as Record<string, unknown>[];
+    if (kind === "state") expect(output.byCompliance).toEqual({ NonCompliant: 1, Compliant: 1 });
+    if (kind === "assignment") expect(rows[0]).toMatchObject({ enforcement: "DoNotEnforce", definition: scrub("private-definition") });
+    if (kind === "definition") expect(rows[0]).toMatchObject({ type: "BuiltIn", effect: "deny", category: scrub("private-category") });
+    if (kind === "set-definition") expect(rows[0]).toMatchObject({ type: "BuiltIn", definitions: 1, category: scrub("private-category") });
+    expect(child.stdout).not.toContain("private-password");
+  });
+
   it.each([["sub", "list"], ["account", "list"], ["account", "show"]])("replays synthetic %s %s responses through the built CLI with no network", (group, verb) => {
     const dir = scratch();
     const file = join(dir, "recording.json");
@@ -92,11 +148,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 27, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 28, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
+    { details: {}, count: 31, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 32, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 28, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 32, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -152,11 +208,11 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[30]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[27]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
-    { omitted: [], rows: "rows[30]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
-    { omitted: [], rows: "rows[30]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
-    { omitted: [], rows: "rows[30]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
+    { omitted: [], rows: "rows[34]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[31]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[34]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[34]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
+    { omitted: [], rows: "rows[34]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
   ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped, empty Sentinel $sentinelEmpty", ({ omitted, rows, notes, duplicate, capped, sentinelEmpty }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
@@ -257,8 +313,11 @@ describe("benchmark surface", () => {
         ];
       } else if (scenario.name === "monitor-activity") {
         responses = [response("GET", { value: [] })];
-      } else if (scenario.name.startsWith("network-")) {
+      } else if (scenario.name.startsWith("network-") || scenario.name === "policy-assignment" ||
+        scenario.name === "policy-definition" || scenario.name === "policy-set-definition") {
         responses = [response("GET", { value: [] })];
+      } else if (scenario.name === "policy-state") {
+        responses = [response("POST", { value: [], "@odata.count": 0, "@odata.nextLink": null })];
       } else if (scenario.name === "security-scores") {
         responses = [response("POST", { totalRecords: 0, data: [] })];
       } else if (scenario.name === "exposure") {
@@ -339,7 +398,7 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(25);
+    expect(Object.keys(result.help)).toHaveLength(26);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 
@@ -347,7 +406,7 @@ describe("benchmark surface", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
       "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "sentinel-alert-rules", "sentinel-data-connectors", "security-scores", "network-nsg", "network-nic", "network-vnet", "network-public-ip", "network-private-endpoint", "network-dns-zone", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "sentinel-alert-rules", "sentinel-data-connectors", "security-scores", "network-nsg", "network-nic", "network-vnet", "network-public-ip", "network-private-endpoint", "network-dns-zone", "policy-assignment", "policy-definition", "policy-set-definition", "policy-state", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");
