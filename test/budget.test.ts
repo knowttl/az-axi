@@ -61,7 +61,9 @@ import { routeArgv } from "../src/lib/router.js";
 import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads, offlineKeyvaultReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
+  sentinelIncidentAlerts,
   sentinelIncidentDetail,
+  sentinelIncidentEntities,
   sentinelIncidents,
   storageMetadataRows,
   keyvaultMetadataRows,
@@ -127,6 +129,8 @@ const CEILINGS: Record<string, number> = {
   "defender score": 86,
   "sentinel incident list": 220,
   "sentinel incident show": 226,
+  "sentinel incident list-alert": 278,
+  "sentinel incident list-entity": 221,
   exposure: 298,
   "logs query": 184,
   api: 135,
@@ -331,6 +335,20 @@ describe("token budgets", () => {
   it("sentinel incident show stays under its ceiling", async () => {
     vi.mocked(request).mockResolvedValue(sentinelIncidentDetail as never);
     await expectUnderBudget("sentinel incident show", await runSentinel(["incident", "show",
+      "--name", sentinelIncidents[0]!.name as string,
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel incident list-alert stays under its ceiling", async () => {
+    vi.mocked(request).mockResolvedValue({ value: sentinelIncidentAlerts } as never);
+    await expectUnderBudget("sentinel incident list-alert", await runSentinel(["incident", "list-alert",
+      "--name", sentinelIncidents[0]!.name as string,
+      "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel incident list-entity stays under its ceiling", async () => {
+    vi.mocked(request).mockResolvedValue(sentinelIncidentEntities as never);
+    await expectUnderBudget("sentinel incident list-entity", await runSentinel(["incident", "list-entity",
       "--name", sentinelIncidents[0]!.name as string,
       "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
   });

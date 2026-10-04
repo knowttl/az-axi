@@ -588,8 +588,9 @@ Reference: https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/ge
 Show accepts the incident GUID name, the sequential incident number (resolved through a bounded list), or exactly one `--ids` incident ARM ID; `--incident-id` aliases `--name`.
 Workspace targeting is `--workspace-name` plus `--resource-group`, or `--workspace <alias|guid>` resolved through the ARM workspace list by customer ID; exactly one subscription is required and management-group scope is refused.
 Status, severity, owner and time-window filters apply client-side over bounded paging (10 pages, lower-bound disclosure).
-Related alerts/entities, analytics rules, connectors and incident updates stay out of scope.
+Related alerts (`sentinel incident list-alert`) and entities (`sentinel incident list-entity`) read one incident's related records through reviewed bodyless POSTs classified as exact `query` reads in policy (never a generic POST-is-read rule); analytics rules, connectors and incident updates stay out of scope.
 Reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/get?view=rest-securityinsights-2025-09-01
+Related reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list-alerts?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list-entities?view=rest-securityinsights-2025-09-01
 
 ### 6.5 `rg query`
 
@@ -778,7 +779,7 @@ Every request, from every command, is classified before it is sent:
 | Class | Rule | Allowed when |
 |---|---|---|
 | `read` | GET or HEAD | Always |
-| `query` | POST to exactly these paths: Resource Graph `/providers/Microsoft.ResourceGraph/resources` (arm); deployment `.../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group and subscription scope (arm, used by dry runs, **VERIFY** paths); `/v1/workspaces/{id}/query` (logs); `/v1.0/directoryObjects/getByIds` (graph) | Always |
+| `query` | Reviewed read POSTs recognized by the authoritative path rules in [policy.ts](src/lib/policy.ts) | Always |
 | `secret` | Credential-returning POST actions recognized by the authoritative lists and path rules in [policy.ts](src/lib/policy.ts) | **Never** in v1, in any mode (`READ_ONLY`) |
 | `destructive` | DELETE; POST actions and protected Microsoft.Authorization types recognized by [policy.ts](src/lib/policy.ts) | Gates pass, plus `--confirm` |
 | `write` | Any other PUT, PATCH or POST on arm | Gates pass |

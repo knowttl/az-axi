@@ -27,7 +27,7 @@ describe("exact leaf contracts", () => {
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
       "group list", "group show", "resource list", "resource show",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
-      "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
+      "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show", "sentinel incident list-alert", "sentinel incident list-entity", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
       "storage container list", "storage container show", "storage blob list", "storage blob show",
       "keyvault secret list", "keyvault key list", "keyvault certificate list",
     ]);

@@ -41,7 +41,23 @@ const CLASSIFICATION: Row[] = [
   ["arm", "POST", "/v1/workspaces/00000000-0000-0000-0000-000000000010/query", "write"],
   ["arm", "POST", `${SUB}/providers/Microsoft.Resources/deployments/d1/whatIf/extra`, "write"],
   ["arm", "POST", "/providers/Microsoft.Management/managementGroups/mg/providers/Microsoft.Resources/deployments/d1/whatIf", "write"],
-  // secret: credential-returning POST actions, any casing, encoded or with a trailing slash
+  // reviewed Sentinel incident related reads: exact bodyless POST actions only
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts`, "query"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/entities`, "query"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/ALERTS`, "query"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts/?api-version=2025-09-01`, "query"],
+  // every neighboring POST shape stays a write: sibling actions, non-GUID
+  // incidents, other providers, child paths and non-POST verbs
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/comments`, "write"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/relations`, "write"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/bookmarks`, "write"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/3177/alerts`, "write"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/not-a-guid/entities`, "write"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.Security/alerts`, "write"],
+  ["arm", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts/extra`, "write"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts`, "read"],
+  ["arm", "PUT", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts`, "write"],
+  ["logs", "POST", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090/alerts`, "write"],
   ...SECRET_ACTIONS.map((action): Row => ["arm", "POST", `${STORAGE}/${action}`, "secret"]),
   ["arm", "POST", `${STORAGE}/LISTKEYS`, "secret"],
   ["arm", "POST", `${STORAGE}/list%4Beys`, "secret"],

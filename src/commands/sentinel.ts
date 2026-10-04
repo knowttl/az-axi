@@ -26,6 +26,12 @@ const MAX_LIMIT = 1000;
 /** `--fields` accepts the compact row keys plus id, created and owner. */
 const FIELD_ALLOWLIST = ["number", "id", "title", "severity", "status", "time", "created", "owner"];
 
+/** `--fields` accepts the compact alert keys plus the full-row additions. */
+const ALERT_FIELD_ALLOWLIST = ["name", "alert", "severity", "status", "time", "id", "tactics", "product"];
+
+/** `--fields` accepts the compact entity keys plus the full-row ARM ID. */
+const ENTITY_FIELD_ALLOWLIST = ["kind", "entity", "name", "id"];
+
 interface IncidentOwner {
   assignedTo?: string;
   email?: string;
@@ -59,8 +65,38 @@ interface WorkspaceItem extends Record<string, unknown> {
   properties?: { customerId?: string };
 }
 
+interface AlertProperties {
+  alertDisplayName?: string;
+  severity?: string;
+  status?: string;
+  tactics?: string[];
+  productName?: string;
+  vendorName?: string;
+  timeGenerated?: string;
+  startTimeUtc?: string;
+}
+
+interface AlertItem {
+  id?: string;
+  name?: string;
+  kind?: string;
+  properties?: AlertProperties;
+}
+
+interface EntityItem {
+  id?: string;
+  name?: string;
+  kind?: string;
+  properties?: Record<string, unknown>;
+}
+
+interface EntitiesResponse {
+  entities?: EntityItem[];
+  metaData?: Array<{ entityKind?: string; count?: number }>;
+}
+
 function invalid(message: string): never {
-  throw new AxiError(message, "VALIDATION_ERROR", ["Run `az-axi sentinel incident list --help` or `az-axi sentinel incident show --help` for selectors"]);
+  throw new AxiError(message, "VALIDATION_ERROR", ["Run `az-axi sentinel --help` for selectors"]);
 }
 
 function segment(value: string, flag: string): string {
@@ -140,7 +176,7 @@ interface WorkspaceTarget {
 
 /** Pure workspace-selector validation: no transport, so unknown or
  * conflicting selectors fail before any dependency call. */
-function selectorError(args: ReturnType<typeof parseArgs>, verb: "list" | "show"): string | undefined {
+function selectorError(args: ReturnType<typeof parseArgs>, verb: string): string | undefined {
   const ids = flagText(args, "ids");
   const workspaceName = flagText(args, "workspace-name");
   const group = flagText(args, "resource-group");
@@ -152,9 +188,9 @@ function selectorError(args: ReturnType<typeof parseArgs>, verb: "list" | "show"
   }
   if (workspace && (workspaceName || group)) return "--workspace conflicts with --workspace-name and --resource-group";
   if (!workspace && !(workspaceName && group)) {
-    return verb === "show"
-      ? "incident show needs --workspace-name and --resource-group, --workspace <alias|guid>, or --ids <incident-ARM-id>"
-      : "incident list needs --workspace-name and --resource-group, or --workspace <alias|guid>";
+    return verb === "list"
+      ? "incident list needs --workspace-name and --resource-group, or --workspace <alias|guid>"
+      : `incident ${verb} needs --name <incident-id|number> with --workspace-name and --resource-group, --workspace <alias|guid>, or --ids <incident-ARM-id>`;
   }
   // Path-segment shape is pure: reject it before any subscription transport.
   if (workspaceName) segment(workspaceName, "workspace-name");
@@ -354,6 +390,258 @@ async function listForNumber(
   return match;
 }
 
+interface IncidentIdentity {
+  subscription: string;
+  target: WorkspaceTarget;
+  /** The incident GUID name used in related-action paths. */
+  incidentId: string;
+  /** The label used in empty states and hints: the number when selected by number, else the GUID. */
+  label: string;
+}
+
+/**
+ * Resolves the incident selectors shared by show and the related reads to one
+ * incident GUID: exactly one `--ids` ARM ID, or `--name`/`--incident-id` as a
+ * GUID or sequential number with workspace selectors. Numbers resolve through
+ * the same bounded list as show; the outgoing related-action path always
+ * carries the GUID, which is what the reviewed read classification requires.
+ */
+async function resolveIncidentIdentity(
+  profile: ResolvedProfile,
+  args: ReturnType<typeof parseArgs>,
+  verb: string,
+): Promise<IncidentIdentity> {
+  const nameFlag = flagText(args, "name");
+  const incidentIdFlag = flagText(args, "incident-id");
+  if (nameFlag && incidentIdFlag && nameFlag.trim() !== incidentIdFlag.trim()) {
+    invalid("--name conflicts with --incident-id");
+  }
+  const name = nameFlag ?? incidentIdFlag;
+  const ids = flagText(args, "ids");
+  if (name && ids) invalid(`incident ${verb} takes --name or --ids, not both`);
+  if (!name && !ids) invalid(`incident ${verb} needs --name <incident-id|number> or --ids <incident-ARM-id>`);
+  const selectors = selectorError(args, verb);
+  if (selectors) invalid(selectors);
+  if (name && !NUMBER.test(name.trim()) && !GUID.test(name.trim())) {
+    invalid("--name must be the incident GUID or its incident number; full ARM IDs need --ids");
+  }
+  const workspaceFlag = flagText(args, "workspace");
+  if (workspaceFlag) workspaceGuid(profile, workspaceFlag);
+
+  if (ids) {
+    const match = INCIDENT_ID.exec(ids.trim());
+    if (!match) invalid("--ids must be one incident ARM ID under Microsoft.SecurityInsights/incidents");
+    const subscription = match[1]!;
+    if (!GUID.test(subscription)) invalid("--ids must carry a subscription GUID");
+    if (!GUID.test(match[4]!)) invalid("--ids must end in the incident GUID");
+    const selected = profile.subscriptions?.length ? await subscriptions(profile) : [subscription];
+    if (!selected.some((id) => id.toLowerCase() === subscription.toLowerCase())) {
+      invalid("--ids conflicts with selected subscriptions");
+    }
+    const workspaceName = match[3]!;
+    return {
+      subscription,
+      target: { subscription, resourceGroup: match[2]!, workspaceName, label: `in workspace ${workspaceName}` },
+      incidentId: match[4]!,
+      label: match[4]!,
+    };
+  }
+  const selected = await subscriptions(profile);
+  if (selected.length !== 1) invalid(`incident ${verb} by name needs exactly one subscription; use --subscription <id>`);
+  const subscription = selected[0]!;
+  const target = await resolveWorkspace(profile, args, subscription);
+  if (NUMBER.test(name!.trim())) {
+    const incident = await listForNumber(profile, target, Number(name!.trim()),
+      `az-axi sentinel incident list${selectorSuffix(args, subscription, target)}`);
+    if (!incident.name || !GUID.test(incident.name)) invalid("incident lookup returned an unexpected incident name");
+    return { subscription, target, incidentId: incident.name, label: name!.trim() };
+  }
+  return { subscription, target, incidentId: name!.trim(), label: name!.trim() };
+}
+
+function alertTime(properties: AlertProperties): string {
+  return shortDate(properties.timeGenerated ?? properties.startTimeUtc);
+}
+
+function compactAlertRow(alert: AlertItem): Record<string, unknown> {
+  const properties = alert.properties ?? {};
+  return {
+    name: alert.name ?? "",
+    alert: properties.alertDisplayName ?? "",
+    severity: properties.severity ?? "",
+    status: properties.status ?? "",
+    time: alertTime(properties),
+  };
+}
+
+function fullAlertRow(alert: AlertItem): Record<string, unknown> {
+  const properties = alert.properties ?? {};
+  return {
+    ...compactAlertRow(alert),
+    id: alert.id ?? "",
+    tactics: properties.tactics ?? [],
+    product: properties.productName ?? "",
+  };
+}
+
+function entityDisplayName(entity: EntityItem): string {
+  const properties = entity.properties ?? {};
+  for (const key of ["friendlyName", "accountName", "hostName", "address", "fileName", "url"]) {
+    const value = properties[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+
+function compactEntityRow(entity: EntityItem): Record<string, unknown> {
+  return {
+    kind: entity.kind ?? "",
+    entity: entityDisplayName(entity),
+    name: entity.name ?? "",
+  };
+}
+
+function fullEntityRow(entity: EntityItem): Record<string, unknown> {
+  return { ...compactEntityRow(entity), id: entity.id ?? "" };
+}
+
+function limitValue(args: ReturnType<typeof parseArgs>): number {
+  if (args.flags["limit"] === true || args.flags["limit"] === "") {
+    throw new AxiError("flag --limit needs a number", "VALIDATION_ERROR", ["Example: --limit 20"]);
+  }
+  const limit = flagNumber(args, "limit") ?? DEFAULT_LIMIT;
+  if (!Number.isInteger(limit) || limit <= 0) invalid("--limit must be a positive integer");
+  if (limit > MAX_LIMIT) invalid(`--limit must be at most ${MAX_LIMIT}`);
+  return limit;
+}
+
+function relatedBase(identity: IncidentIdentity, target: WorkspaceTarget): string {
+  return `${incidentBase(target.subscription, target.resourceGroup, target.workspaceName)}/${identity.incidentId}`;
+}
+
+async function runAlertList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const full = flagBool(args, "full");
+  const fields = flagList(args, "fields");
+  if (fields?.some((field) => !ALERT_FIELD_ALLOWLIST.includes(field))) {
+    invalid(`incident list-alert --fields supports only: ${ALERT_FIELD_ALLOWLIST.join(", ")}`);
+  }
+  const limit = limitValue(args);
+  const identity = await resolveIncidentIdentity(profile, args, "list-alert");
+  const target = identity.target;
+  const suffix = selectorSuffix(args, identity.subscription, target);
+  const incidentSelector = `--name ${identity.incidentId}`;
+  // Reviewed bodyless read POST: Incidents_ListAlerts returns `{ value: [...] }` with no paging.
+  const body = await request<{ value?: AlertItem[] }>(profile, {
+    method: "POST",
+    path: `${relatedBase(identity, target)}/alerts`,
+    apiVersion: SENTINEL_INCIDENTS,
+  });
+  const collected = body?.value ?? [];
+  const scopeHint = `for incident ${identity.label} in workspace ${target.workspaceName}`;
+  if (collected.length === 0) {
+    return {
+      profile: profile.name,
+      workspace: target.workspaceName,
+      incident: identity.label,
+      total: 0,
+      count: countLine(0, 0, "incident alerts"),
+      rows: emptyState("incident alerts", scopeHint),
+      help: [`Run \`az-axi sentinel incident show ${incidentSelector}${suffix}\` for the incident in detail`],
+    };
+  }
+
+  const bySeverity: Record<string, number> = {};
+  const byStatus: Record<string, number> = {};
+  for (const alert of collected) {
+    const severity = alert.properties?.severity || "(unknown)";
+    const status = alert.properties?.status || "(unknown)";
+    bySeverity[severity] = (bySeverity[severity] ?? 0) + 1;
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
+  }
+
+  const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullAlertRow : compactAlertRow);
+  const picked = pickFields(shown, fields);
+  const help: string[] = [
+    `Run \`az-axi sentinel incident list-entity ${incidentSelector}${suffix}\` for the related entities`,
+  ];
+  if (shown.length < collected.length) {
+    help.push(`Run \`az-axi sentinel incident list-alert ${incidentSelector}${suffix} --full\` to show every related alert`);
+  }
+  return {
+    profile: profile.name,
+    workspace: target.workspaceName,
+    incident: identity.label,
+    total: collected.length,
+    count: countLine(shown.length, collected.length, "incident alerts"),
+    bySeverity,
+    byStatus,
+    rows: picked,
+    help,
+  };
+}
+
+async function runEntityList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const full = flagBool(args, "full");
+  const fields = flagList(args, "fields");
+  if (fields?.some((field) => !ENTITY_FIELD_ALLOWLIST.includes(field))) {
+    invalid(`incident list-entity --fields supports only: ${ENTITY_FIELD_ALLOWLIST.join(", ")}`);
+  }
+  const limit = limitValue(args);
+  const identity = await resolveIncidentIdentity(profile, args, "list-entity");
+  const target = identity.target;
+  const suffix = selectorSuffix(args, identity.subscription, target);
+  const incidentSelector = `--name ${identity.incidentId}`;
+  // Reviewed bodyless read POST: Incidents_ListEntities returns `{ entities, metaData }` with no paging.
+  const body = await request<EntitiesResponse>(profile, {
+    method: "POST",
+    path: `${relatedBase(identity, target)}/entities`,
+    apiVersion: SENTINEL_INCIDENTS,
+  });
+  const collected = body?.entities ?? [];
+  const scopeHint = `for incident ${identity.label} in workspace ${target.workspaceName}`;
+  if (collected.length === 0) {
+    return {
+      profile: profile.name,
+      workspace: target.workspaceName,
+      incident: identity.label,
+      total: 0,
+      count: countLine(0, 0, "incident entities"),
+      rows: emptyState("incident entities", scopeHint),
+      help: [`Run \`az-axi sentinel incident show ${incidentSelector}${suffix}\` for the incident in detail`],
+    };
+  }
+
+  const byKind: Record<string, number> = {};
+  for (const entry of body?.metaData ?? []) {
+    if (entry.entityKind) byKind[entry.entityKind] = entry.count ?? 0;
+  }
+  if (Object.keys(byKind).length === 0) {
+    for (const entity of collected) {
+      const kind = entity.kind || "(unknown)";
+      byKind[kind] = (byKind[kind] ?? 0) + 1;
+    }
+  }
+
+  const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullEntityRow : compactEntityRow);
+  const picked = pickFields(shown, fields);
+  const help: string[] = [
+    `Run \`az-axi sentinel incident list-alert ${incidentSelector}${suffix}\` for the related alerts`,
+  ];
+  if (shown.length < collected.length) {
+    help.push(`Run \`az-axi sentinel incident list-entity ${incidentSelector}${suffix} --full\` to show every related entity`);
+  }
+  return {
+    profile: profile.name,
+    workspace: target.workspaceName,
+    incident: identity.label,
+    total: collected.length,
+    count: countLine(shown.length, collected.length, "incident entities"),
+    byKind,
+    rows: picked,
+    help,
+  };
+}
+
 async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
   const full = flagBool(args, "full");
   const nameFlag = flagText(args, "name");
@@ -455,17 +743,17 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     );
   }
   const verb = args.positionals[1];
-  if (verb !== "list" && verb !== "show") {
-    throw new AxiError(
-      verb ? `unknown command \`sentinel incident ${verb}\`` : "missing verb for `sentinel incident`",
-      "VALIDATION_ERROR",
-      ["Expected one of: list | show", "Run `az-axi sentinel incident list --help` for usage"],
-    );
-  }
   if (args.positionals.length > 2) {
     throw new AxiError(`unexpected argument \`${args.positionals[2]}\` for \`sentinel incident ${verb}\``, "VALIDATION_ERROR", [
       `Run \`az-axi sentinel incident ${verb} --help\` for usage`,
     ]);
+  }
+  if (verb !== "list" && verb !== "show" && verb !== "list-alert" && verb !== "list-entity") {
+    throw new AxiError(
+      verb ? `unknown command \`sentinel incident ${args.positionals.slice(1).join(" ")}\`` : "missing verb for `sentinel incident`",
+      "VALIDATION_ERROR",
+      ["Expected one of: list | show | list-alert | list-entity", "Run `az-axi sentinel incident list --help` for usage"],
+    );
   }
   assertKnownFlags(args, commandFlags(`sentinel incident ${verb}`), `sentinel incident ${verb}`);
   const profile = profileFromArgs(args);
@@ -473,5 +761,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     invalid("management-group scope is unsupported for Sentinel incidents; select one subscription explicitly");
   }
   if (verb === "list") return runList(profile, args);
+  if (verb === "list-alert") return runAlertList(profile, args);
+  if (verb === "list-entity") return runEntityList(profile, args);
   return runShow(profile, args);
 }

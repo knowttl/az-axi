@@ -23,6 +23,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 - README: `Install`, `Use` and `Behavior` sections (install, one example per command, error codes and exit codes).
 
+- `sentinel incident list|show|list-alert|list-entity`: Sentinel incident triage on one Log Analytics workspace, including related alerts and entities through reviewed bodyless read POSTs; analytics rules, connectors and incident updates stay out of scope.
 - `rg query`: Resource Graph queries with `--file`/stdin, skip-token paging, ID shortening and throttling hints.
 - `api`: read/query escape hatch for any ARM, Log Analytics or Graph path; writes stay blocked with `WRITES_DISABLED`.
 - Dashboard (`az-axi` with no arguments): profile, identity, subscriptions and write status.
