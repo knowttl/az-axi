@@ -251,7 +251,9 @@ az-axi resource list -g rg-demo
 az-axi resource show --ids <ARM-id> --full
 ```
 
-Discovery uses live ARM GETs, with subscription flags, environment or profile scope, otherwise all accessible subscriptions.
+Discovery uses live ARM GETs.
+Lists and name-based shows use subscription flags, environment or profile scope, otherwise all accessible subscriptions.
+`resource show --ids` uses the ID's subscription when no subscription scope is configured; otherwise that subscription must be included in the selected scope.
 Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
 Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
 `--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
