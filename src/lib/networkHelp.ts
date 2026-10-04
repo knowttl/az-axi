@@ -56,13 +56,29 @@ const FULL: Record<string, string> = {
   "network public-ip show": "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, provisioningState, idleTimeout). No view returns secrets, keys or credential fields.",
 };
 
+export const NSG_RULE_CREATE_HELP = [
+  "Command: az-axi network nsg rule create",
+  "az-axi network nsg rule create --nsg-name <nsg> --resource-group / -g <group> --name / -n <rule> --priority <100-4096> --subscription / -s <id> [--direction Inbound|Outbound] [--access Deny] [--protocol Tcp|Udp|Icmp|Esp|Ah|*] [--source-address-prefixes ...] [--source-port-ranges ...] [--destination-address-prefixes ...] [--destination-port-ranges ...] [--description <text>] [--ids <nsg-ARM-id>] [--execute --confirm <rule>] [--timeout <seconds>] [--no-wait]",
+  "Adds one Deny security rule to one existing network security group through one child PUT .../networkSecurityGroups/{nsg}/securityRules/{rule} (api-version 2024-05-01). Destructive: a deny rule can cut live traffic, so execution needs --confirm <rule-name> on top of every write gate.",
+  "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted. Select the NSG with --nsg-name plus --resource-group / -g, or with --ids <nsg-ARM-id> alone (then --name still names the new rule). --management-group scope is unsupported.",
+  "--name / -n names the new rule and --priority takes one integer 100-4096; when either already exists on the NSG the command refuses instead of overwriting. Rule updates and deletes stay out of scope.",
+  "--access takes Deny alone and defaults to Deny; Allow is refused. --direction defaults to Inbound. --protocol defaults to *. The four address/port lists default to *; unlike az, the destination-port default is * rather than 80. Application security groups (--source-asgs/--destination-asgs) are unsupported and rejected as unknown flags.",
+  "Writes require the existing profile permission and subscription allowlist. Default: dry run listing the NSG's existing rules plus the exact rule to be added; --execute checks rule absence and sends one child PUT. Ports must be 0-65535 and ranges ascending. Multiple address values require IP addresses or CIDR prefixes; service tags and * must be used alone. --timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log, LRO handling and approval hook apply.",
+  "Best effort: Azure's documented API cannot rule out a concurrent create of the same rule name in the seconds between preview and execution; such a rule can be overwritten. No conditional header is sent; --if-match is unsupported. Immediate readback compares rule name and writable properties, excluding service metadata, and reports mismatches or failed reads, including with --no-wait; matching readback does not prove absence of an overwrite.",
+  "Owner-run live check: use an isolated NSG to create the same rule name concurrently between the existence check and PUT, then inspect overwrite behavior and post-write readback. Offline tests do not perform this check.",
+  "Globals: --profile, --tenant, --subscription / -s, --management-group, --config, --help / -h.",
+  "Examples: az-axi network nsg rule create --nsg-name nsg-web -g rg-demo -n deny-telnet --priority 400 --destination-port-ranges 23 --protocol Tcp -s <subscription>",
+  "az-axi network nsg rule create --ids <nsg-ARM-id> -n deny-telnet --priority 400 --direction Outbound -s <subscription> --execute --confirm deny-telnet",
+].join("\n");
+
 export function networkLeafHelp(path: string): string {
+  if (path === "network nsg rule create") return NSG_RULE_CREATE_HELP;
   const show = path.endsWith(" show");
   const key = path.replace(/^(network dns record-set) [^ ]+ (list|show)$/, "$1 $2");
   return [
     `Command: az-axi ${path}`,
     `az-axi ${path} ${SELECTORS[key] ?? ""}`.trimEnd(),
-    "Read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01. Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC keys, private DNS zones and any mutation stay out of scope.",
+    "Read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01. Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC keys and private DNS zones stay out of scope. For the native network write, see `az-axi network nsg rule create --help` and README.md#writes.",
     "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. Lists follow up to 100 pages per subscription and disclose incomplete counts as lower bounds.",
     "Show by name needs exactly one subscription; --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when no scope is configured. --management-group scope is unsupported; select subscriptions explicitly.",
     DETAIL[key] ?? "",
@@ -75,6 +91,7 @@ export function networkLeafHelp(path: string): string {
 
 export const NETWORK_HELP = [
   "az-axi network nsg list|show",
+  "az-axi network nsg rule create --nsg-name <nsg> --resource-group <group> --name <rule> --priority <100-4096> --subscription <id>",
   "az-axi network nic list|show",
   "az-axi network vnet list|show",
   "az-axi network public-ip list|show",

@@ -1,5 +1,5 @@
 // Offline built-CLI fixture. This replaces fetch completely, with no network fallback.
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 
 const scenario = process.env.AZ_AXI_TEST_OUTCOME;
 let incidentReads = 0;
@@ -52,6 +52,60 @@ const tagsGet = () => {
   return json(tagsBody(), 200, { etag: '"tags1"' });
 };
 
+const nsgRules = () => {
+  if (process.env.AZ_AXI_TEST_NSG_RULES !== undefined) return JSON.parse(process.env.AZ_AXI_TEST_NSG_RULES);
+  return [
+    { name: "allow-https", properties: { protocol: "Tcp", access: "Allow", priority: 100, direction: "Inbound",
+      sourcePortRange: "*", destinationPortRange: "443", sourceAddressPrefix: "Internet", destinationAddressPrefix: "*" } },
+    { name: "deny-ssh", properties: { protocol: "*", access: "Deny", priority: 200, direction: "Inbound",
+      sourcePortRange: "*", destinationPortRange: "*", sourceAddressPrefix: "*", destinationAddressPrefix: "*" } },
+  ];
+};
+
+const nsgBody = (nsgName) => ({
+  id: `/subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
+  name: nsgName,
+  type: "Microsoft.Network/networkSecurityGroups",
+  location: "westus",
+  tags: { env: "dev" },
+  ...(scenario === "nsg-no-etag" ? {} : { etag: '"nsg1"' }),
+  properties: { provisioningState: "Succeeded", securityRules: nsgRules() },
+});
+
+const nsgNameOf = (pathname) => decodeURIComponent(pathname.split("/networkSecurityGroups/")[1].split("/")[0]);
+let nsgState;
+
+const nsgGet = (pathname) => {
+  if (process.env.AZ_AXI_TEST_NSG_MISSING === "1" || scenario === "gone") {
+    return json({ error: { code: "ResourceNotFound", message: "no such NSG" } }, 404);
+  }
+  nsgState ??= nsgBody(nsgNameOf(pathname));
+  if (pathname.includes("/securityRules/")) {
+    const name = decodeURIComponent(pathname.split("/securityRules/")[1]);
+    if (scenario === "nsg-existing-before-put" && !nsgState.properties.securityRules.some((rule) => rule.name === name)) {
+      nsgState.properties.securityRules.push({ name, properties: { access: "Allow", priority: 400 } });
+    }
+    const rule = nsgState.properties.securityRules.find((entry) => entry.name === name);
+    if (!rule || ["nsg-readback-missing", "nsg-async-readback-missing", "nsg-location-readback-missing"].includes(scenario)) return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
+    return json({ id: `https://management.azure.com${pathname}`, etag: '"rule1"', ...rule,
+      name: scenario === "nsg-readback-name" ? "operator-rule" : rule.name,
+      properties: { ...rule.properties, provisioningState: "Succeeded" } }, 200, { etag: '"rule1"' });
+  }
+  return json(nsgState, 200, scenario === "nsg-no-etag" ? {} : { etag: nsgState.etag });
+};
+
+const nsgRulePut = (body) => {
+  const rule = ["nsg-readback-mismatch", "nsg-async-readback-mismatch", "nsg-created-readback-mismatch"].includes(scenario)
+    ? { ...body, properties: { ...body.properties, access: "Allow" } } : body;
+  if (scenario === "nsg-readback-extra-property") rule.properties.description = "operator change";
+  nsgState.properties.securityRules.push(rule);
+  writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
+  if (["async", "nsg-async-readback-mismatch", "nsg-async-readback-missing"].includes(scenario)) return json({}, 202, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
+  if (scenario === "nsg-location-readback-missing") return json({}, 202, { location: operationUrl, "retry-after": "0" });
+  if (scenario === "nsg-created-readback-mismatch") return json({}, 201, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
+  return json(body, 201);
+};
+
 const tagsPatch = (body) => {
   if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
   const sent = body?.properties?.tags ?? {};
@@ -85,6 +139,7 @@ globalThis.fetch = async (url, init = {}) => {
     return json({ status: scenario === "failure" ? "Failed" : "Succeeded", error: { code: "SyntheticFailure", message: "test failure" } });
   }
   if (method === "GET") {
+    if (new URL(url).pathname.includes("/networkSecurityGroups/")) return nsgGet(new URL(url).pathname);
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
     if (new URL(url).pathname.endsWith("/tags/default")) return tagsGet();
     if (new URL(url).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
@@ -126,6 +181,7 @@ globalThis.fetch = async (url, init = {}) => {
     return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
   }
   if (scenario === "network") throw new Error("synthetic offline network failure");
+  if (method === "PUT" && new URL(url).pathname.includes("/securityRules/")) return nsgRulePut(body);
   if (["async", "failure", "timeout", "no-wait", "location"].includes(scenario)) {
     return json({}, 202, { [scenario === "location" ? "location" : "azure-asyncoperation"]: operationUrl,
       "retry-after": scenario === "timeout" ? "1" : "0" });

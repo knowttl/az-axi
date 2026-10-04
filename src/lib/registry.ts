@@ -43,6 +43,16 @@ export interface CommandLeaf {
 
 export const TAG_UPDATE_FLAGS: FlagSchema = { "resource-id": "value", operation: "value", tags: "literal-list", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" };
 
+/** az `network nsg rule create` spellings, deny-only; `--access` takes Deny alone. */
+export const NSG_RULE_CREATE_FLAGS: FlagSchema = {
+  "resource-group": "value", "nsg-name": "value", name: "value", ids: "value",
+  priority: "value", direction: "value", access: "value", protocol: "value",
+  "source-address-prefixes": "list", "source-port-ranges": "list",
+  "destination-address-prefixes": "list", "destination-port-ranges": "list",
+  description: "value", execute: "boolean", confirm: "value",
+  timeout: "value", "no-wait": "boolean",
+};
+
 /** Current executable leaves. API methods are arguments of the dynamic `api` leaf. */
 export const COMMAND_LEAVES = [
   { path: "home", effect: "read", capability: "native" },
@@ -99,6 +109,7 @@ export const COMMAND_LEAVES = [
   { path: "acr manifest show-metadata", effect: "read", capability: "native", flags: { registry: "value", name: "literal" } },
   { path: "network nsg list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "network nsg show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network nsg rule create", effect: "destructive", capability: "native", flags: NSG_RULE_CREATE_FLAGS },
   { path: "network nic list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "network nic show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "network vnet list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
@@ -247,7 +258,7 @@ const HELP_OVERVIEWS = {
   storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",
   keyvault: "az-axi keyvault secret|key|certificate list  # Entra-only vault property listings",
   acr: "az-axi acr repository list|show-tags        # Entra-only registry catalog and tags",
-  network: `az-axi network nsg|nic|vnet|public-ip|private-endpoint list|show  # NSG rules, NICs, VNets/subnets, public IPs, private endpoints\naz-axi network dns zone list|show\naz-axi network dns record-set list\naz-axi network dns record-set ${NETWORK_RECORD_TYPES.join("|")} list|show  # public DNS record sets`,
+  network: `az-axi network nsg|nic|vnet|public-ip|private-endpoint list|show  # NSG rules, NICs, VNets/subnets, public IPs, private endpoints\naz-axi network nsg rule create  # one deny rule on one NSG (destructive, --confirm)\naz-axi network dns zone list|show\naz-axi network dns record-set list\naz-axi network dns record-set ${NETWORK_RECORD_TYPES.join("|")} list|show  # public DNS record sets`,
   policy: "az-axi policy assignment|definition|set-definition list|show  # assignments, definitions and initiatives\naz-axi policy state list  # compliance states with summaries",
   lock: "az-axi lock list|show  # management locks by scope",
   "deny-assignment": "az-axi deny-assignment list|show  # deny assignments by scope",
