@@ -261,6 +261,20 @@ az-axi sentinel alert-rule list -g rg-demo --workspace-name logs-demo
 az-axi sentinel alert-rule show --name <rule-id> --workspace sentinel
 az-axi sentinel data-connector list -g rg-demo --workspace-name logs-demo
 az-axi sentinel data-connector show --name <connector-id> --workspace sentinel
+az-axi network nsg list -g rg-demo
+az-axi network nsg show --name nsg-web -g rg-demo
+az-axi network nic list -g rg-demo
+az-axi network nic show --name nic-demo -g rg-demo
+az-axi network vnet list -g rg-demo
+az-axi network vnet show --name vnet-demo -g rg-demo
+az-axi network public-ip list -g rg-demo
+az-axi network public-ip show --name pip-demo -g rg-demo
+az-axi network private-endpoint list -g rg-demo
+az-axi network private-endpoint show --name pe-storage -g rg-demo
+az-axi network dns zone list -g rg-demo
+az-axi network dns zone show --name example.com -g rg-demo
+az-axi network dns record-set list -g rg-demo --zone-name example.com
+az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
 ```
 
 Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -298,6 +312,24 @@ Connector views project safelisted metadata only: secrets, keys and credential f
 There is no rule or connector mutation command; query workspace tables with `logs query` to investigate further.
 For the native incident update and comment create writes, see [Writes](#writes).
 Management-group scope is unsupported; select one subscription explicitly.
+
+Network reads (`network nsg|nic|vnet|public-ip|private-endpoint list|show`, `network dns zone list|show`, `network dns record-set list`, and `network dns record-set <type> list|show`) use read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01.
+Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `byLocation` aggregates (record sets add `byType`).
+Show by name needs `--name` with `--resource-group` in exactly one subscription; `--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
+Record-set list needs `--zone-name` with `--resource-group`, with an optional exact `--name` filter.
+Type subgroups (`a`, `aaaa`, `caa`, `cname`, `mx`, `ns`, `ptr`, `soa`, `srv`, `txt`) provide typed list and show commands following Azure CLI grammar; the all-types `record-set list` is also available.
+Typed show needs `--zone-name`, `--resource-group` and `--name`, or one record-set `--ids` of the selected type alone.
+NSG show returns custom security rules (name, priority, direction, access, protocol, source, destination, ports) plus attached subnets and NICs; VNet show returns the address space, every subnet (prefix, NSG, route table) and every peering (state, remote VNet); NIC show returns every IP configuration plus NSG, virtual machine and MAC address; public-IP show returns the address, allocation, association, FQDN, SKU and zones; private-endpoint show returns the target service, connection state, subnet, NICs and custom DNS configs; zone show returns record counts and name servers; record-set show returns the TTL, FQDN and every routed value.
+NSG list `rules` and show `totalRules` count custom rules only; Azure default security rules are excluded, including with `--full`.
+Long nested rule, subnet, peering and IP-configuration lists are capped at `--limit` with their totals disclosed; `--full` shows every nested row.
+Joined rule sources, destinations and ports, VNet list prefixes and subnet prefix lists, DNS list targets and individual DNS show values are shortened to 200 characters by default; shortened output includes a selector-preserving `--full` hint.
+List rows default to compact fields (NSGs add the custom rule count, NICs the first IP configuration's private IP and the attached VM, VNets the prefixes and subnet count, public IPs the address and attachment, private endpoints the service and status, zones the record and name-server counts, record sets the type, TTL and joined targets); `--full` shows every fetched row with untruncated values.
+For show, `--full` also adds safe metadata; `--fields` can select that metadata without `--full`, but does not expand capped rows or shortened values.
+`--fields` selects only the list or show fields advertised by that leaf's `--help`, even when combined with `--full`; list and show field sets differ.
+DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of literal records; TXT chunks concatenate within each record, and SOA values include all seven components in host, email, serial, refresh, retry, expiry and minimum TTL order.
+`--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
+Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys, private DNS zones and any network mutation stay out of scope; `exposure` keeps its canned checks unchanged.
+Management-group scope is unsupported; select subscriptions explicitly.
 
 Discovery uses live ARM GETs.
 Lists and name-based shows use subscription flags, environment or profile scope, otherwise all accessible subscriptions.

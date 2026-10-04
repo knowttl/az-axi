@@ -1,15 +1,13 @@
 ---
 name: az-axi
-description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, NSG and public IP exposure, Log Analytics KQL queries.
+description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, network and public DNS resources, NSG and public IP exposure, Log Analytics KQL queries.
 user-invocable: false
 ---
 
 # az-axi
 
-Agent-ergonomic CLI for Azure, read-only by default. Resource inventory through
-Resource Graph, RBAC, activity log, Defender for Cloud, internet exposure checks,
-and Log Analytics KQL queries through token-efficient TOON output, with a raw
-REST escape hatch for everything else.
+Agent-ergonomic CLI for Azure, read-only by default.
+Resource inventory through Resource Graph, RBAC, activity log, Defender for Cloud, network and public DNS reads, internet exposure checks, and Log Analytics KQL queries through token-efficient TOON output, with a raw REST escape hatch for everything else.
 
 Call the globally installed, pinned `az-axi` binary. Never use unpinned
 `npx -y`. If `az-axi` is not on PATH, install
@@ -82,6 +80,39 @@ The offline test suite checks this list against the registry.
 | `az-axi acr repository list` | native | read |
 | `az-axi acr repository show-tags` | native | read |
 | `az-axi acr manifest show-metadata` | native | read |
+| `az-axi network nsg list` | native | read |
+| `az-axi network nsg show` | native | read |
+| `az-axi network nic list` | native | read |
+| `az-axi network nic show` | native | read |
+| `az-axi network vnet list` | native | read |
+| `az-axi network vnet show` | native | read |
+| `az-axi network public-ip list` | native | read |
+| `az-axi network public-ip show` | native | read |
+| `az-axi network private-endpoint list` | native | read |
+| `az-axi network private-endpoint show` | native | read |
+| `az-axi network dns zone list` | native | read |
+| `az-axi network dns zone show` | native | read |
+| `az-axi network dns record-set list` | native | read |
+| `az-axi network dns record-set a list` | native | read |
+| `az-axi network dns record-set a show` | native | read |
+| `az-axi network dns record-set aaaa list` | native | read |
+| `az-axi network dns record-set aaaa show` | native | read |
+| `az-axi network dns record-set caa list` | native | read |
+| `az-axi network dns record-set caa show` | native | read |
+| `az-axi network dns record-set cname list` | native | read |
+| `az-axi network dns record-set cname show` | native | read |
+| `az-axi network dns record-set mx list` | native | read |
+| `az-axi network dns record-set mx show` | native | read |
+| `az-axi network dns record-set ns list` | native | read |
+| `az-axi network dns record-set ns show` | native | read |
+| `az-axi network dns record-set ptr list` | native | read |
+| `az-axi network dns record-set ptr show` | native | read |
+| `az-axi network dns record-set soa list` | native | read |
+| `az-axi network dns record-set soa show` | native | read |
+| `az-axi network dns record-set srv list` | native | read |
+| `az-axi network dns record-set srv show` | native | read |
+| `az-axi network dns record-set txt list` | native | read |
+| `az-axi network dns record-set txt show` | native | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
@@ -235,6 +266,20 @@ az-axi sentinel data-connector show --name <connector-id> --workspace sentinel
 ```
 
 See [Sentinel incident triage](../../README.md#use) for workspace and subscription selectors, incident identities and aliases, filters, output fields, paging limits and investigation scope.
+
+```sh
+az-axi network nsg list -g rg-demo
+az-axi network nsg show --name nsg-web -g rg-demo
+az-axi network nic list -g rg-demo
+az-axi network vnet show --name vnet-demo -g rg-demo
+az-axi network public-ip list -g rg-demo
+az-axi network private-endpoint show --name pe-storage -g rg-demo
+az-axi network dns zone list -g rg-demo
+az-axi network dns record-set list -g rg-demo --zone-name example.com
+az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
+```
+
+See [network reads](../../README.md#use) for collection scope, name and ARM ID selectors, DNS zone selectors and type subgroups, output fields, paging limits and the effective-rule, watcher, DNSSEC and private-DNS exclusions.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,

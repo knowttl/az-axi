@@ -33,6 +33,21 @@ describe("exact leaf contracts", () => {
       "storage container list", "storage container show", "storage blob list", "storage blob show",
       "keyvault secret list", "keyvault key list", "keyvault certificate list",
       "acr repository list", "acr repository show-tags", "acr manifest show-metadata",
+      "network nsg list", "network nsg show", "network nic list", "network nic show",
+      "network vnet list", "network vnet show", "network public-ip list", "network public-ip show",
+      "network private-endpoint list", "network private-endpoint show",
+      "network dns zone list", "network dns zone show",
+      "network dns record-set list",
+      "network dns record-set a list", "network dns record-set a show",
+      "network dns record-set aaaa list", "network dns record-set aaaa show",
+      "network dns record-set caa list", "network dns record-set caa show",
+      "network dns record-set cname list", "network dns record-set cname show",
+      "network dns record-set mx list", "network dns record-set mx show",
+      "network dns record-set ns list", "network dns record-set ns show",
+      "network dns record-set ptr list", "network dns record-set ptr show",
+      "network dns record-set soa list", "network dns record-set soa show",
+      "network dns record-set srv list", "network dns record-set srv show",
+      "network dns record-set txt list", "network dns record-set txt show",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
@@ -90,7 +105,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

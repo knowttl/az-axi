@@ -196,6 +196,7 @@ describe("command effect registry", () => {
       keyvault: "read",
       acr: "read",
       tag: "write",
+      network: "read",
     });
   });
 

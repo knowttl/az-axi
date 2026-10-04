@@ -22,6 +22,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 - README: `Install`, `Use` and `Behavior` sections (install, one example per command, error codes and exit codes).
+- `network nsg|nic|vnet|public-ip|private-endpoint list|show` and `network dns zone|record-set list|show`: read-only network inventory using az's own command spellings; NSG rules, VNet subnets and peerings, NIC IP configurations, public-IP associations, private-endpoint connection state and DNS records resolve from plain ARM GETs with compact defaults, full views on request and bounded lower-bound paging; effective rules and routes, Network Watcher diagnostics, DNSSEC keys, private DNS zones and any mutation stay out of scope.
 
 - `sentinel incident list|show|list-alert|list-entity`: Sentinel incident triage on one Log Analytics workspace, including related alerts and entities through reviewed bodyless read POSTs.
 - `sentinel alert-rule list|show` and `sentinel data-connector list|show`: read-only Sentinel analytics rules and data connectors on one Log Analytics workspace using az's own command spellings; compact by default, full on request; connector views project safelisted metadata only and never print secrets, keys or credential fields; no rule or connector mutation.
