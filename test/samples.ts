@@ -1132,6 +1132,7 @@ export const computeVmsss = [computeVmss, {
 // (2024-03-02 "Get a managed disk" example, identifiers replaced).
 export const computeDisk = {
   id: computeDiskId("disk-demo"), name: "disk-demo", type: "Microsoft.Compute/disks", location: "westus",
+  managedBy: computeVmId("vm-demo"),
   tags: { env: "test" }, zones: ["1"],
   sku: { name: "Premium_LRS", tier: "Premium" },
   properties: {
@@ -1139,7 +1140,6 @@ export const computeDisk = {
     timeCreated: "2026-09-01T00:00:00Z", networkAccessPolicy: "AllowPrivate", maxShares: 1,
     encryption: { type: "EncryptionAtRestWithCustomerKey" },
     diskEncryptionSet: { id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/diskEncryptionSets/des-demo` },
-    managedBy: computeVmId("vm-demo"),
   },
 };
 export const computeDisks = [computeDisk, {

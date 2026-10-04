@@ -182,6 +182,24 @@ describe("vm show", () => {
     }
   });
 
+  it.each([
+    ["--ids", computeVm.id],
+    ["--name", "vm-demo", "--resource-group", "rg-demo"],
+  ])("returns selected VM metadata for %j", async (...selector) => {
+    const result = await runVm(["show", ...selector, "--fields", "id,computer,image,osDisk,nics,zone,availabilitySet,tags"]);
+    expect(result).toMatchObject({
+      id: computeVm.id,
+      computer: "vm-demo",
+      image: "Canonical UbuntuServer 22.04-LTS latest",
+      osDisk: { name: "vm-demo-os", sizeGb: 30 },
+      nics: ["nic-demo"],
+      zone: "1",
+      availabilitySet: "as-demo",
+      tags: { env: "test" },
+    });
+    expect(JSON.stringify(result)).not.toContain("never-output-this-value");
+  });
+
   it("falls back to the model provisioning state without an instance view", async () => {
     requestMock.mockImplementationOnce(async () => computeVm as never);
     const result = await runVm(["show", "--ids", computeVm.id]);
@@ -217,9 +235,23 @@ describe("vm get-instance-view", () => {
   });
 
   it("caps nested rows at the limit with totals disclosed", async () => {
-    const capped = await runVm(["get-instance-view", "--ids", computeVm.id, "--limit", "1", "--full"]);
+    const capped = await runVm(["get-instance-view", "--ids", computeVm.id, "--limit", "1"]);
     expect((capped.disks as unknown[])).toHaveLength(1);
     expect(capped).toMatchObject({ totalDisks: 2, totalExtensions: 1 });
+    expect(capped.help).toEqual([expect.stringContaining("--full")]);
+  });
+
+  it.each(["disks", "extensions"])("discloses capped %s and returns every row in full", async (field) => {
+    const view = { ...computeInstanceView,
+      extensions: [...computeInstanceView.extensions, { ...computeInstanceView.extensions[0], name: "SecondExtension" }],
+    };
+    requestMock.mockResolvedValue(view as never);
+    const capped = await runVm(["get-instance-view", "--ids", computeVm.id, "--limit", "1", "--fields", field]);
+    expect(capped[field]).toHaveLength(1);
+    expect(capped.help).toEqual([expect.stringContaining("--full")]);
+    const full = await runVm(["get-instance-view", "--ids", computeVm.id, "--limit", "1", "--fields", field, "--full"]);
+    expect(full[field]).toHaveLength(2);
+    expect(full).not.toHaveProperty("help");
   });
 });
 
@@ -259,6 +291,17 @@ describe("vmss list and show", () => {
 });
 
 describe("disk list and show", () => {
+  it.each([
+    ["--ids", computeDisk.id],
+    ["--ids", computeDisk.id, "--full"],
+    ["--ids", computeDisk.id, "--fields", "attached"],
+    ["--name", "disk-demo", "--resource-group", "rg-demo"],
+    ["--name", "disk-demo", "--resource-group", "rg-demo", "--full"],
+    ["--name", "disk-demo", "--resource-group", "rg-demo", "--fields", "attached"],
+  ])("returns the disk attachment for %j", async (...selector) => {
+    expect(await runDisk(["show", ...selector])).toMatchObject({ attached: "vm-demo" });
+  });
+
   it("lists compact rows and shows the attachment without secret actions", async () => {
     const result = await runDisk(["list", "--resource-group", "rg-demo"]);
     expect(result).toMatchObject({
@@ -294,6 +337,19 @@ describe("disk list and show", () => {
 });
 
 describe("compute validation", () => {
+  it.each([
+    [runVm, "show", computeVmExpanded],
+    [runVm, "get-instance-view", computeInstanceView],
+    [runVmss, "show", computeVmss],
+    [runDisk, "show", computeDisk],
+  ] as const)("encodes Unicode resource groups once for named reads %#", async (run, verb, item) => {
+    requestMock.mockResolvedValueOnce(item as never);
+    await run([verb, "--name", "demo", "--resource-group", "rg-é", "--subscription", SUB_A]);
+    expect(requestMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      path: expect.stringContaining(`/subscriptions/${SUB_A}/resourceGroups/rg-%C3%A9/providers/Microsoft.Compute/`),
+    }));
+  });
+
   it.each([
     ["vm", ["show", "--name", "vm-demo"]],
     ["vm", ["show", "--name", "vm-demo", "--resource-group", "rg-demo", "--ids", computeVm.id]],

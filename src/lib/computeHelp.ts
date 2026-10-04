@@ -23,7 +23,7 @@ const FIELDS: Record<string, string> = {
   "vm show": "--fields: name, location, size, os, power, provisioning, id, computer, image, osDisk, dataDisks, totalDataDisks, nics, zone, availabilitySet, tags.",
   "vm get-instance-view": "--fields: name, power, provisioning, os, agent, computer, faultDomain, updateDomain, disks, totalDisks, extensions, totalExtensions.",
   "vmss list": "--fields: name, location, sku, capacity, orchestration, provisioning.",
-  "vmss show": "--fields: name, location, sku, capacity, orchestration, upgradeMode, computerPrefix, image, osType, zones, tags, provisioningState.",
+  "vmss show": "--fields: name, location, sku, capacity, orchestration, provisioning, upgradeMode, computerPrefix, image, osType, zones, tags.",
   "disk list": "--fields: name, location, sizeGb, sku, state, os.",
   "disk show": "--fields: name, location, sizeGb, sku, state, os, attached, id, timeCreated, encryption, networkAccess, zones, tags, provisioningState.",
 };

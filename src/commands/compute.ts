@@ -243,7 +243,7 @@ const DISK: GovernanceCollection = {
         sku: str(objOf(item.sku).name),
         state: str(props.diskState),
         os: str(props.osType),
-        attached: tailName(str(props.managedBy)),
+        attached: tailName(str(item.managedBy)),
         ...(full
           ? {
             id: item.id,
@@ -342,6 +342,9 @@ async function runVmShow(
     { method: "GET", path: getPath, apiVersion: COMPUTE, query: { $expand: "instanceView" } }));
   const body = vmDetailBody(item, full, limit);
   const fullBody = vmDetailBody(item, true, limit);
+  for (const field of fields ?? []) {
+    if (!(field in body)) body[field] = fullBody[field];
+  }
   const shortened = !full && JSON.stringify(pickFields([body], fields)) !==
     JSON.stringify(pickFields([fullBody], fields));
   const help: string[] = [
@@ -387,15 +390,15 @@ function instanceViewBody(view: InstanceView, name: string, full: boolean, limit
     provisioning: statusDisplay(statuses, "ProvisioningState/"),
     os: [str(view.osName), str(view.osVersion)].filter(Boolean).join(" "),
     agent: str(agent.vmAgentVersion) || statusDisplay(agent.statuses, "ProvisioningState/"),
+    disks: full ? disks : disks.slice(0, limit),
+    totalDisks: disks.length,
+    extensions: full ? extensions : extensions.slice(0, limit),
+    totalExtensions: extensions.length,
     ...(full
       ? {
         computer: str(view.computerName),
         faultDomain: view.platformFaultDomain ?? "",
         updateDomain: view.platformUpdateDomain ?? "",
-        disks: disks.slice(0, limit),
-        totalDisks: disks.length,
-        extensions: extensions.slice(0, limit),
-        totalExtensions: extensions.length,
       }
       : {}),
   };
@@ -469,8 +472,10 @@ async function runTop(top: string, collection: GovernanceCollection, argv: strin
       invalid(`--ids must be one ${collection.noun.slice(0, -1)} ARM ID under Microsoft.Compute/${collection.arm}`, path);
     }
   }
-  return runGovernanceShow(profile, args, collection, path, (subscription, group, name) =>
-    showPath(collection.arm, subscription, group, name, path));
+  return runGovernanceShow(profile, args, collection, path, (subscription, group, name) => {
+    if (!group) invalid(`${path} by name needs --resource-group`, path);
+    return `${basePath(subscription, group, collection.arm)}/${name}`;
+  });
 }
 
 export function runVm(argv: string[]): Promise<Record<string, unknown>> {
