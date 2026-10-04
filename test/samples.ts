@@ -1128,6 +1128,18 @@ export const computeVmsss = [computeVmss, {
         sku: "2022-datacenter-azure-edition", version: "latest" },
         osDisk: { osType: "Windows", createOption: "FromImage" } } } },
 }];
+export const computeVmssInstanceView = {
+  statuses: [
+    { code: "ProvisioningState/succeeded", displayStatus: "Provisioning succeeded", level: "Info",
+      message: "never-output-this-value" },
+    { code: "OrchestrationState/running", displayStatus: "Orchestration running", level: "Info" },
+  ],
+  virtualMachine: { statusesSummary: [
+    { code: "PowerState/running", count: 2 },
+    { code: "PowerState/deallocated", count: 1 },
+  ] },
+  extensions: [{ name: "CustomScript", message: "never-output-this-value" }],
+};
 // source: learn.microsoft.com/rest/api/compute/disks/get
 // (2024-03-02 "Get a managed disk" example, identifiers replaced).
 export const computeDisk = {

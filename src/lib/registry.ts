@@ -152,6 +152,7 @@ export const COMMAND_LEAVES = [
   { path: "vm get-instance-view", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "vmss list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "vmss show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "vmss get-instance-view", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
   { path: "disk list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "disk show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
 ] as const satisfies readonly CommandLeaf[];
@@ -269,7 +270,7 @@ const HELP_OVERVIEWS = {
   security: "az-axi security pricing|sub-assessment list|show  # Defender plans and assessment findings\naz-axi security alert update             # gated status update for one Defender alert",
   role: "az-axi role definition list|show            # built-in and custom role definitions with permission planes",
   vm: "az-axi vm list|show|get-instance-view        # virtual machines with live power state from the instance view",
-  vmss: "az-axi vmss list|show                      # virtual machine scale sets",
+  vmss: "az-axi vmss list|show|get-instance-view     # virtual machine scale sets and aggregate runtime state",
   disk: "az-axi disk list|show                      # managed disks, never SAS URIs",
   sentinel: "az-axi sentinel incident list|show|list-alert|list-entity|update|comment create  # Sentinel incidents and related alerts/entities in one Log Analytics workspace\naz-axi sentinel alert-rule list|show  # Sentinel analytics rules in one Log Analytics workspace\naz-axi sentinel data-connector list|show  # Sentinel data connectors in one Log Analytics workspace",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",

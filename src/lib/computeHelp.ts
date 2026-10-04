@@ -1,9 +1,10 @@
 const SELECTORS: Record<string, string> = {
   "vm list": "--resource-group / -g scopes the list; --name / -n filters one exact VM name.",
   "vm show": "--name / -n with --resource-group / -g in one subscription, or --ids <vm-ARM-id> alone.",
-  "vm get-instance-view": "--name / -n with --resource-group / -g in one subscription, or --ids <vm-ARM-id> (optionally suffixed with /instanceView) alone.",
+  "vm get-instance-view": "--name / -n with --resource-group / -g in one subscription, or --ids <vm-ARM-id> alone.",
   "vmss list": "--resource-group / -g scopes the list; --name / -n filters one exact scale-set name.",
   "vmss show": "--name / -n with --resource-group / -g in one subscription, or --ids <scale-set-ARM-id> alone.",
+  "vmss get-instance-view": "--name / -n with --resource-group / -g in one subscription, or --ids <scale-set-ARM-id> alone.",
   "disk list": "--resource-group / -g scopes the list; --name / -n filters one exact disk name.",
   "disk show": "--name / -n with --resource-group / -g in one subscription, or --ids <disk-ARM-id> alone.",
 };
@@ -13,7 +14,8 @@ const DETAIL: Record<string, string> = {
   "vm show": "Show reads the VM model with $expand=instanceView in one GET and returns size, OS, image, disks and NICs with the live power and provisioning states taken from the instance-view statuses. Admin passwords, custom data, secrets, user data and boot-diagnostic blob URIs are never requested or printed; only the computer name is projected from the OS profile. VM start, stop, restart, deallocate, redeploy, reimage and run-command actions stay out.",
   "vm get-instance-view": "Show returns the runtime view: live power and provisioning states, OS name and version, agent version, fault and update domains, per-disk statuses and per-extension statuses. Data-disk and extension rows are capped at --limit with totals disclosed; --full shows every nested row. Boot-diagnostic blob URIs, patch details and maintenance status stay out.",
   "vmss list": "Rows default to name, location, SKU, capacity, orchestration (Uniform or Flexible) and provisioning state.",
-  "vmss show": "Show returns the SKU and capacity, orchestration mode, upgrade-policy mode, computer-name prefix, image reference and zones. Admin passwords, custom data and secrets are never printed; only the computer-name prefix is projected from the OS profile. Scale-set instance, start, stop, restart, deallocate, reimage and run-command actions stay out.",
+  "vmss show": "Show returns the SKU and capacity, orchestration mode, upgrade-policy mode, computer-name prefix, image reference and zones. Admin passwords, custom data and secrets are never printed; only the computer-name prefix is projected from the OS profile. Use get-instance-view for aggregate runtime state. Per-VM-instance reads and scale-set start, stop, restart, deallocate, reimage and run-command actions stay out.",
+  "vmss get-instance-view": "One GET returns aggregate runtime state: statuses (code, displayStatus, level) and vmStatuses (code, count for VMs with that status). Each array is capped at --limit with its total row count disclosed; --full shows every row. Status messages, extension details, per-VM-instance reads and all actions stay out.",
   "disk list": "Rows default to name, location, size in GiB, SKU, state (Attached, Unattached, Reserved and SAS states are names only) and OS type.",
   "disk show": "Show returns the size, SKU, state, OS type and attachment (the owning VM or disk, when any). Grant-access SAS URIs and export actions are never called; only the disk state name is printed. Disk create, update, delete, grant and revoke actions stay out.",
 };
@@ -24,6 +26,7 @@ const FIELDS: Record<string, string> = {
   "vm get-instance-view": "--fields: name, power, provisioning, os, agent, computer, faultDomain, updateDomain, disks, totalDisks, extensions, totalExtensions.",
   "vmss list": "--fields: name, location, sku, capacity, orchestration, provisioning.",
   "vmss show": "--fields: name, location, sku, capacity, orchestration, provisioning, upgradeMode, computerPrefix, image, osType, zones, tags.",
+  "vmss get-instance-view": "--fields: name, statuses, totalStatuses, vmStatuses, totalVmStatuses.",
   "disk list": "--fields: name, location, sizeGb, sku, state, os.",
   "disk show": "--fields: name, location, sizeGb, sku, state, os, attached, id, timeCreated, encryption, networkAccess, zones, tags, provisioningState.",
 };
@@ -52,9 +55,10 @@ export const VM_HELP = [
 ].join("\n");
 
 export const VMSS_HELP = [
-  "az-axi vmss list|show",
+  "az-axi vmss list|show|get-instance-view",
   computeLeafHelp("vmss list"),
   computeLeafHelp("vmss show"),
+  computeLeafHelp("vmss get-instance-view"),
 ].join("\n");
 
 export const DISK_HELP = [

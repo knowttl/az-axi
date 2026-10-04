@@ -12,7 +12,7 @@ import { clearSubscriptionCache } from "../src/lib/scope.js";
 import {
   SUB_A, SUB_B,
   computeDisk, computeDisks, computeInstanceView, computeVm, computeVmExpanded, computeVms,
-  computeVmss, computeVmsss,
+  computeVmss, computeVmsss, computeVmssInstanceView,
 } from "./samples.js";
 
 const allMock = vi.mocked(requestAll);
@@ -43,6 +43,7 @@ function mockTransport() {
       return (query["$expand"] === "instanceView" ? computeVmExpanded : computeVm) as never;
     }
     if (path.toLowerCase() === `${computeVm.id.toLowerCase()}/instanceview`) return computeInstanceView as never;
+    if (path.toLowerCase() === `${computeVmss.id.toLowerCase()}/instanceview`) return computeVmssInstanceView as never;
     for (const item of [computeVmss, computeDisk]) {
       if (path.toLowerCase() === item.id.toLowerCase()) return item as never;
     }
@@ -208,6 +209,18 @@ describe("vm show", () => {
 });
 
 describe("vm get-instance-view", () => {
+  it.each([
+    ["--ids", computeVm.id.replace(/vm-demo$/, "instanceView")],
+    ["--name", "instanceView", "--resource-group", "rg-demo"],
+  ])("reads runtime state for a VM named instanceView using %j", async (...selector) => {
+    requestMock.mockResolvedValueOnce(computeInstanceView as never);
+    const result = await runVm(["get-instance-view", ...selector]);
+    expect(result).toMatchObject({ name: "instanceView", power: "VM running" });
+    expect(requestMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      path: computeVm.id.replace(/vm-demo$/, "instanceView/instanceView"),
+    }));
+  });
+
   it("returns the runtime view by name and by ARM ID", async () => {
     const result = await runVm(["get-instance-view", "--name", "vm-demo", "--resource-group", "rg-demo"]);
     expect(result).toMatchObject({
@@ -222,7 +235,7 @@ describe("vm get-instance-view", () => {
     expect(options[0]!["path"]).toBe(`${computeVm.id}/instanceView`);
     expect(options[0]!["method"]).toBe("GET");
     expect(options[0]!["apiVersion"]).toBe("2024-11-01");
-    const byId = await runVm(["get-instance-view", "--ids", `${computeVm.id}/instanceView`, "--full"]);
+    const byId = await runVm(["get-instance-view", "--ids", computeVm.id, "--full"]);
     expect(byId).toMatchObject({
       computer: "vm-demo",
       totalDisks: 2,
@@ -252,6 +265,55 @@ describe("vm get-instance-view", () => {
     const full = await runVm(["get-instance-view", "--ids", computeVm.id, "--limit", "1", "--fields", field, "--full"]);
     expect(full[field]).toHaveLength(2);
     expect(full).not.toHaveProperty("help");
+  });
+});
+
+describe("vmss get-instance-view", () => {
+  it.each([
+    ["--ids", computeVmss.id],
+    ["--name", "vmss-demo", "--resource-group", "rg-demo"],
+  ])("returns aggregate statuses and VM counts using %j", async (...selector) => {
+    const result = await runVmss(["get-instance-view", ...selector]);
+    expect(result).toMatchObject({
+      name: "vmss-demo",
+      statuses: [
+        { code: "ProvisioningState/succeeded", displayStatus: "Provisioning succeeded", level: "Info" },
+        { code: "OrchestrationState/running", displayStatus: "Orchestration running", level: "Info" },
+      ],
+      totalStatuses: 2,
+      vmStatuses: [{ code: "PowerState/running", count: 2 }, { code: "PowerState/deallocated", count: 1 }],
+      totalVmStatuses: 2,
+    });
+    expect(requestMock).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+      method: "GET", path: `${computeVmss.id}/instanceView`, apiVersion: "2024-11-01",
+    });
+    expect(JSON.stringify(result)).not.toContain("never-output-this-value");
+    expect(result).not.toHaveProperty("help");
+  });
+
+  it.each(["statuses", "vmStatuses"])("bounds selected %s and reveals every row in full", async (field) => {
+    const capped = await runVmss(["get-instance-view", "--ids", computeVmss.id, "--limit", "1", "--fields", field]);
+    expect(capped[field]).toHaveLength(1);
+    expect(capped.help).toEqual([expect.stringContaining("--full")]);
+    const full = await runVmss(["get-instance-view", "--ids", computeVmss.id, "--limit", "1", "--fields", field, "--full"]);
+    expect(full[field]).toHaveLength(2);
+    expect(full).not.toHaveProperty("help");
+    expect(JSON.stringify(full)).not.toContain("never-output-this-value");
+  });
+
+  it("discloses totals when default rows are capped", async () => {
+    const result = await runVmss(["get-instance-view", "--ids", computeVmss.id, "--limit", "1"]);
+    expect(result).toMatchObject({ totalStatuses: 2, totalVmStatuses: 2 });
+    expect(result.statuses).toHaveLength(1);
+    expect(result.vmStatuses).toHaveLength(1);
+    expect(result.help).toEqual([expect.stringContaining("--full")]);
+  });
+
+  it("returns explicit empty status arrays when none exist", async () => {
+    requestMock.mockResolvedValueOnce({} as never);
+    expect(await runVmss(["get-instance-view", "--ids", computeVmss.id])).toMatchObject({
+      statuses: [], totalStatuses: 0, vmStatuses: [], totalVmStatuses: 0,
+    });
   });
 });
 
@@ -341,6 +403,7 @@ describe("compute validation", () => {
     [runVm, "show", computeVmExpanded],
     [runVm, "get-instance-view", computeInstanceView],
     [runVmss, "show", computeVmss],
+    [runVmss, "get-instance-view", computeVmssInstanceView],
     [runDisk, "show", computeDisk],
   ] as const)("encodes Unicode resource groups once for named reads %#", async (run, verb, item) => {
     requestMock.mockResolvedValueOnce(item as never);
@@ -357,12 +420,19 @@ describe("compute validation", () => {
     ["vm", ["show", "--ids", "/subscriptions/not-a-guid/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo"]],
     ["vm", ["get-instance-view", "--name", "vm-demo"]],
     ["vm", ["get-instance-view", "--ids", computeDisk.id]],
+    ["vm", ["get-instance-view", "--ids", `${computeVm.id}/instanceView`]],
     ["vm", ["start"]],
     ["vm", ["list", "--bogus", "x"]],
     ["vm", ["list", "--limit", "0"]],
     ["vm", ["list", "--fields", "properties"]],
     ["vmss", ["show", "--name", "vmss-demo"]],
     ["vmss", ["show", "--ids", computeVm.id]],
+    ["vmss", ["get-instance-view", "--name", "vmss-demo"]],
+    ["vmss", ["get-instance-view", "--ids", computeVm.id]],
+    ["vmss", ["get-instance-view", "--ids", `${computeVmss.id}/instanceView`]],
+    ["vmss", ["get-instance-view", "--ids", `${computeVmss.id}/virtualMachines/0`]],
+    ["vmss", ["get-instance-view", "--ids", computeVmss.id, "--name", "vmss-demo", "--resource-group", "rg-demo"]],
+    ["vmss", ["get-instance-view", "--ids", computeVmss.id, "--fields", "message"]],
     ["disk", ["show", "--name", "disk-demo"]],
     ["disk", ["show", "--ids", computeVm.id]],
     ["disk", ["list", "--fields", "sasUri"]],
@@ -378,6 +448,7 @@ describe("compute validation", () => {
       [runVm, ["list"]], [runVm, ["show", "--name", "vm-demo", "--resource-group", "rg-demo"]],
       [runVm, ["get-instance-view", "--ids", computeVm.id]],
       [runVmss, ["list"]], [runDisk, ["list"]],
+      [runVmss, ["get-instance-view", "--ids", computeVmss.id]],
     ] as const) {
       await expect(run([...argv, "--management-group", "mg-demo"])).rejects.toThrow("management-group scope is unsupported");
       expect(allMock).not.toHaveBeenCalled();

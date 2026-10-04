@@ -8,7 +8,7 @@ import { leafHelp, COMMAND_LEAVES, type CommandLeaf } from "../src/lib/registry.
 import {
   SUB_A,
   computeDisk, computeDisks, computeInstanceView, computeVm, computeVmExpanded, computeVms,
-  computeVmss, computeVmsss, subscriptionList,
+  computeVmss, computeVmsss, computeVmssInstanceView, subscriptionList,
 } from "./samples.js";
 
 describe("built CLI compute reads offline", () => {
@@ -23,7 +23,7 @@ describe("built CLI compute reads offline", () => {
   function run(argv: string[], mode = "normal") {
     const stub = `
       const data = ${JSON.stringify({
-        computeVms, computeVmExpanded, computeInstanceView, computeVmsss, computeDisks, subscriptionList,
+        computeVms, computeVmExpanded, computeInstanceView, computeVmsss, computeVmssInstanceView, computeDisks, subscriptionList,
       })};
       const mode = ${JSON.stringify(mode)};
       const itemsFor = (path) => {
@@ -48,7 +48,8 @@ describe("built CLI compute reads offline", () => {
         if (path.toLowerCase().endsWith('/instanceview')) {
           const found = match(path.slice(0, -'/instanceView'.length));
           if (!found) return Response.json({error:{code:'NotFound',message:'Missing'}},{status:404});
-          return Response.json(data.computeInstanceView);
+          return Response.json(found.type === 'Microsoft.Compute/virtualMachineScaleSets'
+            ? data.computeVmssInstanceView : data.computeInstanceView);
         }
         const found = match(path);
         if (!found) return Response.json({error:{code:'NotFound',message:'Missing'}},{status:404});
@@ -102,6 +103,18 @@ describe("built CLI compute reads offline", () => {
     expect(run(["vmss", "show", "--ids", computeVmss.id]).stdout).toContain("Flexible");
   });
 
+  it("reads scale-set aggregate runtime counts through one GET", () => {
+    const result = run(["vmss", "get-instance-view", "--ids", computeVmss.id, "--full", "--limit", "1"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({
+      totalStatuses: 2, totalVmStatuses: 2,
+      vmStatuses: [{ code: "PowerState/running", count: 2 }, { code: "PowerState/deallocated", count: 1 }],
+    });
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+    expect(result.stderr).toContain("virtualMachineScaleSets/vmss-demo/instanceView?api-version=2024-11-01");
+    expect(result.stdout).not.toContain("never-output-this-value");
+  });
+
   it("lists disks and shows one by ARM ID without secret actions", () => {
     const list = run(["disk", "list", ...selectors]);
     expect(list.status, list.stdout).toBe(0);
@@ -140,9 +153,12 @@ describe("built CLI compute reads offline", () => {
     ["vm", "show", "--ids", computeDisk.id],
     ["vm", "get-instance-view", "--name", "vm-demo"],
     ["vm", "get-instance-view", "--ids", computeVmss.id],
+    ["vm", "get-instance-view", "--ids", `${computeVm.id}/instanceView`],
     ["vm", "list", "--name", "a", "--name", "b"],
     ["vmss", "show", "--name", "vmss-demo"],
     ["vmss", "show", "--ids", computeVm.id],
+    ["vmss", "get-instance-view", "--ids", `${computeVmss.id}/virtualMachines/0`],
+    ["vmss", "get-instance-view", "--ids", `${computeVmss.id}/instanceView`],
     ["disk", "show", "--name", "disk-demo"],
     ["disk", "show", "--ids", computeVmss.id],
     ["disk", "list", ...selectors, "--management-group", "mg-demo"],

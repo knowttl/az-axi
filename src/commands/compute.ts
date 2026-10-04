@@ -273,29 +273,26 @@ function showPath(arm: string, subscription: string, group: string | undefined, 
   return `${basePath(subscription, segment(group, "resource-group", path), arm)}/${segment(name, "name", path)}`;
 }
 
-/** One VM selected by name (with resource group, in one subscription) or by ARM ID. */
-async function resolveVmTarget(
+async function resolveComputeTarget(
   profile: ReturnType<typeof profileFromArgs>,
   args: ParsedArgs,
   path: string,
-  forInstanceView: boolean,
-): Promise<{ getPath: string; subscription: string; vmName: string }> {
+  collection: GovernanceCollection,
+): Promise<{ getPath: string; subscription: string; name: string }> {
   const name = flagText(args, "name");
   const groupFlag = flagText(args, "resource-group");
   const ids = flagText(args, "ids");
   if (name && ids) invalid(`${path} takes --name or --ids, not both`, path);
-  if (!name && !ids) invalid(`${path} needs --name with --resource-group, or --ids <vm-ARM-id>`, path);
+  if (!name && !ids) invalid(`${path} needs --name with --resource-group, or --ids <ARM-id>`, path);
   if (ids && (groupFlag || name)) {
-    invalid("--ids selects the VM itself; name and scope selectors are not accepted with --ids", path);
+    invalid("--ids selects the resource itself; name and scope selectors are not accepted with --ids", path);
   }
   if (!ids && !groupFlag) invalid(`${path} by name needs --resource-group`, path);
   if (ids) {
     const id = ids.trim();
     if (/[?#%\\]/.test(id)) invalid("--ids requires an unescaped ARM resource ID without a query or fragment", path);
-    if (forInstanceView ? !INSTANCE_VIEW_ID.test(id) : !VM.idTail.test(id)) {
-      invalid(forInstanceView
-        ? "--ids must be one virtual-machine ARM ID under Microsoft.Compute/virtualMachines, optionally suffixed with /instanceView"
-        : "--ids must be one virtual-machine ARM ID under Microsoft.Compute/virtualMachines", path);
+    if (!collection.idTail.test(id)) {
+      invalid(`--ids must be one ${collection.noun.slice(0, -1)} ARM ID under Microsoft.Compute/${collection.arm}`, path);
     }
     const subMatch = /^\/subscriptions\/([^/]+)\//i.exec(id);
     if (!subMatch || !GUID.test(subMatch[1]!)) invalid("--ids must carry a subscription GUID", path);
@@ -304,18 +301,17 @@ async function resolveVmTarget(
     if (!selected.some((selectedId) => selectedId.toLowerCase() === subscription.toLowerCase())) {
       invalid("--ids conflicts with selected subscriptions", path);
     }
-    const base = id.replace(/\/instanceView$/i, "");
     return {
-      getPath: forInstanceView && !/\/instanceView$/i.test(id) ? `${id}/instanceView` : id,
+      getPath: id,
       subscription,
-      vmName: tailName(base),
+      name: tailName(id),
     };
   }
   const selected = await subscriptions(profile);
   if (selected.length !== 1) invalid(`${path} by name needs exactly one subscription; use --subscription <id>`, path);
   const subscription = selected[0]!;
-  const base = showPath(VM.arm, subscription, groupFlag, name!, path);
-  return { getPath: forInstanceView ? `${base}/instanceView` : base, subscription, vmName: name! };
+  const getPath = showPath(collection.arm, subscription, groupFlag, name!, path);
+  return { getPath, subscription, name: name!.trim() };
 }
 
 /**
@@ -336,7 +332,7 @@ async function runVmShow(
     invalid(`${path} --fields supports only: ${showFields.join(", ")}`, path);
   }
   const suffix = selectorSuffix(args);
-  const { getPath, subscription } = await resolveVmTarget(profile, args, path, false);
+  const { getPath, subscription } = await resolveComputeTarget(profile, args, path, VM);
 
   const item = redact(await request<GovernanceItem>(profile,
     { method: "GET", path: getPath, apiVersion: COMPUTE, query: { $expand: "instanceView" } }));
@@ -404,34 +400,46 @@ function instanceViewBody(view: InstanceView, name: string, full: boolean, limit
   };
 }
 
-const INSTANCE_VIEW_FIELDS = ["name", "power", "provisioning", "os", "agent",
-  "computer", "faultDomain", "updateDomain", "disks", "totalDisks", "extensions", "totalExtensions"];
-const INSTANCE_VIEW_ID =
-  /^\/subscriptions\/[^/]+\/resourceGroups\/[^/]+\/providers\/Microsoft\.Compute\/virtualMachines\/[^/]+(\/instanceView)?$/i;
+function scaleSetInstanceViewBody(view: InstanceView, name: string, full: boolean, limit: number): AnyObj {
+  const statuses = arrOf(view.statuses).map((status) => ({
+    code: full ? str(status.code) : truncate(str(status.code), CELL_TRUNCATE).text,
+    displayStatus: full ? str(status.displayStatus) : truncate(str(status.displayStatus), CELL_TRUNCATE).text,
+    level: full ? str(status.level) : truncate(str(status.level), CELL_TRUNCATE).text,
+  }));
+  const vmStatuses = arrOf(objOf(view.virtualMachine).statusesSummary).map((status) => ({
+    code: full ? str(status.code) : truncate(str(status.code), CELL_TRUNCATE).text,
+    count: status.count ?? "",
+  }));
+  return {
+    name,
+    statuses: full ? statuses : statuses.slice(0, limit),
+    totalStatuses: statuses.length,
+    vmStatuses: full ? vmStatuses : vmStatuses.slice(0, limit),
+    totalVmStatuses: vmStatuses.length,
+  };
+}
 
-/**
- * `vm get-instance-view`: one dedicated instanceView GET. Only the runtime
- * view is projected; boot-diagnostic blob URIs, patch details and maintenance
- * status are never printed.
- */
-async function runVmInstanceView(
+async function runInstanceView(
   profile: ReturnType<typeof profileFromArgs>,
   args: ParsedArgs,
   path: string,
+  collection: GovernanceCollection,
 ): Promise<Record<string, unknown>> {
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
-  if (fields?.some((field) => !INSTANCE_VIEW_FIELDS.includes(field))) {
-    invalid(`${path} --fields supports only: ${INSTANCE_VIEW_FIELDS.join(", ")}`, path);
-  }
   const limitValue = governanceLimit(args, path);
+  const detail = collection === VM ? instanceViewBody : scaleSetInstanceViewBody;
+  const supportedFields = Object.keys(detail({}, "", true, limitValue));
+  if (fields?.some((field) => !supportedFields.includes(field))) {
+    invalid(`${path} --fields supports only: ${supportedFields.join(", ")}`, path);
+  }
   const suffix = selectorSuffix(args);
-  const { getPath, subscription, vmName } = await resolveVmTarget(profile, args, path, true);
+  const { getPath, subscription, name } = await resolveComputeTarget(profile, args, path, collection);
 
   const view = redact(await request<InstanceView>(profile,
-    { method: "GET", path: getPath, apiVersion: COMPUTE }));
-  const body = instanceViewBody(view, vmName, full, limitValue);
-  const fullBody = instanceViewBody(view, vmName, true, limitValue);
+    { method: "GET", path: `${getPath}/instanceView`, apiVersion: COMPUTE }));
+  const body = detail(view, name, full, limitValue);
+  const fullBody = detail(view, name, true, limitValue);
   for (const field of fields ?? []) {
     if (!(field in body)) body[field] = fullBody[field];
   }
@@ -449,8 +457,8 @@ async function runTop(top: string, collection: GovernanceCollection, argv: strin
   const args = parseArgs(argv);
   const verb = args.positionals[0];
   const path = `${top} ${verb}`;
-  const expected = top === "vm" ? "expected vm list|show|get-instance-view" : `expected ${top} list|show`;
-  if (verb !== "list" && verb !== "show" && !(top === "vm" && verb === "get-instance-view")) {
+  const expected = `expected ${top} list|show${top === "disk" ? "" : "|get-instance-view"}`;
+  if (verb !== "list" && verb !== "show" && !(top !== "disk" && verb === "get-instance-view")) {
     invalid(expected, path);
   }
   if (args.positionals.length !== 1) {
@@ -462,7 +470,7 @@ async function runTop(top: string, collection: GovernanceCollection, argv: strin
     invalid(`management-group scope is unsupported for ${top} reads; select subscriptions explicitly`, path);
   }
   if (verb === "list") return runGovernanceList(profile, args, collection, path);
-  if (top === "vm" && verb === "get-instance-view") return runVmInstanceView(profile, args, path);
+  if (verb === "get-instance-view") return runInstanceView(profile, args, path, collection);
   if (top === "vm") return runVmShow(profile, args, path);
   const ids = flagText(args, "ids");
   if (ids) {

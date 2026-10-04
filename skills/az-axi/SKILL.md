@@ -143,6 +143,7 @@ The offline test suite checks this list against the registry.
 | `az-axi vm get-instance-view` | native | read |
 | `az-axi vmss list` | native | read |
 | `az-axi vmss show` | native | read |
+| `az-axi vmss get-instance-view` | native | read |
 | `az-axi disk list` | native | read |
 | `az-axi disk show` | native | read |
 <!-- command-registry:end -->
@@ -223,6 +224,7 @@ az-axi vm show --name vm-demo -g rg-demo
 az-axi vm get-instance-view --name vm-demo -g rg-demo
 az-axi vmss list -g rg-demo
 az-axi vmss show --name vmss-demo -g rg-demo
+az-axi vmss get-instance-view --name vmss-demo -g rg-demo
 az-axi disk list -g rg-demo
 az-axi disk show --name disk-demo -g rg-demo
 ```
