@@ -7,6 +7,7 @@ import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
 import { NETWORK_HELP, NETWORK_RECORD_TYPES, networkLeafHelp } from "./networkHelp.js";
 import { DENY_ASSIGNMENT_HELP, governanceLeafHelp, LOCK_HELP, POLICY_HELP } from "./governanceHelp.js";
 import { ROLE_HELP, roleLeafHelp } from "./roleHelp.js";
+import { DISK_HELP, VM_HELP, VMSS_HELP, computeLeafHelp } from "./computeHelp.js";
 import { MONITOR_READS_HELP, monitorLeafHelp } from "./monitorHelp.js";
 import { SECURITY_READS_HELP, securityReadLeafHelp } from "./securityHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
@@ -146,6 +147,13 @@ export const COMMAND_LEAVES = [
     { path: `network dns record-set ${type} list`, effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", name: "value" } },
     { path: `network dns record-set ${type} show`, effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", "zone-name": "value", name: "value" } },
   ] as const),
+  { path: "vm list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "vm show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "vm get-instance-view", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "vmss list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "vmss show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "disk list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "disk show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -200,6 +208,9 @@ const LOADERS = {
   keyvault: () => import("../commands/keyvault.js"),
   acr: () => import("../commands/acr.js"),
   network: () => import("../commands/network.js"),
+  vm: () => import("../commands/vm.js"),
+  vmss: () => import("../commands/vmss.js"),
+  disk: () => import("../commands/disk.js"),
   policy: () => import("../commands/policy.js"),
   lock: () => import("../commands/lock.js"),
   "deny-assignment": () => import("../commands/denyAssignment.js"),
@@ -257,6 +268,9 @@ const HELP_OVERVIEWS = {
   defender: "az-axi defender alerts|assessments|score  # Defender for Cloud posture",
   security: "az-axi security pricing|sub-assessment list|show  # Defender plans and assessment findings\naz-axi security alert update             # gated status update for one Defender alert",
   role: "az-axi role definition list|show            # built-in and custom role definitions with permission planes",
+  vm: "az-axi vm list|show|get-instance-view        # virtual machines with live power state from the instance view",
+  vmss: "az-axi vmss list|show                      # virtual machine scale sets",
+  disk: "az-axi disk list|show                      # managed disks, never SAS URIs",
   sentinel: "az-axi sentinel incident list|show|list-alert|list-entity|update|comment create  # Sentinel incidents and related alerts/entities in one Log Analytics workspace\naz-axi sentinel alert-rule list|show  # Sentinel analytics rules in one Log Analytics workspace\naz-axi sentinel data-connector list|show  # Sentinel data connectors in one Log Analytics workspace",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
@@ -277,6 +291,7 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
   if (path.startsWith("monitor metrics") || path.startsWith("monitor action-group") || path.startsWith("monitor diagnostic-settings")) {
     return monitorLeafHelp(path);
   }
+  if (path.startsWith("vm ") || path.startsWith("vmss ") || path.startsWith("disk ")) return computeLeafHelp(path);
   if (path.startsWith("storage ")) return storageLeafHelp(path);
   if (path.startsWith("keyvault ")) return keyvaultLeafHelp(path);
   if (path.startsWith("acr ")) return acrLeafHelp(path);
@@ -401,6 +416,9 @@ const HELP_TEXT = {
   lock: LOCK_HELP,
   "deny-assignment": DENY_ASSIGNMENT_HELP,
   role: ROLE_HELP,
+  vm: VM_HELP,
+  vmss: VMSS_HELP,
+  disk: DISK_HELP,
   security: [SECURITY_READS_HELP, ALERT_UPDATE_HELP].join("\n"),
   account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
   monitor: ["az-axi monitor log-analytics workspace list|show", "See also the monitor-shaped canonical paths routed through their native modules: monitor log-analytics query (alias of logs query) and monitor activity-log list (alias of activity list).", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"], MONITOR_READS_HELP].join("\n"),

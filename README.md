@@ -284,6 +284,13 @@ az-axi network dns zone list -g rg-demo
 az-axi network dns zone show --name example.com -g rg-demo
 az-axi network dns record-set list -g rg-demo --zone-name example.com
 az-axi network dns record-set a show -g rg-demo --zone-name example.com --name www
+az-axi vm list -g rg-demo
+az-axi vm show --name vm-demo -g rg-demo
+az-axi vm get-instance-view --name vm-demo -g rg-demo
+az-axi vmss list -g rg-demo
+az-axi vmss show --name vmss-demo -g rg-demo
+az-axi disk list -g rg-demo
+az-axi disk show --name disk-demo -g rg-demo
 az-axi policy assignment list -g rg-demo
 az-axi policy assignment show --name CostManagement
 az-axi policy definition list
@@ -374,6 +381,19 @@ DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of lit
 `--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
 Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys and private DNS zones stay out of scope; native network writes are limited to [`network nsg rule create`](#writes).
 `exposure` keeps its canned checks unchanged.
+Management-group scope is unsupported; select subscriptions explicitly.
+
+Compute reads (`vm list|show|get-instance-view`, `vmss list|show`, `disk list|show`) use read-only ARM GETs against Microsoft.Compute: virtual machines and scale sets use api-version 2024-11-01; managed disks use api-version 2024-03-02.
+Lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `byLocation` aggregates.
+Show by name needs `--name` with `--resource-group` in exactly one subscription; `--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
+VM list rows default to name, location, size, OS and the model provisioning state; lists carry no live power state.
+`vm show` reads the model with `$expand=instanceView` in one GET and returns the live power and provisioning states from the instance-view statuses plus size, OS, image, disks and NICs; `vm get-instance-view` returns the dedicated runtime view with the agent version, fault and update domains and per-disk and per-extension statuses.
+VMSS rows default to name, location, SKU, capacity, orchestration mode and provisioning state; show adds the upgrade-policy mode, computer-name prefix, image reference and zones.
+Disk rows default to name, location, size in GiB, SKU, state and OS type; show adds the attachment, encryption type and network-access policy.
+No view returns admin passwords, custom data, secrets, user data, keys, SAS URIs or boot-diagnostic blob URIs; only the computer name (VMs) or computer-name prefix (scale sets) is projected from OS profiles.
+VM and scale-set actions (start, stop, restart, deallocate, reimage, run-command), disk grant-access and export, and image, snapshot, restore-point, gallery and host resources stay out of scope; there are no native compute mutation commands.
+Data-disk, disk-status and extension rows are capped at `--limit` with totals disclosed; `--full` shows every nested row and adds safe metadata.
+`--limit` defaults to 50 and accepts integers from 1 to 1000; lists follow up to 100 pages per subscription and mark incomplete counts as lower bounds.
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Governance inventory reads (`policy assignment|definition|set-definition list|show`, `lock list|show`, `deny-assignment list|show`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01.

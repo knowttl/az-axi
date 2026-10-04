@@ -1,6 +1,7 @@
 import { AxiError } from "axi-sdk-js";
 import { flagBool, flagList, flagNumber, flagText, type ParsedArgs } from "./args.js";
 import { request, requestAll, type RequestOptions } from "./client.js";
+import { computeLeafHelp } from "./computeHelp.js";
 import type { ResolvedProfile } from "./config.js";
 import { subscriptions } from "./discovery.js";
 import { countLine, emptyState, pickFields } from "./format.js";
@@ -68,6 +69,7 @@ export function governanceInvalid(message: string, path: string): never {
   const help = path.startsWith("role ") ? roleLeafHelp(path)
     : path.startsWith("security ") ? securityReadLeafHelp(path)
     : path.startsWith("monitor ") ? monitorLeafHelp(path)
+    : path.startsWith("vm ") || path.startsWith("vmss ") || path.startsWith("disk ") ? computeLeafHelp(path)
     : governanceLeafHelp(path);
   throw new AxiError(message, "VALIDATION_ERROR", [help]);
 }

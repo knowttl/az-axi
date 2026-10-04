@@ -204,11 +204,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 38, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show", "Skipped monitor-diagnostic-settings", "Skipped monitor-metrics"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 39, notes: ["Skipped resource-show", "Skipped workspace-show", "Skipped monitor-diagnostic-settings", "Skipped monitor-metrics"], detailCalls: [
+    { details: {}, count: 41, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show", "Skipped monitor-diagnostic-settings", "Skipped monitor-metrics"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 42, notes: ["Skipped resource-show", "Skipped workspace-show", "Skipped monitor-diagnostic-settings", "Skipped monitor-metrics"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 41, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 44, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -264,11 +264,11 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[43]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[40]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
-    { omitted: [], rows: "rows[43]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
-    { omitted: [], rows: "rows[43]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
-    { omitted: [], rows: "rows[43]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
+    { omitted: [], rows: "rows[46]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[43]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[46]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[46]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
+    { omitted: [], rows: "rows[46]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
   ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped, empty Sentinel $sentinelEmpty", ({ omitted, rows, notes, duplicate, capped, sentinelEmpty }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
@@ -369,7 +369,8 @@ describe("benchmark surface", () => {
         ];
       } else if (scenario.name === "monitor-activity") {
         responses = [response("GET", { value: [] })];
-      } else if (scenario.name.startsWith("network-") || scenario.name === "policy-assignment" ||
+      } else if (scenario.name.startsWith("network-") || scenario.name === "vm-list" ||
+        scenario.name === "vmss-list" || scenario.name === "disk-list" || scenario.name === "policy-assignment" ||
         scenario.name === "policy-definition" || scenario.name === "policy-set-definition" ||
         scenario.name === "lock" || scenario.name === "deny-assignment" ||
         scenario.name === "role-definition" || scenario.name === "security-pricing" ||
@@ -459,7 +460,7 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(29);
+    expect(Object.keys(result.help)).toHaveLength(32);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 
@@ -467,7 +468,7 @@ describe("benchmark surface", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
       "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "sentinel-alert-rules", "sentinel-data-connectors", "security-scores", "network-nsg", "network-nic", "network-vnet", "network-public-ip", "network-private-endpoint", "network-dns-zone", "policy-assignment", "policy-definition", "policy-set-definition", "policy-state", "lock", "deny-assignment", "role-definition", "security-pricing", "monitor-metrics-alerts", "monitor-action-groups", "monitor-diagnostic-settings", "monitor-metrics", "security-sub-assessment", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "sentinel-alert-rules", "sentinel-data-connectors", "security-scores", "network-nsg", "network-nic", "network-vnet", "network-public-ip", "network-private-endpoint", "network-dns-zone", "vm-list", "vmss-list", "disk-list", "policy-assignment", "policy-definition", "policy-set-definition", "policy-state", "lock", "deny-assignment", "role-definition", "security-pricing", "monitor-metrics-alerts", "monitor-action-groups", "monitor-diagnostic-settings", "monitor-metrics", "security-sub-assessment", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");

@@ -1031,3 +1031,121 @@ export const monitorMetricValues = {
     ] }],
   }],
 };
+// source: learn.microsoft.com/rest/api/compute/virtual-machines/get and
+// instance-view (2024-11-01 shapes, identifiers replaced). The hostile
+// osProfile members must never reach output rows.
+const computeVmId = (name: string) =>
+  `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/${name}`;
+const computeDiskId = (name: string) =>
+  `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/disks/${name}`;
+export const computeVm = {
+  id: computeVmId("vm-demo"), name: "vm-demo", type: "Microsoft.Compute/virtualMachines", location: "westus",
+  tags: { env: "test" },
+  properties: {
+    vmId: SYN(30), provisioningState: "Succeeded", timeCreated: "2026-09-01T00:00:00Z",
+    hardwareProfile: { vmSize: "Standard_D2s_v3" },
+    storageProfile: {
+      imageReference: { publisher: "Canonical", offer: "UbuntuServer", sku: "22.04-LTS", version: "latest" },
+      osDisk: { osType: "Linux", name: "vm-demo-os", diskSizeGB: 30,
+        managedDisk: { storageAccountType: "Premium_LRS", id: computeDiskId("vm-demo-os") } },
+      dataDisks: [
+        { lun: 0, name: "vm-demo-data0", diskSizeGB: 128,
+          managedDisk: { storageAccountType: "Premium_LRS", id: computeDiskId("vm-demo-data0") } },
+        { lun: 1, name: "vm-demo-data1", diskSizeGB: 256,
+          managedDisk: { storageAccountType: "Premium_LRS", id: computeDiskId("vm-demo-data1") } },
+      ],
+    },
+    osProfile: { computerName: "vm-demo", adminUsername: "never-output-this-value",
+      adminPassword: "never-output-this-value", customData: "bmV2ZXItb3V0cHV0LXPoaXMtdmFsdWU=",
+      secrets: [{ sourceVault: { id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.KeyVault/vaults/kv-demo` },
+        vaultCertificates: [{ certificateUrl: "https://kv-demo.vault.azure.net/secrets/never-output-this-value",
+          certificateStore: "My" }] }] },
+    networkProfile: { networkInterfaces: [{ id: networkId("networkInterfaces", "nic-demo") }] },
+    availabilitySet: { id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/availabilitySets/as-demo` },
+    diagnosticsProfile: { bootDiagnostics: { enabled: true, storageUri: "https://stexample.blob.core.windows.net" } },
+  },
+  zones: ["1"],
+  resources: [{ name: "CustomScript", properties: { settings: { commandToExecute: "never-output-this-value" } } }],
+};
+export const computeVmExpanded = { ...computeVm, properties: { ...computeVm.properties,
+  instanceView: {
+    computerName: "vm-demo", osName: "Ubuntu", osVersion: "22.04",
+    vmAgent: { vmAgentVersion: "2.11.0.2",
+      statuses: [{ code: "ProvisioningState/succeeded", displayStatus: "Ready" }] },
+    disks: [
+      { name: "vm-demo-os", statuses: [{ code: "ProvisioningState/succeeded", displayStatus: "Provisioning succeeded" }] },
+      { name: "vm-demo-data0", statuses: [{ code: "ProvisioningState/succeeded", displayStatus: "Provisioning succeeded" }] },
+    ],
+    extensions: [
+      { name: "CustomScript", type: "Microsoft.Azure.Extensions.CustomScript", typeHandlerVersion: "2.1",
+        statuses: [{ code: "ProvisioningState/succeeded", displayStatus: "Provisioning succeeded" }] },
+    ],
+    bootDiagnostics: { consoleScreenshotBlobUri: "https://stexample.blob.core.windows.net/bootdiagnostics/never-output-this-value.bmp",
+      serialConsoleLogBlobUri: "https://stexample.blob.core.windows.net/bootdiagnostics/never-output-this-value.log" },
+    statuses: [
+      { code: "ProvisioningState/succeeded", displayStatus: "Provisioning succeeded" },
+      { code: "PowerState/running", displayStatus: "VM running" },
+    ],
+  } } };
+export const computeVms = [computeVm, {
+  id: computeVmId("vm-stopped"), name: "vm-stopped", type: "Microsoft.Compute/virtualMachines", location: "westeurope",
+  properties: { provisioningState: "Succeeded",
+    hardwareProfile: { vmSize: "Standard_B1s" },
+    storageProfile: { imageReference: { publisher: "MicrosoftWindowsServer", offer: "WindowsServer",
+      sku: "2022-datacenter-azure-edition", version: "latest" },
+      osDisk: { osType: "Windows", name: "vm-stopped-os", diskSizeGB: 127 }, dataDisks: [] },
+    osProfile: { computerName: "vm-stopped" }, networkProfile: { networkInterfaces: [] } },
+}];
+export const computeInstanceView = computeVmExpanded.properties.instanceView;
+// source: learn.microsoft.com/rest/api/compute/virtual-machine-scale-sets/get
+// (2024-11-01 shape, identifiers replaced).
+const computeVmssId = (name: string) =>
+  `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachineScaleSets/${name}`;
+export const computeVmss = {
+  id: computeVmssId("vmss-demo"), name: "vmss-demo", type: "Microsoft.Compute/virtualMachineScaleSets",
+  location: "westus", tags: { env: "test" }, zones: ["1", "2"],
+  sku: { name: "Standard_D2s_v3", tier: "Standard", capacity: 3 },
+  properties: {
+    orchestrationMode: "Flexible", provisioningState: "Succeeded", singlePlacementGroup: false,
+    upgradePolicy: { mode: "Automatic" },
+    virtualMachineProfile: {
+      osProfile: { computerNamePrefix: "vmss", adminUsername: "never-output-this-value",
+        adminPassword: "never-output-this-value" },
+      storageProfile: {
+        imageReference: { publisher: "Canonical", offer: "UbuntuServer", sku: "22.04-LTS", version: "latest" },
+        osDisk: { osType: "Linux", createOption: "FromImage" } },
+      networkProfile: { networkInterfaceConfigurations: [{ name: "vmss-nic" }] },
+    },
+  },
+};
+export const computeVmsss = [computeVmss, {
+  id: computeVmssId("vmss-uniform"), name: "vmss-uniform", type: "Microsoft.Compute/virtualMachineScaleSets",
+  location: "westeurope", sku: { name: "Standard_B2s", tier: "Standard", capacity: 1 },
+  properties: { orchestrationMode: "Uniform", provisioningState: "Succeeded",
+    upgradePolicy: { mode: "Manual" },
+    virtualMachineProfile: { osProfile: { computerNamePrefix: "uni" },
+      storageProfile: { imageReference: { publisher: "MicrosoftWindowsServer", offer: "WindowsServer",
+        sku: "2022-datacenter-azure-edition", version: "latest" },
+        osDisk: { osType: "Windows", createOption: "FromImage" } } } },
+}];
+// source: learn.microsoft.com/rest/api/compute/disks/get
+// (2024-03-02 "Get a managed disk" example, identifiers replaced).
+export const computeDisk = {
+  id: computeDiskId("disk-demo"), name: "disk-demo", type: "Microsoft.Compute/disks", location: "westus",
+  tags: { env: "test" }, zones: ["1"],
+  sku: { name: "Premium_LRS", tier: "Premium" },
+  properties: {
+    osType: "Linux", diskSizeGB: 128, diskState: "Attached", provisioningState: "Succeeded",
+    timeCreated: "2026-09-01T00:00:00Z", networkAccessPolicy: "AllowPrivate", maxShares: 1,
+    encryption: { type: "EncryptionAtRestWithCustomerKey" },
+    diskEncryptionSet: { id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/diskEncryptionSets/des-demo` },
+    managedBy: computeVmId("vm-demo"),
+  },
+};
+export const computeDisks = [computeDisk, {
+  id: computeDiskId("disk-free"), name: "disk-free", type: "Microsoft.Compute/disks", location: "westeurope",
+  sku: { name: "Standard_LRS", tier: "Standard" },
+  properties: { diskSizeGB: 32, diskState: "Unattached", provisioningState: "Succeeded",
+    timeCreated: "2026-09-02T00:00:00Z", networkAccessPolicy: "DenyAll",
+    encryption: { type: "EncryptionAtRestWithPlatformKey" } },
+}];

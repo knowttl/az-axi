@@ -385,6 +385,55 @@ export const DEFENDER_PRICINGS = "2024-01-01";
 export const DEFENDER_SUB_ASSESSMENTS = "2019-01-01-preview";
 
 /**
+ * Virtual machines and virtual machine scale sets, list and get
+ * (`GET /subscriptions/{id}[/resourceGroups/{rg}]/providers/Microsoft.Compute/
+ * virtualMachines[/{name}]` and the same shape for `virtualMachineScaleSets`).
+ * The VM get also serves `vm show` with `$expand=instanceView`, and the
+ * dedicated instance-view GET (`GET .../virtualMachines/{name}/instanceView`)
+ * serves `vm get-instance-view`.
+ *
+ * Value: 2024-11-01. Newer stable: several (up to 2026-04-01); 2024-11-01 is
+ * the pinned established version, fall back to 2024-07-01 if the live
+ * service rejects it.
+ * Spec: compute/resource-manager/Microsoft.Compute/Compute/stable/2024-11-01/ComputeRP.json
+ * (plus virtualMachineExamples and virtualMachineScaleSetExamples).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/compute/virtual-machines/list
+ * and https://learn.microsoft.com/en-us/rest/api/compute/virtual-machines/get
+ * (documents `$expand=instanceView`, which retrieves the runtime snapshot)
+ * and https://learn.microsoft.com/en-us/rest/api/compute/virtual-machines/instance-view
+ * (documents the dedicated instanceView GET with the `statuses` array carrying
+ * `ProvisioningState/*` and `PowerState/*` codes plus vmAgent, disks and extensions).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list/get/instance-view references document the same paths and the
+ * VirtualMachine/VirtualMachineInstanceView shapes).
+ * Reason: established stable version covering VM/VMSS list/get plus the VM
+ * runtime views. Only list/get/instanceView GETs are constructed; VM/VMSS
+ * start, stop, restart, deallocate, redeploy, reimage and run-command actions
+ * are separate operations and are never constructed. The get `$expand` asks
+ * for `instanceView` only, never `userData`.
+ */
+export const COMPUTE = "2024-11-01";
+
+/**
+ * Managed disks, list and get (`GET /subscriptions/{id}[/resourceGroups/{rg}]/
+ * providers/Microsoft.Compute/disks[/{name}]`).
+ *
+ * Value: 2024-03-02. Newer stable: several; 2024-03-02 is the pinned
+ * established version, fall back to 2023-10-02 if the live service rejects it.
+ * Spec: compute/resource-manager/Microsoft.Compute/Compute/stable/2024-03-02/DiskRP.json
+ * (plus diskExamples).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/compute/disks/list
+ * and https://learn.microsoft.com/en-us/rest/api/compute/disks/get
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same subscription path, api-version 2024-03-02
+ * and the DiskList shape with `diskState`, `diskSizeGB` and `osType`).
+ * Reason: established stable version covering disk list/get. Only list/get
+ * GETs are constructed; grant-access (SAS URIs), revoke-access and export
+ * actions are separate operations and are never constructed.
+ */
+export const COMPUTE_DISKS = "2024-03-02";
+
+/**
  * Deployments - What If, used by deployment dry runs
  * (`POST .../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group
  * and subscription scope).

@@ -239,6 +239,9 @@ describe("command effect registry", () => {
       policy: "read",
       lock: "read",
       "deny-assignment": "read",
+      vm: "read",
+      vmss: "read",
+      disk: "read",
     });
   });
 

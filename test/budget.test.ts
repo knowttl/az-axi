@@ -41,6 +41,7 @@ import { run as runStorage } from "../src/commands/storage.js";
 import { run as runKeyvault } from "../src/commands/keyvault.js";
 import { run as runAcr } from "../src/commands/acr.js";
 import { run as runNetwork } from "../src/commands/network.js";
+import { runDisk, runVm, runVmss } from "../src/commands/compute.js";
 import { run as runPolicy } from "../src/commands/policy.js";
 import { run as runLock } from "../src/commands/lock.js";
 import { run as runDeny } from "../src/commands/denyAssignment.js";
@@ -89,6 +90,7 @@ import {
   sentinelDataConnectorDetail,
   sentinelDataConnectors,
   acrMetadataRows,
+  computeDisk, computeInstanceView, computeVm, computeVmExpanded, computeVmss,
   networkDnsRecordSets,
   networkDnsZone,
   networkNic,
@@ -214,6 +216,13 @@ const CEILINGS: Record<string, number> = {
   "network dns zone show": 126,
   "network dns record-set list": 144,
   "network dns record-set a show": 117,
+  "vm list": 162,
+  "vm show": 266,
+  "vm get-instance-view": 134,
+  "vmss list": 179,
+  "vmss show": 135,
+  "disk list": 160,
+  "disk show": 129,
   "policy assignment list": 138,
   "policy assignment show": 221,
   "policy definition list": 159,
@@ -357,6 +366,13 @@ describe("token budgets", () => {
     { key: "network dns zone show", run: runNetwork, sample: networkDnsZone, argv: ["dns", "zone", "show", "--name", "example.com", "--resource-group", "rg-demo"] },
     { key: "network dns record-set list", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo"] },
     { key: "network dns record-set a show", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "a", "show", "--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www"] },
+    { key: "vm list", run: runVm, sample: computeVm, argv: ["list"] },
+    { key: "vm show", run: runVm, sample: computeVmExpanded, argv: ["show", "--name", "vm-demo", "--resource-group", "rg-demo"] },
+    { key: "vm get-instance-view", run: runVm, sample: computeInstanceView, argv: ["get-instance-view", "--name", "vm-demo", "--resource-group", "rg-demo"] },
+    { key: "vmss list", run: runVmss, sample: computeVmss, argv: ["list"] },
+    { key: "vmss show", run: runVmss, sample: computeVmss, argv: ["show", "--name", "vmss-demo", "--resource-group", "rg-demo"] },
+    { key: "disk list", run: runDisk, sample: computeDisk, argv: ["list"] },
+    { key: "disk show", run: runDisk, sample: computeDisk, argv: ["show", "--name", "disk-demo", "--resource-group", "rg-demo"] },
     { key: "policy assignment list", run: runPolicy, sample: policyAssignment, argv: ["assignment", "list"] },
     { key: "policy assignment show", run: runPolicy, sample: policyAssignment, argv: ["assignment", "show", "--name", "CostManagement"] },
     { key: "policy definition list", run: runPolicy, sample: policyDefinition, argv: ["definition", "list"] },
