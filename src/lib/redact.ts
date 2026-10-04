@@ -36,8 +36,8 @@ export function redact<T>(value: T): T {
 function walk(value: unknown, parentKey: string | undefined, secureParameter = false): unknown {
   if (typeof value === "string") {
     if (isSecretString(value)) return REDACTED;
-    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value)) {
-      return value.replace(/^((?:[a-z][a-z0-9+.-]*:)?\/\/)[^/?#]*@/i, "$1").split(/[?#]/, 1)[0];
+    if (/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value) && URL.parse(value)?.host) {
+      return value.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, "$1").split(/[?#]/, 1)[0];
     }
     return value;
   }

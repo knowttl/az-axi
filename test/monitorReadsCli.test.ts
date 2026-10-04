@@ -35,6 +35,9 @@ describe("built CLI Monitor reads offline", () => {
         monitorMetricDefinitions, monitorMetricValues, subscriptionList,
       })};
       const mode = ${JSON.stringify(mode)};
+      if (mode === 'prose') {
+        data.monitorAlertRules[0].properties.description = 'CPU: overloaded? Restart the worker; Note: incident#123';
+      }
       if (mode === 'aggregations') {
         data.monitorMetricValues.value[0].errorCode = 'Success';
         data.monitorMetricValues.value[0].timeseries[0].data = [
@@ -110,6 +113,12 @@ describe("built CLI Monitor reads offline", () => {
   const metrics = ["monitor", "metrics", "list", "--resource", monitorResource];
   const window = ["--start-time", "2026-10-04T00:00:00Z", "--end-time", "2026-10-04T01:00:00Z",
     "--interval", "PT1H", "--aggregation", "Average,Maximum"];
+
+  it.each([{ flags: [] }, { flags: ["--full"] }])("preserves rule descriptions containing colons, question marks and hashes with $flags", ({ flags }) => {
+    const result = run(["monitor", "metrics", "alert", "show", "--ids", monitorAlertRule.id, ...flags], "prose");
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ description: "CPU: overloaded? Restart the worker; Note: incident#123" });
+  });
 
   it.each([
     ["diagnostic list", ["monitor", "diagnostic-settings", "list"]],
