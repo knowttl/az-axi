@@ -2,8 +2,8 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 79,
-    "body": 6089,
-    "total": 6167
+    "body": 6097,
+    "total": 6175
   },
   "help": {
     "topLevel": 1073,
@@ -35,9 +35,9 @@
     "lock": 448,
     "deny-assignment": 514,
     "role": 449,
-    "vm": 1286,
-    "vmss": 1238,
-    "disk": 793
+    "vm": 1306,
+    "vmss": 1259,
+    "disk": 806
   },
-  "helpTotal": 17520
+  "helpTotal": 17574
 }

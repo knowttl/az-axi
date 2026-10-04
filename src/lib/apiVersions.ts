@@ -389,8 +389,8 @@ export const DEFENDER_SUB_ASSESSMENTS = "2019-01-01-preview";
  * (`GET /subscriptions/{id}[/resourceGroups/{rg}]/providers/Microsoft.Compute/
  * virtualMachines[/{name}]` and the same shape for `virtualMachineScaleSets`).
  * The VM get also serves `vm show` with `$expand=instanceView`, and the
- * dedicated instance-view GET (`GET .../virtualMachines/{name}/instanceView`)
- * serves `vm get-instance-view`.
+ * dedicated instance-view GET (`GET .../{collection}/{name}/instanceView`)
+ * serves `vm get-instance-view` and aggregate `vmss get-instance-view` reads.
  *
  * Value: 2024-11-01. Newer stable: several (up to 2026-04-01); 2024-11-01 is
  * the pinned established version, fall back to 2024-07-01 if the live
@@ -406,7 +406,7 @@ export const DEFENDER_SUB_ASSESSMENTS = "2019-01-01-preview";
  * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
  * list/get/instance-view references document the same paths and the
  * VirtualMachine/VirtualMachineInstanceView shapes).
- * Reason: established stable version covering VM/VMSS list/get plus the VM
+ * Reason: established stable version covering VM/VMSS list/get plus their
  * runtime views. Only list/get/instanceView GETs are constructed; VM/VMSS
  * start, stop, restart, deallocate, redeploy, reimage and run-command actions
  * are separate operations and are never constructed. The get `$expand` asks

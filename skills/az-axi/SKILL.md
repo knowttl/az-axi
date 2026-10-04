@@ -245,7 +245,7 @@ Management-group discovery is unsupported; select subscriptions explicitly.
 
 See [README.md#use](../../README.md#use) for native account and workspace discovery scope, selectors, metadata fields, paging limits and credential exclusions, including how `account list` differs from legacy `sub list`.
 See [README.md#use](../../README.md#use) for Monitor alert, action-group, diagnostic-setting and metric selectors, projections, redaction, paging and point limits.
-See [compute reads](../../README.md#use) for VM, scale-set and disk selectors, projections, paging limits and the action, credential and SAS exclusions.
+See [compute reads](../../README.md#use) for VM, scale-set and disk ARM-ID selectors, default and expanded projections, field selection, paging limits and the action, credential and SAS exclusions.
 
 ```sh
 az-axi graph query -q Resources
