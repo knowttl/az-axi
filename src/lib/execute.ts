@@ -76,14 +76,17 @@ export async function executeWrite(options: {
   const bodyEtag = current?.body !== null && typeof current?.body === "object" && "etag" in current.body && typeof current.body.etag === "string" ? current.body.etag : undefined;
   const ifMatch = options.ifMatch ?? current?.headers.etag ?? bodyEtag;
   let response: ApiResponse<unknown> | undefined;
+  let operationUrl: string | undefined;
   let outcome = "success";
   try {
     response = await sendRequest(profile, { method, path, body, ifMatch, execute: true, confirm: options.confirm });
-    await options.verify?.();
     const urls = operationUrls(response);
-    const operationUrl = urls.asyncOperationUrl ?? urls.locationUrl;
-    if ((response.status === 201 || response.status === 202) && operationUrl) {
-      assertOperationUrl(operationUrl);
+    const candidate = urls.asyncOperationUrl ?? urls.locationUrl;
+    if ((response.status === 201 || response.status === 202) && candidate) {
+      operationUrl = assertOperationUrl(candidate);
+    }
+    await options.verify?.();
+    if (operationUrl) {
       if (options.noWait) {
         return { ...base, result: "operation accepted", status: response.status, operationUrl,
           requestId: response.requestId, correlationId: response.correlationId,
@@ -104,8 +107,9 @@ export async function executeWrite(options: {
     }
     const failure = error instanceof AxiError ? error : new AxiError("write execution failed", "API_ERROR", help);
     throw new WriteExecutionError(failure, { ...base, result: "failed", status: response?.status ?? 0,
+      ...(operationUrl ? { operationUrl } : {}),
       requestId: response?.requestId, correlationId: response?.correlationId,
-      durationSec: (Date.now() - started) / 1000 }, help);
+      durationSec: (Date.now() - started) / 1000 }, operationUrl ? [opStatusCommand(operationUrl, profile), ...help] : help);
   } finally {
     try {
       appendWriteLog({ profile: profile.name, identity, class: options.cls, method, url: path,
@@ -115,8 +119,9 @@ export async function executeWrite(options: {
       throw new WriteExecutionError(new AxiError(`write outcome: ${outcome}; could not append the write log`, "API_ERROR", [
         "Check the write log location and permissions before executing another write",
       ]), { ...base, result: "write log failed", status: response?.status ?? 0,
+        ...(operationUrl ? { operationUrl } : {}),
         requestId: response?.requestId, correlationId: response?.correlationId,
-        durationSec: (Date.now() - started) / 1000 }, help);
+        durationSec: (Date.now() - started) / 1000 }, operationUrl ? [opStatusCommand(operationUrl, profile), ...help] : help);
     }
   }
 }

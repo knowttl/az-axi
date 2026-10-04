@@ -472,6 +472,16 @@ describe("API asynchronous execution through the merged poller", () => {
     expect(log).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ outcome: "API_ERROR" }));
   });
 
+  it.each([201, 202])("preserves operation monitoring when logging an accepted %s write fails", async (status) => {
+    send.mockResolvedValueOnce(response({}, status, { location: OPERATION }));
+    log.mockImplementationOnce(() => { throw new Error("log unavailable"); });
+    await expect(execute(["--no-wait"])).rejects.toMatchObject({
+      output: { result: "write log failed", status, operationUrl: OPERATION },
+      suggestions: expect.arrayContaining([expect.stringContaining("az-axi op status")]),
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it("refuses an unsafe operation URL even with --no-wait and audits the accepted write", async () => {
     send.mockResolvedValueOnce(response({}, 202, { location: "https://untrusted.example.com/operation" }));
     await expect(execute(["--no-wait"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });

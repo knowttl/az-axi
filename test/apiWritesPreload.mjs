@@ -86,7 +86,7 @@ const nsgGet = (pathname) => {
       nsgState.properties.securityRules.push({ name, properties: { access: "Allow", priority: 400 } });
     }
     const rule = nsgState.properties.securityRules.find((entry) => entry.name === name);
-    if (!rule || scenario === "nsg-readback-missing") return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
+    if (!rule || ["nsg-readback-missing", "nsg-async-readback-missing", "nsg-location-readback-missing"].includes(scenario)) return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
     return json({ id: `https://management.azure.com${pathname}`, etag: '"rule1"', ...rule,
       name: scenario === "nsg-readback-name" ? "operator-rule" : rule.name,
       properties: { ...rule.properties, provisioningState: "Succeeded" } }, 200, { etag: '"rule1"' });
@@ -95,12 +95,14 @@ const nsgGet = (pathname) => {
 };
 
 const nsgRulePut = (body) => {
-  const rule = ["nsg-readback-mismatch", "nsg-async-readback-mismatch"].includes(scenario)
+  const rule = ["nsg-readback-mismatch", "nsg-async-readback-mismatch", "nsg-created-readback-mismatch"].includes(scenario)
     ? { ...body, properties: { ...body.properties, access: "Allow" } } : body;
   if (scenario === "nsg-readback-extra-property") rule.properties.description = "operator change";
   nsgState.properties.securityRules.push(rule);
   writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
-  if (["async", "nsg-async-readback-mismatch"].includes(scenario)) return json({}, 202, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
+  if (["async", "nsg-async-readback-mismatch", "nsg-async-readback-missing"].includes(scenario)) return json({}, 202, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
+  if (scenario === "nsg-location-readback-missing") return json({}, 202, { location: operationUrl, "retry-after": "0" });
+  if (scenario === "nsg-created-readback-mismatch") return json({}, 201, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
   return json(body, 201);
 };
 

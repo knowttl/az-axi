@@ -227,6 +227,26 @@ describe("built NSG deny-rule create, offline only", () => {
     expect(records("writes.log")).toEqual([expect.objectContaining({ outcome: "VERIFY_FAILED", httpStatus: 201 })]);
   });
 
+  describe.each([false, true])("accepted-operation verification failures with ids=%s", (ids) => {
+    it.each([
+      { scenario: "nsg-async-readback-mismatch", direction: "Inbound", extra: [], status: 202, code: "CONFLICT" },
+      { scenario: "nsg-async-readback-mismatch", direction: "Outbound", extra: ["--no-wait"], status: 202, code: "CONFLICT" },
+      { scenario: "nsg-async-readback-missing", direction: "Outbound", extra: [], status: 202, code: "VERIFY_FAILED" },
+      { scenario: "nsg-location-readback-missing", direction: "Inbound", extra: ["--no-wait"], status: 202, code: "VERIFY_FAILED" },
+      { scenario: "nsg-created-readback-mismatch", direction: "Inbound", extra: [], status: 201, code: "CONFLICT" },
+    ])("retains monitoring for $scenario $direction $extra", ({ scenario, direction, extra, status, code }) => {
+      const result = cli(["--direction", direction, "--execute", "--confirm", RULE, ...extra], { ids, scenario });
+      expect(result.status, result.stdout + result.stderr).toBe(1);
+      const output = decode(result.stdout) as { help: string[] };
+      expect(output).toMatchObject({ code, status, operationUrl: "https://management.azure.com/operations/test?api-version=1" });
+      expect(output.help).toContain(
+        `az-axi op status 'https://management.azure.com/operations/test?api-version=1' --config ${join(dir, "config.json")} --profile writer`,
+      );
+      expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PUT", "GET"]);
+      expect(records("writes.log")).toEqual([expect.objectContaining({ outcome: code, httpStatus: status })]);
+    });
+  });
+
   it("executes without an NSG ETag or conditional header", () => {
     const result = cli(["--execute", "--confirm", RULE], { scenario: "nsg-no-etag" });
     expect(result.status, result.stdout + result.stderr).toBe(0);
