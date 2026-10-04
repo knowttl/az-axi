@@ -15,7 +15,7 @@
     "monitor": 315,
     "group": 178,
     "resource": 327,
-    "tag": 403,
+    "tag": 428,
     "rg": 186,
     "rbac": 208,
     "activity": 172,
@@ -31,5 +31,5 @@
     "keyvault": 359,
     "acr": 342
   },
-  "helpTotal": 8675
+  "helpTotal": 8700
 }

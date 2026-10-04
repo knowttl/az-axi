@@ -236,6 +236,22 @@ describe("built tag update, offline only", () => {
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toContain("hunter2");
   });
 
+  it("redacts a protected value in the preview hint and refuses the pasted placeholder", () => {
+    const preview = cli([], { tags: ["password=hunter2"], tagsEnv: '{}' });
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    expect(preview.stdout).toContain("password=***redacted***");
+    expect(preview.stdout).not.toContain("hunter2");
+  });
+
+  it.each([{ extra: [] as string[] }, { extra: ["--execute"] }])("refuses a pasted redacted placeholder with %j and sends nothing", ({ extra }) => {
+    const result = cli(extra, { tags: ["password=***redacted***"] });
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("VALIDATION_ERROR");
+    expect(result.stdout).toContain("must be the real value");
+    expect(records("requests.jsonl")).toEqual([]);
+    expect(records("writes.log")).toEqual([]);
+  });
+
   it("deduplicates equal values across tag-name casing", () => {
     const result = cli(["--execute"], { tags: ["Env=prod", "env=prod"] });
     expect(result.status, result.stdout + result.stderr).toBe(0);

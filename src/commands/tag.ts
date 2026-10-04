@@ -15,7 +15,7 @@ import { executeWrite } from "../lib/execute.js";
 import { enforceGates } from "../lib/gates.js";
 import { parseTimeoutFlag } from "../lib/lro.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
-import { redact } from "../lib/redact.js";
+import { REDACTED, redact } from "../lib/redact.js";
 import { commandMeta, TAG_UPDATE_FLAGS } from "../lib/registry.js";
 import { shortenResourceId } from "../lib/scope.js";
 import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
@@ -111,6 +111,9 @@ function parseTags(raw: string[] | undefined): TagEntry[] {
     const key = (at < 0 ? entry : entry.slice(0, at)).trim();
     if (at < 0 || !key) invalid(`--tags entry '${entry}' must be k=v`);
     const value = entry.slice(at + 1);
+    // A pasted preview hint carries the redaction placeholder instead of the
+    // real value; writing it would destroy the secret it stands for.
+    if (value === REDACTED) invalid(`--tags value for tag '${key}' must be the real value, not ${REDACTED}`);
     const name = key.toLowerCase();
     const prior = seen.get(name);
     if (prior !== undefined && prior.value !== value) invalid(`conflicting values for tag '${key}'`);

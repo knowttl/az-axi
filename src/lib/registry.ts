@@ -266,7 +266,7 @@ export const TAG_UPDATE_HELP = [
   "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
   "--resource-id takes one exact ARM ID for a resource or resource group in that subscription. Subscription-only IDs, the tags wrapper, query strings and other scopes are refused.",
   "--operation merge adds the named tags or overwrites their values; --operation delete removes the named tags. replace is refused: it rewrites the whole tag set.",
-  "--tags takes individual k=v arguments after one flag or repeated flags; values retain commas, spaces and additional equals signs. Names are case-insensitive and conflicting values for one name are refused. Delete matches by name; supplied values are ignored and sent as null.",
+  "--tags takes individual k=v arguments after one flag or repeated flags; values retain commas, spaces and additional equals signs. Names are case-insensitive and conflicting values for one name are refused. Delete matches by name; supplied values are ignored and sent as null. Values equal to ***redacted*** are refused: re-supply the real value instead of pasting a redacted hint.",
   "Writes require the existing profile permission and subscription allowlist. Default: dry run with the tag-map diff against the current tags; --execute sends one PATCH .../providers/Microsoft.Resources/tags/default with {operation, properties:{tags}} (api-version 2021-04-01).",
   "Nothing to change: no-op. Merge on untagged scope previews creation; delete on missing tags is a no-op.",
   "--if-match pins a reviewed ETag; without it execution uses the fresh re-read ETag when the service returns one. The Tags API documents no ETag guarantee.",

@@ -671,7 +671,7 @@ Names and implicit env/profile scope are not accepted; a mismatched, subscriptio
 `--tags` takes individual `k=v` arguments after one flag or repeated flags, preserving commas, spaces and additional equals signs in values.
 Names are case-insensitive and conflicting values for one name are refused, and delete matches by name with supplied values ignored and sent as null.
 The preview reads the tags wrapper (`GET .../providers/Microsoft.Resources/tags/default?api-version=2021-04-01`) and shows the tag-map diff plus a native execute command; a missing wrapper previews creation for merge and a no-op for delete.
-Protected tag values are redacted in both the diff and execute command; restore the original values in place of `***redacted***` before executing a merge.
+Protected tag values are redacted in both the diff and execute command; a pasted `***redacted***` value is refused before any request, so re-supply the real value instead.
 Execution re-reads, returns a no-op without a PATCH or log entry when nothing would change, and otherwise sends one `PATCH .../tags/default?api-version=2021-04-01` with `{operation, properties:{tags}}` through the shared pipeline.
 The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
 Without `--if-match`, execution uses the fresh re-read ETag when the service returns one; the Tags API documents no ETag guarantee.
