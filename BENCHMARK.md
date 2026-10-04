@@ -17,7 +17,7 @@ The separate `offlineWritePreviews` export is measured only by [test/budget.test
 The `offlinePassthroughReads` export is also measured only by that budget suite, using fake Azure CLI responses.
 The fetch capture/replay transport cannot record or replay child-process reads.
 Scenario argv contains no profile or subscription flags; capture injects the owner's selectors.
-The logs workspace is supplied by targets rather than relying on an owner's workspace alias.
+The logs and Sentinel workspace is supplied by targets rather than relying on an owner's workspace alias.
 Optional `resourceGroup`, `resourceId` and `workspaceResourceId` targets select the group-show, resource-show and workspace-show captures.
 `workspaceResourceId` is the full workspace ARM ID, distinct from the query workspace customer GUID.
 Use a resource group name and a virtual machine ARM ID in the selected subscription; the VM scenario uses API version `2024-07-01`.

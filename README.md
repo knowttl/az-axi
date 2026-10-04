@@ -258,13 +258,20 @@ az-axi sentinel incident show --name 3177 --workspace sentinel
 ```
 
 Sentinel incident triage uses read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
-Incidents are addressed by their GUID name or sequential incident number; full ARM IDs use `--ids`.
+Show accepts `--name` / `-n` (also `--incident-id`) with an incident GUID or sequential incident number; full ARM IDs use `--ids`.
 List and name-based show need `--workspace-name` and `--resource-group`, or `--workspace <alias|guid>` from the profile `workspaces` map, plus exactly one subscription.
+`show --ids` takes exactly one incident ARM ID without workspace or name selectors; it uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
 Alias and GUID workspaces resolve through the ARM workspace list by customer ID within that subscription.
 `--status`, `--severity`, `--owner` (assignee name, email or UPN substring) and `--since` filter client-side; lists are newest first with `bySeverity` and `byStatus` aggregates.
+Status and severity matches are case-insensitive and accept multiple values; owner matching is also case-insensitive.
+`--since` filters creation time using a relative time such as `24h`, an ISO duration such as `P1D`, or an ISO date; no time filter applies by default.
 List rows default to number, severity, title, status and time; `--full` adds full ARM IDs, owner and creation time and shows every fetched row; `--fields` selects row fields.
+`--limit` defaults to 50 and accepts integers from 1 to 1000; `--full` ignores this display limit.
+`--fields` accepts number, severity, title, status, time, id, created and owner, and takes precedence over the full row schema.
 Show returns the description (truncated at 200 characters unless `--full`), owner, labels, provider, tactics and alert count.
 Lists follow up to 10 pages and mark incomplete counts as lower bounds.
+Number-based show searches the same bounded list and reports `INCOMPLETE_SEARCH` if the number is absent from fetched pages while more pages exist; use the GUID or ARM ID for a direct lookup.
+Workspace GUID resolution stops at 100 pages and reports `INCOMPLETE_SEARCH` if more pages exist and uniqueness cannot be established; use workspace name and resource group to bypass discovery.
 Related alerts and entities, analytics rules, connectors and incident updates are out of scope; query workspace tables with `logs query` to investigate further.
 Management-group scope is unsupported; select one subscription explicitly.
 

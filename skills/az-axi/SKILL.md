@@ -214,17 +214,7 @@ az-axi sentinel incident list -g rg-demo --workspace-name logs-demo
 az-axi sentinel incident show --name 3177 --workspace sentinel
 ```
 
-`sentinel incident list` lists incidents in one workspace, newest first.
-It needs `--workspace-name` and `--resource-group`, or `--workspace
-<alias|guid>` from the profile `workspaces` map, plus exactly one
-subscription. `--status`, `--severity`, `--owner`, and `--since` filter
-client-side. Output is `total`, `count`, `bySeverity`, `byStatus`, and rows
-of `number, severity, title, status, time`. `sentinel incident show` takes
-`--name <incident-id|number>` (`--incident-id` aliases `--name`) with the
-workspace selectors, or `--ids <incident-ARM-id>` alone, and returns the
-description, owner, labels, provider, tactics, and alert count.
-Related alerts, entities, analytics rules, and incident updates are not
-covered; use `logs query` on the workspace tables for investigation.
+See [Sentinel incident triage](../../README.md#use) for workspace and subscription selectors, incident identities and aliases, filters, output fields, paging limits and investigation scope.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,
