@@ -57,10 +57,16 @@ The offline test suite checks this list against the registry.
 | `az-axi api` | native | dynamic |
 | `az-axi op status` | native | read |
 | `az-axi az group show` | passthrough | read |
+| `az-axi storage container list` | native | read |
+| `az-axi storage container show` | native | read |
+| `az-axi storage blob list` | native | read |
+| `az-axi storage blob show` | native | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
 Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and reference.
+
+See [storage metadata reads](../../README.md#storage-metadata-reads) for the storage commands, required flags, Entra-only authentication, safe properties, literal values and paging limits.
 
 See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
 

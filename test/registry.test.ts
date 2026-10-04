@@ -27,6 +27,7 @@ describe("exact leaf contracts", () => {
       "group list", "group show", "resource list", "resource show",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
       "security alert update", "defender assessments", "defender score", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
+      "storage container list", "storage container show", "storage blob list", "storage blob show",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
@@ -78,7 +79,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => name !== "az" && name !== "security" && name !== "group" && name !== "resource")
+      .filter(([name]) => name !== "az" && name !== "security" && name !== "group" && name !== "resource" && name !== "storage")
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

@@ -855,6 +855,20 @@ The flags above are supplied by the agent, so they are not an approval control. 
 
 ---
 
+### 6.14 Storage container/blob metadata reads
+
+Native `storage container list|show` and `storage blob list|show` are read-only and additive.
+`client.ts` exposes a dedicated storage metadata operation with no arbitrary method, URL, body or query-map input.
+It constructs only public Azure Blob list GETs (`/?comp=list` or `/<container>?restype=container&comp=list`) and property HEADs (`/<container>?restype=container` or `/<container>/<blob>`).
+Bearer auth uses the `https://storage.azure.com/` audience; az-auth acquisition is bounded and strips ambient storage/extension overrides, while token profiles use `AZ_AXI_STORAGE_TOKEN` or `tokenEnv.storage`.
+No storage CLI command, ARM listKeys, SAS, connection-string, Shared Key, anonymous fallback, blob download or local output file is available.
+Native ARM envelopes and the raw API host map are unchanged.
+Redirects are refused, requests have a 30-second deadline and list XML is bounded to 1 MiB with no DTD/entity expansion.
+Lists fetch one page (default 50, maximum 1000) with prefix/marker support and disclose unknown totals through nextMarker.
+Safe output fields are name/lastModified/etag plus publicAccess for containers or size/blobType for blobs; user metadata and tags are never requested or returned.
+`--full` never broadens that schema and `--fields` rejects other fields.
+Reference: [List Containers](https://learn.microsoft.com/rest/api/storageservices/list-containers2), [List Blobs](https://learn.microsoft.com/rest/api/storageservices/list-blobs), [Get Container Properties](https://learn.microsoft.com/rest/api/storageservices/get-container-properties), [Get Blob Properties](https://learn.microsoft.com/rest/api/storageservices/get-blob-properties).
+
 ## 7. Invariants
 
 These are non-negotiable. The agent must not weaken them; if one blocks progress, stop and ask the owner.
@@ -1364,6 +1378,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 |---|---|
 | `doctor` (identity) | `az account show --query "{name:user.name,type:user.type,tenant:tenantId}"` |
 | `sub list` | `az account list --query "length(@)"` |
+| `storage container/blob list/show` | Owner only: compare safe properties with the same Azure CLI operation using explicit `--auth-mode login`; worker tests use synthetic XML/headers and offline transports only |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
 | `group list/show` | `az group list` and `az group show -n <group> -s <subscription>` with identical subscription scope |
 | `resource list/show` | `az resource list -g <group>` and `az resource show --ids <ARM-id>` with identical subscription and API version |
@@ -1430,6 +1445,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Resource groups, resources and providers - List/Get | https://learn.microsoft.com/en-us/rest/api/resources/resource-groups/list and https://learn.microsoft.com/en-us/rest/api/resources/resources/get-by-id |
 | Deployments - What If | https://learn.microsoft.com/en-us/rest/api/resources/deployments/what-if |
 | Resource locks | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources |
+| Storage metadata GET lists and HEAD properties (2023-11-03) | https://learn.microsoft.com/rest/api/storageservices/list-containers2 and https://learn.microsoft.com/rest/api/storageservices/list-blobs and https://learn.microsoft.com/rest/api/storageservices/get-container-properties and https://learn.microsoft.com/rest/api/storageservices/get-blob-properties |
 
 ### 15.3 Resource Graph
 

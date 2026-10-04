@@ -62,9 +62,39 @@ afterEach(() => {
   delete process.env.AZ_AXI_ARM_TOKEN;
   delete process.env.MY_LOGS_TOKEN;
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("az mode", () => {
+  it("storage requests only the Entra audience and strips hostile storage and extension environment", async () => {
+    vi.stubEnv("AZURE_STORAGE_KEY", "hostile-key");
+    vi.stubEnv("AZURE_STORAGE_SAS_TOKEN", "sig=hostile");
+    vi.stubEnv("AZURE_STORAGE_CONNECTION_STRING", "AccountKey=hostile");
+    vi.stubEnv("AZURE_STORAGE_AUTH_MODE", "key");
+    vi.stubEnv("AZURE_EXTENSION_DEV_SOURCES", "/hostile");
+    fakeAz({ stdout: tokenJson() });
+    const result = await resolveCredential(profile({ tenant: "tenant-example" }), "storage");
+    expect(result.header).toBe(`Bearer ${TOKEN}`);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock.mock.calls[0]![1]).toEqual(["account", "get-access-token", "--resource", "https://storage.azure.com/", "--output", "json", "--tenant", "tenant-example"]);
+    const options = spawnMock.mock.calls[0]![2];
+    expect(options.stdio).toEqual(["ignore", "pipe", "pipe"]);
+    expect(options.env.AZURE_STORAGE_KEY).toBeUndefined();
+    expect(options.env.AZURE_STORAGE_SAS_TOKEN).toBeUndefined();
+    expect(options.env.AZURE_STORAGE_CONNECTION_STRING).toBeUndefined();
+    expect(options.env.AZURE_STORAGE_AUTH_MODE).toBeUndefined();
+    expect(options.env.AZURE_EXTENSION_DEV_SOURCES).toBe("");
+    expect(options.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL).toBe("no");
+  });
+
+  it("storage authentication failure does not expose child diagnostics or try keys", async () => {
+    fakeAz({ code: 1, stderr: `credential-value ${TOKEN}` });
+    const error = await failure(resolveCredential(profile(), "storage"));
+    expect(error.code).toBe("AUTH_REQUIRED");
+    expect(render(error)).not.toContain(TOKEN);
+    expect(render(error)).not.toContain("credential-value");
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
   it.each(["arm", "logs", "graph"] as const)("cancels pending %s credentials and closes the child pipes", async (resource) => {
     vi.stubGlobal("process", { ...process, platform: "linux" });
     const controller = new AbortController();
@@ -444,6 +474,19 @@ describe("identityOf", () => {
 });
 
 describe("token mode", () => {
+  it("storage uses its own token without an ARM token or ambient key fallback", async () => {
+    vi.stubEnv("AZ_AXI_STORAGE_TOKEN", "storage-token");
+    vi.stubEnv("AZ_AXI_ARM_TOKEN", "arm-token");
+    vi.stubEnv("AZURE_STORAGE_KEY", "key-value");
+    expect((await resolveCredential(profile({ auth: "token" }), "storage")).header).toBe("Bearer storage-token");
+    clearCredentialCache();
+    vi.stubEnv("CUSTOM_STORAGE_TOKEN", "custom-storage-token");
+    expect((await resolveCredential(profile({ auth: "token", tokenEnv: { storage: "CUSTOM_STORAGE_TOKEN" } }), "storage")).header).toBe("Bearer custom-storage-token");
+    clearCredentialCache();
+    vi.stubEnv("AZ_AXI_STORAGE_TOKEN", "");
+    await expect(resolveCredential(profile({ auth: "token" }), "storage")).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
   it("reads the env var named for the resource", async () => {
     process.env.AZ_AXI_ARM_TOKEN = TOKEN;
     process.env.MY_LOGS_TOKEN = "logs-token";

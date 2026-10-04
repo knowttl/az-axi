@@ -5,6 +5,7 @@ import { AxiError } from "axi-sdk-js";
 
 export type AuthMode = "az" | "token";
 export type Resource = "arm" | "logs" | "graph";
+export type CredentialResource = Resource | "storage";
 
 /** Env var read for a `token` mode profile when its `tokenEnv` does not name one for a resource. */
 export const DEFAULT_TOKEN_ENV: Record<Resource, string> = {
@@ -20,7 +21,7 @@ export interface Profile {
   subscriptions?: string[];
   /** Alias -> Log Analytics workspace ID (the workspace GUID, not the ARM resource ID). */
   workspaces?: Record<string, string>;
-  tokenEnv?: Partial<Record<Resource, string>>;
+  tokenEnv?: Partial<Record<CredentialResource, string>>;
   description?: string;
   /** Only ever set by hand-editing the config file; no az-axi command writes it. */
   allowWrites?: boolean;
@@ -216,6 +217,6 @@ export function writeStatus(
   return { enabled: true, label: `ENABLED for ${count} ${count === 1 ? "subscription" : "subscriptions"}` };
 }
 
-export function tokenEnvFor(profile: Profile, resource: Resource): string {
-  return profile.tokenEnv?.[resource] ?? DEFAULT_TOKEN_ENV[resource];
+export function tokenEnvFor(profile: Profile, resource: CredentialResource): string {
+  return profile.tokenEnv?.[resource] ?? (resource === "storage" ? "AZ_AXI_STORAGE_TOKEN" : DEFAULT_TOKEN_ENV[resource]);
 }

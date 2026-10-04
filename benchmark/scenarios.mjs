@@ -29,3 +29,11 @@ export const offlineWritePreviews = [
 export const offlinePassthroughReads = [
   { name: "az-group-show", argv: ["az", "group", "show", "--name", "rg-demo"] },
 ];
+
+// Storage metadata shapes are measured offline without data-plane access.
+export const offlineStorageReads = [
+  { name: "storage-container-list", argv: ["storage", "container", "list", "--account-name", "stexample"] },
+  { name: "storage-container-show", argv: ["storage", "container", "show", "--account-name", "stexample", "--name", "example"] },
+  { name: "storage-blob-list", argv: ["storage", "blob", "list", "--account-name", "stexample", "--container-name", "example"] },
+  { name: "storage-blob-show", argv: ["storage", "blob", "show", "--account-name", "stexample", "--container-name", "example", "--name", "example"] },
+];
