@@ -163,7 +163,7 @@ Several profiles and no selection is an error.
 | `managementGroup` | Default scope for Resource Graph queries |
 | `subscriptions` | Default subscription IDs; empty or missing means every subscription the identity can see |
 | `workspaces` | Alias to Log Analytics workspace ID (the workspace GUID, not the ARM resource ID) |
-| `tokenEnv` | Token audience (`arm`, `logs`, `graph`, `storage`, `vault`) to environment variable name, for `token` mode; `storage` and `vault` are only for native [storage](#storage-metadata-reads) and [key vault](#key-vault-metadata-reads) metadata reads, not `api --resource` |
+| `tokenEnv` | Token audience (`arm`, `logs`, `graph`, `storage`, `vault`, `registry`) to environment variable name, for `token` mode; `storage`, `vault` and `registry` are only for native [storage](#storage-metadata-reads), [key vault](#key-vault-metadata-reads) and [ACR](#acr-metadata-reads) metadata reads, not `api --resource` |
 
 Create a profile without editing JSON:
 
@@ -357,6 +357,9 @@ az-axi storage blob show --account-name stexample --container-name example --nam
 az-axi keyvault secret list --vault-name kvexample     # secret properties and expiry using Entra auth
 az-axi keyvault key list --vault-name kvexample
 az-axi keyvault certificate list --vault-name kvexample --expiring-within 30d
+az-axi acr repository list --name myregistry  # registry catalog using Entra token exchange
+az-axi acr repository show-tags --name myregistry --repository hello-world
+az-axi acr manifest show-metadata --registry myregistry --name hello-world:latest
 az-axi op status '<operation-url>' --profile work       # read the current result of a pending operation
 ```
 
@@ -407,6 +410,30 @@ Tags, secret values, key material and certificate bytes are excluded, including 
 Redirects and arbitrary endpoints are refused; credential acquisition and all list pages share a 30-second deadline, and each list body has a 1 MiB bound.
 Entra access needs Key Vault data-plane list permission for the collection; a denied read fails without trying other authentication.
 See Microsoft's [Get Secrets](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4), [Get Keys](https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4) and [Get Certificates](https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4) contracts.
+
+### ACR metadata reads
+
+`acr repository list|show-tags` and `acr manifest show-metadata` follow az's group/subgroup/verb grammar with native registry data-plane reads using Entra-based token exchange only.
+The Entra token (audience `https://containerregistry.azure.net`) is exchanged at the registry's own `oauth2/exchange` endpoint for a refresh token, then at `oauth2/token` for a pull-scoped access token (`registry:catalog:*` for the catalog, `repository:<name>:pull` for tags and manifests).
+No `docker login`, admin-user password, credential export (`listCredentials`, `regenerateCredential`), image pull, blob download or local output file is supported.
+`--username`, `--password`, `--suffix`, `--image`, `--file`, `--detail` and `--execute` are refused before any transport, as are delete/untag/update paths.
+Only internal `az account get-access-token --resource https://containerregistry.azure.net` token acquisition runs for az-auth profiles, with a bounded, sanitized child environment and extensions disabled.
+Token profiles require `$AZ_AXI_REGISTRY_TOKEN`, or a custom environment variable named by `tokenEnv.registry` in the profile; they never use ambient az login or ARM tokens as a fallback.
+
+`--name` (`-n`) on repository leaves and `--registry` on the manifest leaf explicitly select the registry; the public login server `<registry>.azurecr.io` is built from the validated registry name, and subscription and management-group selectors do not filter this data plane.
+`show-tags` requires `--repository`; `show-metadata` requires `--name` (`-n`) as `repository:tag` or `repository@digest` (login-server-qualified IDs are refused).
+Named tags resolve through one exact manifest GET, never by scanning tag lists.
+Lists fetch one page with `--limit` (default 50, integer 1-1000) and optional `--marker`, continuing from the service Link header; `show-tags` also accepts `--orderby time_asc|time_desc` (az vocabulary).
+`--limit` does not apply to `show-metadata` and is refused there.
+Registry, repository and reference values retain strict service-name validation.
+When `nextMarker` is present, the count is a lower bound and the output includes a continuation command; an empty page can still have a continuation.
+Repository rows carry only the name; tag rows carry name, digest, createdTime and lastUpdateTime; manifests project digest (from `Docker-Content-Digest`), mediaType, schemaVersion, config, layers and manifests only.
+Config and layer descriptors contain digest and optional mediaType and size; manifest-list/index entries use the same descriptor fields plus optional platform architecture, os and variant.
+`--fields` selects from those properties; `--full` preserves the same safe schema and page bound.
+Signatures, history, download URLs, blob contents and all secret values are excluded, including from errors.
+Redirects and arbitrary endpoints are refused; credential acquisition, token exchange and the metadata request share a 30-second deadline, and each token or data response has a 1 MiB bound.
+Entra access needs AcrPull on the registry; a denied read fails without trying other authentication.
+See Microsoft's [Get Repositories](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-repositories?view=rest-registry-dataplane-2021-07-01), [Get Tags](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-tags?view=rest-registry-dataplane-2021-07-01), [Get Manifest](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-manifest?view=rest-registry-dataplane-2021-07-01) and [token exchange](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/authentication/exchange-aad-access-token-for-acr-refresh-token?view=rest-registry-dataplane-2021-07-01) contracts (api-version 2021-07-01).
 
 These az-shaped paths run the same native operation as the legacy path, with identical TOON output and scope:
 
@@ -522,6 +549,7 @@ Use `--limit N` to cap rows and `--fields a,b` to select list columns.
 `--full` expands truncated cells and removes display row limits for most inspection lists; `rg query` keeps its page cap, and `logs query` and `api` still honor `--limit`.
 For storage's fixed schema and page bound, see [Storage metadata reads](#storage-metadata-reads).
 For key vault's minimal default list schema and page bound, see [Key Vault metadata reads](#key-vault-metadata-reads).
+For the registry equivalents, see [ACR metadata reads](#acr-metadata-reads).
 `api` follows additional pages only with `--all`, subject to a page cap.
 For JSON request bodies, use `--body-file <path>` or pipe JSON on stdin, for example `az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json` or the same command with `< query.json` instead of `--body-file query.json`.
 Inline `--body` remains supported; choose exactly one source.

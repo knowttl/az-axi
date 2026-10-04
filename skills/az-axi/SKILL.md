@@ -74,6 +74,9 @@ The offline test suite checks this list against the registry.
 | `az-axi keyvault secret list` | native | read |
 | `az-axi keyvault key list` | native | read |
 | `az-axi keyvault certificate list` | native | read |
+| `az-axi acr repository list` | native | read |
+| `az-axi acr repository show-tags` | native | read |
+| `az-axi acr manifest show-metadata` | native | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
@@ -82,6 +85,8 @@ Run `az-axi <complete-leaf-path> --help` for that leaf's accepted flags and refe
 See [storage metadata reads](../../README.md#storage-metadata-reads) for the storage commands, required flags, Entra-only authentication, safe properties, literal values and paging limits.
 
 See [key vault metadata reads](../../README.md#key-vault-metadata-reads) for the keyvault commands, required flags, Entra-only authentication, property-only listing with no value retrieval, expiry filtering and paging limits.
+
+See [ACR metadata reads](../../README.md#acr-metadata-reads) for the registry commands, required flags, Entra-only token exchange, safe properties and paging limits.
 
 See the [pinned Azure CLI read catalogue reference](../../README.md#pinned-azure-cli-read-catalogue) for runtime constraints, refusal policy, credential exclusions and maintenance workflow.
 

@@ -31,6 +31,7 @@ describe("exact leaf contracts", () => {
       "sentinel incident list-alert", "sentinel incident list-entity", "sentinel incident update", "sentinel incident comment create", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
       "storage container list", "storage container show", "storage blob list", "storage blob show",
       "keyvault secret list", "keyvault key list", "keyvault certificate list",
+      "acr repository list", "acr repository show-tags", "acr manifest show-metadata",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
@@ -88,7 +89,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

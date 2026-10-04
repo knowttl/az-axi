@@ -15,6 +15,7 @@ Agents and CI must never run capture or live smoke commands.
 The owner capture/replay inventory and command arguments are defined by the `scenarios` export in [benchmark/scenarios.mjs](benchmark/scenarios.mjs).
 The separate `offlineWritePreviews` export is measured only by [test/budget.test.ts](test/budget.test.ts), outside owner capture/replay.
 The `offlinePassthroughReads` export is also measured only by that budget suite, using fake Azure CLI responses.
+The `offlineAcrReads` export measures synthetic ACR metadata shapes only in that budget suite, outside owner capture/replay and without registry access.
 The fetch capture/replay transport cannot record or replay child-process reads.
 Scenario argv contains no profile or subscription flags; capture injects the owner's selectors.
 The logs and Sentinel workspace is supplied by targets rather than relying on an owner's workspace alias.

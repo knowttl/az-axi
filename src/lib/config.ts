@@ -5,7 +5,7 @@ import { AxiError } from "axi-sdk-js";
 
 export type AuthMode = "az" | "token";
 export type Resource = "arm" | "logs" | "graph";
-export type CredentialResource = Resource | "storage" | "vault";
+export type CredentialResource = Resource | "storage" | "vault" | "registry";
 
 /** Env var read for a `token` mode profile when its `tokenEnv` does not name one for a resource. */
 export const DEFAULT_TOKEN_ENV: Record<Resource, string> = {
@@ -219,5 +219,5 @@ export function writeStatus(
 
 export function tokenEnvFor(profile: Profile, resource: CredentialResource): string {
   return profile.tokenEnv?.[resource] ??
-    (resource === "storage" ? "AZ_AXI_STORAGE_TOKEN" : resource === "vault" ? "AZ_AXI_VAULT_TOKEN" : DEFAULT_TOKEN_ENV[resource]);
+    (resource === "storage" ? "AZ_AXI_STORAGE_TOKEN" : resource === "vault" ? "AZ_AXI_VAULT_TOKEN" : resource === "registry" ? "AZ_AXI_REGISTRY_TOKEN" : DEFAULT_TOKEN_ENV[resource]);
 }
