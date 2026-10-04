@@ -2,9 +2,12 @@ import { createHash } from "node:crypto";
 import {
   ACTIVITY_LOG,
   DEFENDER_ALERTS,
+  DEFENDER_PRICINGS,
+  DEFENDER_SUB_ASSESSMENTS,
   POLICY,
   POLICY_STATES,
   RESOURCE_GRAPH_RESOURCES,
+  ROLE_DEFINITIONS,
   SUBSCRIPTIONS_LIST,
 } from "../../dist/lib/apiVersions.js";
 import {
@@ -54,6 +57,15 @@ export const PUBLIC_VOCABULARY = Object.freeze([
   "Default", "DoNotEnforce", "BuiltIn", "Custom", "Static", "Compliant", "NonCompliant", "Exempt", "Conflict", "Unknown",
   "All", "Indexed", "Audit", "Deny", "Append", "Modify", "AuditIfNotExists", "DeployIfNotExists", "Manual",
   "audit", "deny", "disabled", "append", "modify", "auditIfNotExists", "deployIfNotExists", "manual",
+  ROLE_DEFINITIONS, DEFENDER_PRICINGS, DEFENDER_SUB_ASSESSMENTS,
+  "pricings", "subAssessments", "pricingTier", "subPlan", "enablementTime",
+  "freeTrialRemainingTime", "enforce", "resourcesCoverageStatus", "extensions", "isEnabled",
+  "additionalExtensionProperties", "deprecated", "replacedBy", "inherited", "inheritedFrom",
+  "assignableScopes", "permissions", "actions", "notActions", "dataActions", "notDataActions",
+  "BuiltInRole", "CustomRole", "Standard", "Free", "P2", "PartiallyCovered", "FullyCovered", "NotCovered",
+  "category", "impact", "remediation", "resourceDetails", "source",
+  "cause", "timeGenerated", "vulnId", "additionalData", "assessedResourceType",
+  "assessment-name", "assessed-resource-id", "custom-role-only",
   "resourceIdentifiers", "azureResourceId", "entities",
   "eventDataId", "eventTimestamp", "caller", "operationName", "localizedValue", "resourceGroupName", "correlationId",
   "Microsoft.Insights", "eventtypes", "management", "values", "customerId",

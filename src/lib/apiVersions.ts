@@ -310,6 +310,81 @@ export const POLICY_STATES = "2024-10-01";
 export const DENY_ASSIGNMENTS = "2022-04-01";
 
 /**
+ * Role definitions, list and get (`GET /{scope}/providers/Microsoft.Authorization/
+ * roleDefinitions[/{roleDefinitionId}]`). Scope is a subscription (built-in
+ * definitions are applicable at scope and above, so the subscription list
+ * carries built-ins alongside customs) or the tenant root for built-ins by ID.
+ *
+ * Value: 2022-04-01. Newer stable: none (2022-04-01 is the newest stable folder,
+ * the same family as ROLE_ASSIGNMENTS and DENY_ASSIGNMENTS).
+ * Spec: authorization/resource-manager/Microsoft.Authorization/Authorization/stable/2022-04-01/
+ * (authorization-RoleDefinitionsCalls.json).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/authorization/role-definitions/list?view=rest-authorization-2022-04-01
+ * and https://learn.microsoft.com/en-us/cli/azure/role/definition?view=azure-cli-latest
+ * (`az role definition list [--custom-role-only] [--name]` matches the GUID or
+ * the roleName; `show [--id] [--name]` takes the GUID or the full ID).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same path, version and RoleDefinition shape
+ * with roleName, type, description, assignableScopes and permissions carrying
+ * actions, notActions, dataActions and notDataActions).
+ * Reason: newest stable; `RoleDefinitions_List` and `RoleDefinitions_Get`
+ * present with `{ value: T[] }` plus `nextLink` list responses. No native
+ * role-definition mutation commands are available; generic api writes are
+ * destructive under policy (roleDefinitions is protected) and require the
+ * existing destructive confirmation.
+ */
+export const ROLE_DEFINITIONS = "2022-04-01";
+
+/**
+ * Defender for Cloud pricing configurations, list and get
+ * (`GET /{scopeId}/providers/Microsoft.Security/pricings[/{pricingName}]`).
+ * Scope is a subscription; resource-scoped pricings exist for
+ * VirtualMachines, VMSS and ARC machines and are reachable by exact ID only.
+ *
+ * Value: 2024-01-01. Newer stable: none pinned.
+ * Spec: security/resource-manager/Microsoft.Security/Security/stable/2024-01-01/pricings.json.
+ * Docs: https://learn.microsoft.com/en-us/rest/api/defenderforcloud/pricings/list?view=rest-defenderforcloud-2024-01-01
+ * and https://learn.microsoft.com/en-us/cli/azure/security/pricing?view=azure-cli-latest
+ * (`az security pricing list` takes no scope flags; `show --name` takes the
+ * plan name such as VirtualMachines; `create` updates the plan and stays out).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same path, version and Pricing shape with
+ * pricingTier, subPlan, enablementTime, freeTrialRemainingTime, enforce,
+ * deprecated, replacedBy, resourcesCoverageStatus and extensions).
+ * Reason: newest stable; `Pricings_List` and `Pricings_Get` present with
+ * `{ value: T[] }` plus `nextLink` list responses. No native pricing mutation
+ * commands are available; plan changes stay on generic api writes behind the
+ * existing gates.
+ */
+export const DEFENDER_PRICINGS = "2024-01-01";
+
+/**
+ * Defender for Cloud security sub-assessments, list-all and get
+ * (`GET /{scope}/providers/Microsoft.Security/subAssessments` and
+ * `GET /{scope}/providers/Microsoft.Security/assessments/{assessmentName}/
+ * subAssessments[/{subAssessmentName}]`). Scope is a subscription; the
+ * assessed resource selects rows client-side, as does the parent assessment.
+ *
+ * Value: 2019-01-01-preview. Newer stable: none (no stable folder exists for
+ * sub-assessments; the list, list-all and get operations are preview-only).
+ * Spec: security/resource-manager/Microsoft.Security/Security/preview/2019-01-01-preview/
+ * (subAssessments.json).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/defenderforcloud/sub-assessments/list-all?view=rest-defenderforcloud-2019-01-01-preview
+ * and https://learn.microsoft.com/en-us/cli/azure/security/sub-assessment?view=azure-cli-latest
+ * (`az security sub-assessment list [--assessed-resource-id]
+ * [--assessment-name]`; `show --assessment-name --name
+ * [--assessed-resource-id]`).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list-all reference documents the same path, version and
+ * SecuritySubAssessment shape with displayName, category, impact,
+ * remediation, resourceDetails, status code/cause/severity and timeGenerated).
+ * Reason: only version; `SubAssessments_ListAll` and `SubAssessments_Get`
+ * present with `{ value: T[] }` plus `nextLink` list responses. Only
+ * metadata is projected; additionalData arrives in the full view only.
+ */
+export const DEFENDER_SUB_ASSESSMENTS = "2019-01-01-preview";
+
+/**
  * Deployments - What If, used by deployment dry runs
  * (`POST .../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group
  * and subscription scope).

@@ -44,6 +44,7 @@ import { run as runNetwork } from "../src/commands/network.js";
 import { run as runPolicy } from "../src/commands/policy.js";
 import { run as runLock } from "../src/commands/lock.js";
 import { run as runDeny } from "../src/commands/denyAssignment.js";
+import { run as runRole } from "../src/commands/role.js";
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runActivity } from "../src/commands/activity.js";
@@ -69,6 +70,7 @@ import { routeArgv } from "../src/lib/router.js";
 import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads, offlineKeyvaultReads, offlineAcrReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
+  defenderPricing,
   denyAssignment,
   managementLock,
   policyAssignment,
@@ -76,6 +78,8 @@ import {
   policySetDefinition,
   policyStateEnvelope,
   policyStates,
+  roleDefinition,
+  securitySubAssessment,
   sentinelIncidentAlerts,
   sentinelIncidentDetail,
   sentinelIncidentEntities,
@@ -206,6 +210,12 @@ const CEILINGS: Record<string, number> = {
   "lock show": 143,
   "deny-assignment list": 152,
   "deny-assignment show": 255,
+  "role definition list": 191,
+  "role definition show": 292,
+  "security pricing list": 123,
+  "security pricing show": 184,
+  "security sub-assessment list": 244,
+  "security sub-assessment show": 543,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -335,6 +345,12 @@ describe("token budgets", () => {
     { key: "lock show", run: runLock, sample: managementLock, argv: ["show", "--name", "sub-lock"] },
     { key: "deny-assignment list", run: runDeny, sample: denyAssignment, argv: ["list"] },
     { key: "deny-assignment show", run: runDeny, sample: denyAssignment, argv: ["show", "--name", "deny-example", "--resource-group", "rg-demo"] },
+    { key: "role definition list", run: runRole, sample: roleDefinition, argv: ["definition", "list"] },
+    { key: "role definition show", run: runRole, sample: roleDefinition, argv: ["definition", "show", "--name", "00000000-0000-0000-0000-000000000040"] },
+    { key: "security pricing list", run: runSecurity, sample: defenderPricing, argv: ["pricing", "list"] },
+    { key: "security pricing show", run: runSecurity, sample: defenderPricing, argv: ["pricing", "show", "--name", "VirtualMachines"] },
+    { key: "security sub-assessment list", run: runSecurity, sample: securitySubAssessment, argv: ["sub-assessment", "list"] },
+    { key: "security sub-assessment show", run: runSecurity, sample: securitySubAssessment, argv: ["sub-assessment", "show", "--ids", securitySubAssessment.id] },
   ])("$key stays under its ceiling", async ({ key, run, sample, argv }) => {
     allMock.mockResolvedValue({ items: [sample] } as never);
     vi.mocked(request).mockResolvedValue(sample);
