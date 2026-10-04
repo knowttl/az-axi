@@ -29,7 +29,7 @@ for (const scenario of scenarios) {
       process.stderr.write(`Skipped ${scenario.name}: targets.json ${scenario.ownerTarget} is unset\n`);
       continue;
     }
-    const flag = scenario.ownerTarget === "resourceGroup" ? "--name" : "--ids";
+    const flag = scenario.ownerTarget === "resourceGroup" ? "--name" : argv.includes("--resource") ? "--resource" : "--ids";
     argv[argv.indexOf(flag) + 1] = target;
   }
   const workspaceIndex = argv.indexOf("--workspace");

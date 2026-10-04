@@ -10,6 +10,14 @@ const CURRENT = {
 };
 
 describe("diffResource", () => {
+  it.each(["PUT", "PATCH"] as const)("displays query-only URI changes distinctly for %s", (method) => {
+    const from = "https://example.com/view?team=dev#cpu";
+    const to = "https://example.com/view?team=ops#cpu";
+    expect(diffResource({ tags: { dashboard: from } }, { tags: { dashboard: to } }, method)).toEqual({
+      changes: [{ path: "tags.dashboard", from, to }], remaining: 0, noop: false,
+    });
+  });
+
   it("lists PATCH changes at dot paths and ignores untouched current fields", () => {
     const diff = diffResource(CURRENT, { tags: { env: "dev" }, location: "northeurope" }, "PATCH");
     expect(diff.noop).toBe(false);

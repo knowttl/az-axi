@@ -34,7 +34,14 @@ export function redact<T>(value: T): T {
 }
 
 function walk(value: unknown, parentKey: string | undefined, secureParameter = false): unknown {
-  if (typeof value === "string") return isSecretString(value) ? REDACTED : value;
+  if (typeof value === "string") {
+    if (isSecretString(value)) return REDACTED;
+    if (/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value)) {
+      const uri = URL.parse(value);
+      if (uri?.username || uri?.password) return REDACTED;
+    }
+    return value;
+  }
   if (Array.isArray(value)) return value.map((item) => walk(item, parentKey, secureParameter));
   if (value === null || typeof value !== "object") return value;
   const proto = Object.getPrototypeOf(value);

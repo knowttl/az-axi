@@ -35,6 +35,13 @@ The offline test suite checks this list against the registry.
 | `az-axi account show` | native | read |
 | `az-axi monitor log-analytics workspace list` | native | read |
 | `az-axi monitor log-analytics workspace show` | native | read |
+| `az-axi monitor metrics alert list` | native | read |
+| `az-axi monitor metrics alert show` | native | read |
+| `az-axi monitor action-group list` | native | read |
+| `az-axi monitor action-group show` | native | read |
+| `az-axi monitor diagnostic-settings list` | native | read |
+| `az-axi monitor diagnostic-settings show` | native | read |
+| `az-axi monitor metrics list` | native | read |
 | `az-axi group list` | native | read |
 | `az-axi group show` | native | read |
 | `az-axi resource list` | native | read |
@@ -196,11 +203,19 @@ az-axi account list
 az-axi account show -s <subscription> --full
 az-axi monitor log-analytics workspace list -g rg-demo
 az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
+az-axi monitor metrics alert list -g rg-demo
+az-axi monitor metrics alert show --name high-cpu -g rg-demo
+az-axi monitor action-group list -g rg-demo
+az-axi monitor action-group show --name ag-demo -g rg-demo
+az-axi monitor diagnostic-settings list --resource <ARM-id>
+az-axi monitor diagnostic-settings show --resource <ARM-id> --name to-hub
+az-axi monitor metrics list --resource <ARM-id>
+az-axi monitor metrics list --resource <ARM-id> --metric "Percentage CPU"
 ```
 
 See [README.md#use](../../README.md#use) for discovery subscription scope, including `resource show --ids`.
 Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
-Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
+Discovery lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
 `--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
 Generic `resource show` returns only the ARM envelope: id, name, type, kind, location, tags, sku, identity type and provisioningState.
 Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
@@ -213,6 +228,7 @@ Credential-bearing child resources and actions are refused before retrieval.
 Management-group discovery is unsupported; select subscriptions explicitly.
 
 See [README.md#use](../../README.md#use) for native account and workspace discovery scope, selectors, metadata fields, paging limits and credential exclusions, including how `account list` differs from legacy `sub list`.
+See [README.md#use](../../README.md#use) for Monitor alert, action-group, diagnostic-setting and metric selectors, projections, redaction, paging and point limits.
 
 ```sh
 az-axi graph query -q Resources

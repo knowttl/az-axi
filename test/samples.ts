@@ -932,3 +932,102 @@ export const denyAssignments = [denyAssignment, {
     principals: [], excludePrincipals: [],
   },
 }];
+// source: learn.microsoft.com/rest/api/monitor/metric-alerts/list-by-subscription
+// (2024-03-01-preview "List metric alert rules" example, identifiers replaced).
+export const monitorResource =
+  `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo`;
+export const monitorAlertRule = {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Insights/metricAlerts/high-cpu`,
+  name: "high-cpu", type: "Microsoft.Insights/metricAlerts", location: "global",
+  properties: {
+    description: "Alert when CPU stays high",
+    severity: 3, enabled: true, scopes: [monitorResource],
+    evaluationFrequency: "PT1M", windowSize: "PT5M",
+    criteria: {
+      allOf: [{ name: "High CPU", criterionType: "StaticThresholdCriterion",
+        metricName: "Percentage CPU", operator: "GreaterThan", threshold: 80,
+        timeAggregation: "Average" }],
+      "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+    },
+    actions: [{ actionGroupId: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Insights/actionGroups/ag-demo`,
+      webHookProperties: { payload: "custom" } }],
+  },
+};
+export const monitorAlertRules = [monitorAlertRule, {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Insights/metricAlerts/disk-full`,
+  name: "disk-full", type: "Microsoft.Insights/metricAlerts", location: "global",
+  properties: {
+    description: "Alert when disk fills",
+    severity: 2, enabled: false, scopes: [monitorResource],
+    evaluationFrequency: "PT5M", windowSize: "PT15M",
+    criteria: {
+      allOf: [{ name: "Low Space", criterionType: "DynamicThresholdCriterion",
+        metricName: "Available Memory Bytes", alertSensitivity: "Medium",
+        failingPeriods: { numberOfEvaluationPeriods: 4, minFailingPeriodsToAlert: 4 } }],
+      "odata.type": "Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria",
+    },
+    actions: [],
+  },
+}];
+// source: learn.microsoft.com/rest/api/monitor/action-groups/list-by-subscription-id
+// (2023-01-01 "List action groups" example, identifiers replaced).
+export const monitorActionGroup = {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Insights/actionGroups/ag-demo`,
+  name: "ag-demo", type: "Microsoft.Insights/actionGroups", location: "global",
+  properties: {
+    groupShortName: "agdemo", enabled: true,
+    emailReceivers: [{ name: "oncall", emailAddress: "oncall@contoso.com", useCommonAlertSchema: true }],
+    webhookReceivers: [{ name: "hook", serviceUri: "https://hooks.contoso.com/alerts",
+      useCommonAlertSchema: true, properties: {} }],
+    eventHubReceivers: [{ name: "hub", eventHubNameSpace: "evns-demo", eventHubName: "alerts",
+      subscriptionId: SUB_A, useCommonAlertSchema: true }],
+  },
+};
+export const monitorActionGroups = [monitorActionGroup, {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Insights/actionGroups/ag-quiet`,
+  name: "ag-quiet", type: "Microsoft.Insights/actionGroups", location: "global",
+  properties: { groupShortName: "quiet", enabled: false },
+}];
+// source: learn.microsoft.com/rest/api/monitor/diagnostic-settings/list
+// (2021-05-01-preview "List diagnostic settings" example, identifiers replaced).
+export const monitorDiagnosticSetting = {
+  id: `${monitorResource}/providers/Microsoft.Insights/diagnosticSettings/to-hub`,
+  name: "to-hub", type: "Microsoft.Insights/diagnosticSettings",
+  properties: {
+    storageAccountId: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Storage/storageAccounts/stdemo`,
+    workspaceId: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo`,
+    logs: [
+      { category: "AuditEvent", enabled: true, retentionPolicy: { enabled: true, days: 30 } },
+      { category: "AzurePolicyEvaluationDetails", enabled: false, retentionPolicy: { enabled: false, days: 0 } },
+    ],
+    metrics: [{ category: "AllMetrics", enabled: true, retentionPolicy: { enabled: true, days: 30 } }],
+  },
+};
+export const monitorDiagnosticSettings = [monitorDiagnosticSetting];
+// source: learn.microsoft.com/rest/api/monitor/metric-definitions/list
+// (2024-02-01 "List metric definitions" example, identifiers replaced).
+export const monitorMetricDefinition = {
+  id: `${monitorResource}/providers/Microsoft.Insights/metricDefinitions/Percentage CPU`,
+  name: { value: "Percentage CPU", localizedValue: "Percentage CPU" },
+  unit: "Percent", primaryAggregationType: "Average",
+  supportedAggregationTypes: ["Average", "Minimum", "Maximum"],
+};
+export const monitorMetricDefinitions = [monitorMetricDefinition, {
+  id: `${monitorResource}/providers/Microsoft.Insights/metricDefinitions/Disk Read Bytes`,
+  name: { value: "Disk Read Bytes", localizedValue: "Disk Read Bytes" },
+  unit: "Bytes", primaryAggregationType: "Total",
+  supportedAggregationTypes: ["Total", "Average"],
+}];
+// source: learn.microsoft.com/rest/api/monitor/metrics/list
+// (2024-02-01 "List metric values" example, identifiers replaced).
+export const monitorMetricValues = {
+  timespan: "2026-10-04T00:00:00Z/2026-10-04T01:00:00Z", interval: "PT1H",
+  value: [{
+    id: `${monitorResource}/providers/Microsoft.Insights/metrics/Percentage CPU`,
+    name: { value: "Percentage CPU", localizedValue: "Percentage CPU" }, unit: "Percent",
+    timeseries: [{ metadatavalues: [], data: [
+      { timeStamp: "2026-10-04T00:00:00Z", average: 12.5 },
+      { timeStamp: "2026-10-04T01:00:00Z", average: 44 },
+    ] }],
+  }],
+};

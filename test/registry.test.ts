@@ -25,6 +25,8 @@ describe("exact leaf contracts", () => {
     expect(COMMAND_LEAVES.map((leaf) => leaf.path)).toEqual([
       "home", "doctor", "config init", "config list", "config path", "sub list",
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
+      "monitor metrics alert list", "monitor metrics alert show", "monitor action-group list", "monitor action-group show",
+      "monitor diagnostic-settings list", "monitor diagnostic-settings show", "monitor metrics list",
       "group list", "group show", "resource list", "resource show", "tag update",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
       "security pricing list", "security pricing show",

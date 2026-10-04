@@ -5,6 +5,7 @@ import type { ResolvedProfile } from "./config.js";
 import { subscriptions } from "./discovery.js";
 import { countLine, emptyState, pickFields } from "./format.js";
 import { governanceLeafHelp } from "./governanceHelp.js";
+import { monitorLeafHelp } from "./monitorHelp.js";
 import { roleLeafHelp } from "./roleHelp.js";
 import { securityReadLeafHelp } from "./securityHelp.js";
 import { parseSubscriptionId, shortenResourceId } from "./scope.js";
@@ -66,6 +67,7 @@ export interface GovernanceCollection {
 export function governanceInvalid(message: string, path: string): never {
   const help = path.startsWith("role ") ? roleLeafHelp(path)
     : path.startsWith("security ") ? securityReadLeafHelp(path)
+    : path.startsWith("monitor ") ? monitorLeafHelp(path)
     : governanceLeafHelp(path);
   throw new AxiError(message, "VALIDATION_ERROR", [help]);
 }

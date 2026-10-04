@@ -7,6 +7,7 @@ import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
 import { NETWORK_HELP, NETWORK_RECORD_TYPES, networkLeafHelp } from "./networkHelp.js";
 import { DENY_ASSIGNMENT_HELP, governanceLeafHelp, LOCK_HELP, POLICY_HELP } from "./governanceHelp.js";
 import { ROLE_HELP, roleLeafHelp } from "./roleHelp.js";
+import { MONITOR_READS_HELP, monitorLeafHelp } from "./monitorHelp.js";
 import { SECURITY_READS_HELP, securityReadLeafHelp } from "./securityHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 import { KEYVAULT_HELP, keyvaultLeafHelp } from "./keyvaultHelp.js";
@@ -65,6 +66,13 @@ export const COMMAND_LEAVES = [
   { path: "account show", effect: "read", capability: "native" },
   { path: "monitor log-analytics workspace list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
   { path: "monitor log-analytics workspace show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", "workspace-name": "value", name: "value" } },
+  { path: "monitor metrics alert list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "monitor metrics alert show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "monitor action-group list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "monitor action-group show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "monitor diagnostic-settings list", effect: "read", capability: "native", flags: { resource: "value" } },
+  { path: "monitor diagnostic-settings show", effect: "read", capability: "native", flags: { ids: "value", resource: "value", name: "value" } },
+  { path: "monitor metrics list", effect: "read", capability: "native", flags: { resource: "value", metric: "list", "start-time": "value", "end-time": "value", interval: "value", aggregation: "list" } },
   { path: "group list", effect: "read", capability: "native" },
   { path: "group show", effect: "read", capability: "native", flags: { name: "value" } },
   { path: "resource list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", "resource-type": "value" } },
@@ -239,7 +247,7 @@ const HELP_OVERVIEWS = {
   config: "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
   sub: "az-axi sub list                          # subscriptions visible to the identity",
   account: "az-axi account list|show                  # live ARM subscriptions in selected scope",
-  monitor: "az-axi monitor log-analytics workspace list|show  # workspace metadata, no shared keys\naz-axi monitor log-analytics query --workspace <alias|guid>  # KQL query; alias of logs query\naz-axi monitor activity-log list  # alias of activity list",
+  monitor: "az-axi monitor log-analytics workspace list|show  # workspace metadata, no shared keys\naz-axi monitor log-analytics query --workspace <alias|guid>  # KQL query; alias of logs query\naz-axi monitor activity-log list  # alias of activity list\naz-axi monitor metrics alert|action-group list|show  # alert rules and action groups\naz-axi monitor diagnostic-settings list|show --resource <ARM-id>  # routing for one resource\naz-axi monitor metrics list --resource <ARM-id>  # definitions, or values with --metric",
   group: "az-axi group list|show                    # resource groups in selected subscriptions",
   resource: "az-axi resource list|show                 # ARM resource inventory and detail",
   tag: "az-axi tag update --operation merge|delete   # set or remove tags on one resource or resource group",
@@ -266,6 +274,9 @@ const HELP_OVERVIEWS = {
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
 export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
+  if (path.startsWith("monitor metrics") || path.startsWith("monitor action-group") || path.startsWith("monitor diagnostic-settings")) {
+    return monitorLeafHelp(path);
+  }
   if (path.startsWith("storage ")) return storageLeafHelp(path);
   if (path.startsWith("keyvault ")) return keyvaultLeafHelp(path);
   if (path.startsWith("acr ")) return acrLeafHelp(path);
@@ -392,7 +403,7 @@ const HELP_TEXT = {
   role: ROLE_HELP,
   security: [SECURITY_READS_HELP, ALERT_UPDATE_HELP].join("\n"),
   account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
-  monitor: ["az-axi monitor log-analytics workspace list|show", "See also the monitor-shaped canonical paths routed through their native modules: monitor log-analytics query (alias of logs query) and monitor activity-log list (alias of activity list).", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"]].join("\n"),
+  monitor: ["az-axi monitor log-analytics workspace list|show", "See also the monitor-shaped canonical paths routed through their native modules: monitor log-analytics query (alias of logs query) and monitor activity-log list (alias of activity list).", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"], MONITOR_READS_HELP].join("\n"),
   az: AZ_HELP,
   group: ["az-axi group list", "az-axi group show --name <group> --subscription <id>", LEAF_HELP["group list"], LEAF_HELP["group show"]].join("\n"),
   resource: ["az-axi resource list", "az-axi resource show --ids <ARM-id>", LEAF_HELP["resource list"], LEAF_HELP["resource show"]].join("\n"),

@@ -7,6 +7,41 @@ const FAKE_JWT = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln";
 
 describe("redact", () => {
   it.each([
+    ["https://private-user:private-password@hooks.example.com/alerts?code=private-query#private-fragment", REDACTED],
+    ["HTTPS://private-user@hooks.example.com:8443/alerts", REDACTED],
+    ["https://private%40user:private%3Apassword@[::1]:8443/alerts?code=private-query", REDACTED],
+    ["sb://private-user:private-password@bus.example.com/queue?code=private-query", REDACTED],
+    ["https://hooks.example.com/alerts?code=public-query#public-fragment", "https://hooks.example.com/alerts?code=public-query#public-fragment"],
+  ])("redacts URI credentials while preserving ordinary URIs recursively: %s", (uri, safeUri) => {
+    const input = { serviceUri: uri, receivers: [{ endpoint: uri }], uris: [uri] };
+    expect(redact(input)).toEqual({ serviceUri: safeUri, receivers: [{ endpoint: safeUri }], uris: [safeUri] });
+    expect(input.serviceUri).toBe(uri);
+    expect(redact(uri)).toBe(safeUri);
+  });
+
+  it.each([
+    "CPU: overloaded? Restart the worker",
+    "Note: incident#123",
+    "Note: incident#456",
+    "https://example.com/status? Check incident#123",
+    "https://[invalid/alerts?code=public#fragment",
+    "mailto:oncall@example.com?subject=public#fragment",
+    "//example.com/alerts?code=public#fragment",
+    "custom:///alerts?code=public#fragment",
+  ])("preserves non-network-URI text in descriptions, logs and previews: %s", (text) => {
+    const input = { description: text, logs: [{ message: text }], preview: {
+      body: { description: text }, diff: [{ before: text, after: text }],
+    } };
+    expect(redact(input)).toEqual(input);
+    expect(redact(text)).toBe(text);
+  });
+
+  it("keeps distinct prose values distinct in write preview diffs", () => {
+    const input = { diff: [{ before: "Note: incident#123", after: "Note: incident#456" }] };
+    expect(redact(input)).toEqual(input);
+  });
+
+  it.each([
     { type: "secureString", value: "private-value" },
     { type: "secureObject", value: { field: "private-value" } },
   ])("redacts supplied $type values using inline template declarations", ({ type, value }) => {
@@ -119,7 +154,7 @@ describe("redact", () => {
       tokenEnv: { arm: "AZ_AXI_ARM_TOKEN" },
       passwordRequired: true,
       maxTokens: 5,
-      url: "https://management.azure.com/subscriptions?api-version=2022-12-01",
+      url: "https://management.azure.com/subscriptions",
       nothing: null,
       rows: [{ resource: "a" }, { resource: "b" }],
     };

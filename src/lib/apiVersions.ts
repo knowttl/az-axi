@@ -519,3 +519,94 @@ export const NETWORK = "2024-05-01";
  * and zonefile downloads are separate operations and are never constructed.
  */
 export const NETWORK_DNS = "2018-05-01";
+
+/**
+ * Metric alert rules, list and get (`GET /subscriptions/{id}/providers/
+ * Microsoft.Insights/metricAlerts` and `GET /subscriptions/{id}/
+ * resourceGroups/{rg}/providers/Microsoft.Insights/metricAlerts[/{name}]`).
+ *
+ * Value: 2026-01-01. Older stable: 2018-03-01 with the same
+ * ListBySubscription/ListByResourceGroup/Get shape; fall back to it if the
+ * live service rejects 2026-01-01.
+ * Spec: monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-01-01/
+ * (metricAlert.json, pageable MetricAlertResourceCollection with nextLink).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/monitor/metric-alerts/list-by-subscription
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same subscription path and the `{ value,
+ * nextLink }` collection with scopes, criteria, actions, severity,
+ * evaluationFrequency and windowSize).
+ * Reason: newest stable. Only list/get operations are constructed; rule
+ * create, update, delete and status actions stay on generic api writes
+ * behind the existing gates.
+ */
+export const METRIC_ALERTS = "2026-01-01";
+
+/**
+ * Action groups, list and get (`GET /subscriptions/{id}/providers/
+ * Microsoft.Insights/actionGroups` and `GET /subscriptions/{id}/
+ * resourceGroups/{rg}/providers/Microsoft.Insights/actionGroups[/{name}]`).
+ *
+ * Value: 2023-01-01. Older stable: 2022-06-01, 2021-09-01 and earlier with
+ * the same list/get shape; fall back if the live service rejects 2023-01-01.
+ * Spec: monitor/resource-manager/Microsoft.Insights/Insights/stable/2023-01-01/
+ * (actionGroups_API.json with ActionGroups_ListBySubscriptionId,
+ * ListByResourceGroup and Get).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/monitor/action-groups/list-by-subscription-id
+ * and https://learn.microsoft.com/en-us/cli/azure/monitor/action-group?view=azure-cli-latest
+ * (`az monitor action-group list|show --resource-group`).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same subscription path and the receiver
+ * collection with email, SMS, webhook, ITSM, automation, voice, logic-app
+ * and event-hub receivers).
+ * Reason: newest stable. Only list/get operations are constructed; only
+ * safelisted receiver metadata is projected (see README.md Monitor reads),
+ * and test-notification and receiver-enable actions are never constructed.
+ */
+export const ACTION_GROUPS = "2023-01-01";
+
+/**
+ * Diagnostic settings, list and get (`GET {resourceUri}/providers/
+ * Microsoft.Insights/diagnosticSettings[/{name}]`). The target is any ARM
+ * resource, resource group or subscription ID. The sibling subscription-
+ * diagnostic-settings and management-group APIs are never constructed.
+ *
+ * Value: 2021-05-01-preview. Newer stable: none (no stable folder carries
+ * diagnosticSettings; the resource-level contract is preview-only).
+ * Spec: monitor/resource-manager/Microsoft.Insights/Insights/preview/2021-05-01-preview/
+ * (diagnosticsSettings_API.json with DiagnosticSettings_List and Get).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/monitor/diagnostic-settings/list?view=rest-monitor-2021-05-01-preview
+ * and https://learn.microsoft.com/en-us/cli/azure/monitor/diagnostic-settings?view=azure-cli-latest
+ * (`az monitor diagnostic-settings list|show --resource --name`).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same resource-scoped path and the log/metric
+ * category plus storage/workspace/event-hub destination shape).
+ * Reason: only version for resource-level settings. Responses carry only
+ * routing configuration (no keys or secrets); create, update and delete
+ * stay on generic api writes behind the existing gates.
+ */
+export const DIAGNOSTIC_SETTINGS = "2021-05-01-preview";
+
+/**
+ * Metric definitions and values for one resource (`GET {resourceUri}/
+ * providers/Microsoft.Insights/metricDefinitions` and `GET {resourceUri}/
+ * providers/Microsoft.Insights/metrics` with `timespan`, `metricnames`,
+ * `interval` and `aggregation` query parameters).
+ *
+ * Value: 2024-02-01. Older stable: 2023-10-01 and 2021-05-01 with the same
+ * list shape; fall back if the live service rejects 2024-02-01.
+ * Spec: monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-02-01/
+ * (metrics.json with MetricDefinitions_List and Metrics_List).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/monitor/metrics/list?view=rest-monitor-2024-02-01
+ * and https://learn.microsoft.com/en-us/cli/azure/monitor/metrics?view=azure-cli-latest
+ * (`az monitor metrics list --resource --metric --start-time --end-time
+ * --interval --aggregation`).
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * list reference documents the same resource-scoped path, the
+ * timespan/interval/metricnames/aggregation parameters and the timeseries
+ * `{ timeStamp, average, minimum, maximum, total, count }` datum shape).
+ * Reason: newest stable covering both definitions and values. Windows are
+ * bounded client-side (default last hour, at most 31 days); subscription-
+ * scope metrics POSTs, dimension filters and batch queries are separate
+ * operations and are never constructed.
+ */
+export const MONITOR_METRICS = "2024-02-01";

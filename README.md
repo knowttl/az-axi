@@ -253,6 +253,14 @@ az-axi account list
 az-axi account show -s <subscription> --full
 az-axi monitor log-analytics workspace list -g rg-demo
 az-axi monitor log-analytics workspace show -g rg-demo --workspace-name logs-demo --full
+az-axi monitor metrics alert list -g rg-demo
+az-axi monitor metrics alert show --name high-cpu -g rg-demo
+az-axi monitor action-group list -g rg-demo
+az-axi monitor action-group show --name ag-demo -g rg-demo
+az-axi monitor diagnostic-settings list --resource <ARM-id>
+az-axi monitor diagnostic-settings show --resource <ARM-id> --name to-hub
+az-axi monitor metrics list --resource <ARM-id>
+az-axi monitor metrics list --resource <ARM-id> --metric "Percentage CPU"
 az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscription>
 az-axi sentinel incident show --name 3177 --workspace sentinel
 az-axi sentinel incident list-alert --name 3177 --workspace sentinel
@@ -331,6 +339,22 @@ Connector views project safelisted metadata only: secrets, keys and credential f
 There is no rule or connector mutation command; query workspace tables with `logs query` to investigate further.
 For the native incident update and comment create writes, see [Writes](#writes).
 Management-group scope is unsupported; select one subscription explicitly.
+
+Monitor reads (`monitor metrics alert list|show`, `monitor action-group list|show`, `monitor diagnostic-settings list|show`, `monitor metrics list`) use read-only ARM GETs against Microsoft.Insights: metric alert rules use api-version 2026-01-01; action groups use api-version 2023-01-01; diagnostic settings use api-version 2021-05-01-preview (the only version); metric definitions and values use api-version 2024-02-01.
+Alert and action-group lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `bySeverity`/`byEnabled` aggregates (alerts) and `byEnabled` plus receiver counts (action groups).
+Alert and action-group show by name needs `--name` with `--resource-group` in exactly one subscription; `--ids` takes exactly one ARM ID of the same collection, uses the ID's subscription when no subscription scope is configured, and otherwise requires that subscription in the selected scope.
+Alert rows default to name, severity, enabled, scopes and criteria (metric, operator, threshold); webhook action properties arrive as names only.
+Action-group rows default to name, enabled, short name and receiver type counts; show also defaults to receiver counts, while `show --full` projects safelisted receiver metadata only (webhook URLs with query and fragment suppressed, credentialed URI values redacted, webhook property names without values; logic-app callback URLs and function trigger URLs never shown).
+Diagnostic settings and metrics target exactly one `--resource <ARM-id>` (a resource, resource group or subscription ID for settings; a resource ID for metrics).
+The target's subscription must be in the selected scope; diagnostic show by `--resource` and `--name` also requires exactly one selected subscription, or use `--ids <setting-ARM-id>` alone with the same subscription checks as alert show.
+Setting rows default to name, enabled log and metric categories or category groups and destinations (storage account, workspace, event hub, marketplace partner); show returns every category with enabled flags and retention days plus the destination IDs.
+Alert, action-group, diagnostic-setting and metric-definition lists default to 50 rows (`--limit` accepts 1-1000); `--full` shows every fetched row.
+These lists follow up to 100 ARM pages per target and disclose incomplete counts as lower bounds.
+Without `--metric`, metrics list returns the resource's metric definitions (metric, unit, supported aggregations) with a hint for the first metric's values; with `--metric <name>`, it returns values over a bounded window (`--start-time`/`--end-time`, ISO 8601 datetimes with a timezone, default last hour ending at `--end-time` or now, at most 31 days) with optional `--interval` and `--aggregation` (Average, Minimum, Maximum, Total, Count).
+`--metric` and `--aggregation` accept multiple values; metric query errors fail the command.
+Value rows default to metric, unit, point count, latest aggregation values and time, plus the window's `from` and `to`; `--full` expands timestamped points containing numeric aggregation values (capped at `--limit` per metric with disclosure).
+Rule, action-group and setting mutations, subscription-scope metric batch queries, dimension filters and Application Insights data-plane queries stay out of scope.
+Management-group scope is unsupported; select subscriptions explicitly.
 
 Network reads (`network nsg|nic|vnet|public-ip|private-endpoint list|show`, `network dns zone list|show`, `network dns record-set list`, and `network dns record-set <type> list|show`) use read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01.
 Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with `--resource-group` / `-g` scoping and exact, case-insensitive `--name` / `-n` filtering, sorted by name with `byLocation` aggregates (record sets add `byType`).
@@ -674,6 +698,8 @@ Paging hints retain `--body-file` paths; for stdin bodies, replace the hint's `<
 Use each command's `--help` for its defaults and paging limits.
 
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
+Shared redaction also replaces complete absolute network URI values containing userinfo with `***redacted***`; URI values without recognized secrets or userinfo are preserved exactly.
+Monitor action-group receiver projections additionally suppress URI queries and fragments.
 Parameter values, defaults and allowed values are redacted when their parameter name is recognized as secret or their declaration uses `secureString` or `secureObject`.
 Supplied deployment parameter values are also matched against secure declarations in the paired inline template, including nested deployments.
 Errors render as TOON with a `code` and `help[]` suggestions when available.
