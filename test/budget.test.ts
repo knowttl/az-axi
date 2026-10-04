@@ -49,6 +49,7 @@ import { run as runLogs } from "../src/commands/logs.js";
 import { run as runApi } from "../src/commands/api.js";
 import { run as runSecurity } from "../src/commands/security.js";
 import { run as runSentinel } from "../src/commands/sentinel.js";
+import { run as runTag } from "../src/commands/tag.js";
 import { run as runPassthrough } from "../src/commands/az.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
 import { request, requestAll, sendRequest } from "../src/lib/client.js";
@@ -89,6 +90,7 @@ import {
   configListProfiles,
   defenderAlertDetail,
   defenderAlertUpdateState,
+  tagUpdateState,
   defenderAlerts,
   defenderAssessments,
   defenderScores,
@@ -141,6 +143,7 @@ const CEILINGS: Record<string, number> = {
   "sentinel incident list-entity": 221,
   "sentinel incident update": 797,
   "sentinel incident comment create": 288,
+  "tag update": 227,
   "sentinel alert-rule list": 244,
   "sentinel alert-rule show": 442,
   "sentinel data-connector list": 218,
@@ -412,6 +415,15 @@ describe("token budgets", () => {
     sendMock.mockResolvedValue(ok(sentinelIncidentDetail));
     const { argv } = routeArgv([...offlineWritePreviews[1]!.argv, "--subscription", SUB_A]);
     await expectUnderBudget("sentinel incident update", await runSentinel(argv.slice(1)));
+  });
+
+  it("tag update preview stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+      writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
+    } }));
+    sendMock.mockResolvedValue(ok(tagUpdateState));
+    const { argv } = routeArgv([...offlineWritePreviews[3]!.argv, "--subscription", SUB_A]);
+    await expectUnderBudget("tag update", await runTag(argv.slice(1)));
   });
 
   it("sentinel incident comment create preview stays under its ceiling", async () => {

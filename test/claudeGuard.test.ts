@@ -23,6 +23,7 @@ describe("Claude Code Bash write guard", () => {
     "az-axi defender alerts update --location westeurope --name example-alert --status resolve --execute",
     "az-axi sentinel incident update --name 3177 --status closed --classification FalsePositive --execute",
     "az-axi sentinel incident comment create --incident-id 00000000-0000-0000-0000-000000000063 --message Triaged --execute",
+    "az-axi tag update --resource-id /subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo --operation merge --tags env=prod --execute",
     "az-axi api PATCH /target --execute",
     "az-axi api PATCH /target --body-file 'body file.json' --execute",
     "az-axi api PATCH /target --execute < body.json",
@@ -114,6 +115,7 @@ describe("Claude Code Bash write guard", () => {
   it.each([
     "az-axi sub list",
     "az-axi api PATCH /target",
+    "az-axi tag update --resource-id /subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo --operation delete --tags old=x",
     "other-tool --execute",
     "not-az-axi --execute",
     "az-axi-helper --execute",

@@ -41,6 +41,7 @@ The offline test suite checks this list against the registry.
 | `az-axi group show` | native | read |
 | `az-axi resource list` | native | read |
 | `az-axi resource show` | native | read |
+| `az-axi tag update` | native | write |
 | `az-axi graph query` | native | read |
 | `az-axi rg query` | native | read |
 | `az-axi rbac list` | native | read |
@@ -306,6 +307,7 @@ For Resource Graph and Log Analytics queries, use the file or stdin inputs of `r
 Writes are disabled by default.
 See [README.md#writes](../../README.md#writes) for `security alert update`, its `defender alerts update` alias, required selectors, supported statuses, preview and no-op behavior, and concurrency limits.
 See the same reference for `sentinel incident update` (status, severity, owner, classification) and `sentinel incident comment create`, their required selectors, close/classification rules, preview and no-op behavior, and ETag handling.
+See the same reference for `tag update` (`--resource-id` with `--operation merge|delete`), its single-scope rule, tag-map preview and no-op behavior, and ETag handling.
 Write execution needs `--execute`; see the README reference above for `--if-match`, `--confirm`, `--timeout` and `--no-wait`.
 Show a dry run first (what would change, with the exact command to execute), and obtain human approval on every invocation - never batch, chain, or pre-approve writes.
 The human owns write access; this skill does not describe how to enable it.

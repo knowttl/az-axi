@@ -25,7 +25,7 @@ describe("exact leaf contracts", () => {
     expect(COMMAND_LEAVES.map((leaf) => leaf.path)).toEqual([
       "home", "doctor", "config init", "config list", "config path", "sub list",
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
-      "group list", "group show", "resource list", "resource show",
+      "group list", "group show", "resource list", "resource show", "tag update",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
       "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show",
       "sentinel incident list-alert", "sentinel incident list-entity", "sentinel incident update", "sentinel incident comment create",
@@ -38,7 +38,7 @@ describe("exact leaf contracts", () => {
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
     for (const leaf of COMMAND_LEAVES) {
       expect(leaf.capability).toBe(leaf.path === "az group show" ? "passthrough" : "native");
-      expect(leaf.effect).toBe(leaf.path === "api" ? "dynamic" : ["security alert update", "sentinel incident update", "sentinel incident comment create"].includes(leaf.path) ? "write" : "read");
+      expect(leaf.effect).toBe(leaf.path === "api" ? "dynamic" : ["security alert update", "sentinel incident update", "sentinel incident comment create", "tag update"].includes(leaf.path) ? "write" : "read");
     }
   });
 
@@ -90,7 +90,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

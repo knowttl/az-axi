@@ -505,6 +505,9 @@ Credential-bearing child resources and actions are refused before retrieval.
 Management-group scope is unsupported; select subscriptions explicitly.
 Reference: https://learn.microsoft.com/en-us/rest/api/resources/resource-groups/list?view=rest-resources-2021-04-01 and https://learn.microsoft.com/en-us/rest/api/resources/resources/list?view=rest-resources-2021-04-01; specification/resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/resources.json.
 
+The later native resource tag write is documented in [README.md#writes](README.md#writes).
+**Reference:** [Azure CLI tag update](https://learn.microsoft.com/en-us/cli/azure/tag?view=azure-cli-latest#az-tag-update), [ARM tags get-at-scope](https://learn.microsoft.com/en-us/rest/api/resources/tags/get-at-scope?view=rest-resources-2021-04-01) and [ARM tags update-at-scope](https://learn.microsoft.com/en-us/rest/api/resources/tags/update-at-scope?view=rest-resources-2021-04-01).
+
 Conventions for every command:
 
 - Default output is a list with 3 to 5 fields per row. `--fields a,b,c` overrides. `--full` disables truncation (default cell truncation is 200 characters; long text blocks use upstream's 1,200).

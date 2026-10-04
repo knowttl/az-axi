@@ -37,6 +37,25 @@ export const SUBSCRIPTIONS_LIST = "2022-12-01";
 export const RESOURCE_GROUPS = "2021-04-01";
 
 /**
+ * Resource tags at scope - Get (`GET {scope}/providers/Microsoft.Resources/tags/default`)
+ * and selective update (`PATCH {scope}/providers/Microsoft.Resources/tags/default`
+ * with `{operation: Merge|Delete, properties: {tags}}`).
+ *
+ * Value: 2021-04-01. Newer stable: 2025-04-01 documents the same PATCH shape.
+ * Spec: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/resources.json
+ * (the same stable family as RESOURCE_GROUPS; tags share the Microsoft.Resources contract).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/resources/tags/get-at-scope?view=rest-resources-2021-04-01
+ * and https://learn.microsoft.com/en-us/rest/api/resources/tags/update-at-scope?view=rest-resources-2021-04-01
+ * Verified: 2026-10-04 against the 2021-04-01 and 2025-04-01 REST views (both render
+ * the PATCH operation with the Merge/Delete/Replace enum) and the `az tag update`
+ * CLI reference (`--operation {Delete, Merge, Replace} --resource-id --tags`).
+ * Reason: documented stable GET/PATCH contract; Merge adds or overwrites by name,
+ * Delete removes by name, Replace rewrites the whole set (never sent by az-axi).
+ * The contract documents neither ETag nor If-Match support.
+ */
+export const RESOURCE_TAGS = "2021-04-01";
+
+/**
  * Storage accounts - Get Properties and Delete, owner-only smoke throwaway target.
  * Value: 2025-06-01. Newer stable: 2026-09-01 in the specification tree.
  * Spec: storage/resource-manager/Microsoft.Storage/stable/2025-06-01/openapi.json

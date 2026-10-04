@@ -663,6 +663,16 @@ The preview reports the new comment resource; execution sends one `PUT .../incid
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
 `--if-match` applies to incident updates.
 Both Sentinel previews include the redacted request body; `--full` expands a truncated body.
+
+`tag update` sets or removes tags on exactly one ARM scope: a resource, a resource group or the subscription itself, given as one exact `--resource-id` in a single explicit `--subscription / -s`.
+Names and implicit env/profile scope are not accepted; a mismatched or subscriptionless ID is refused, as is the tags wrapper itself.
+`--operation merge` adds the named tags or overwrites their values; `--operation delete` removes the named tags; `replace` is refused because it rewrites the whole tag set.
+`--tags` takes space-separated, comma-separated or repeated `k=v` pairs; conflicting values for one key are refused, and delete matches by name with the passed values sent unchanged.
+The preview reads the tags wrapper (`GET .../providers/Microsoft.Resources/tags/default?api-version=2021-04-01`) and shows the tag-map diff plus the exact native execute command; a missing wrapper previews creation for merge and a no-op for delete.
+Execution re-reads, returns a no-op without a PATCH or log entry when nothing would change, and otherwise sends one `PATCH .../tags/default?api-version=2021-04-01` with `{operation, properties:{tags}}` through the shared pipeline.
+The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
+Without `--if-match`, execution uses the fresh re-read ETag when the service returns one; the Tags API documents no ETag guarantee.
+`--execute`, `--timeout`, `--no-wait`, write logging, read-only gates and the Claude approval hook apply as for `api`.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 

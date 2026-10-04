@@ -27,6 +27,35 @@ const incidentBody = (name, incidentNumber) => ({
   },
 });
 
+// Synthetic TagsResource shaped like the 2021-04-01 contract. The tag map
+// follows AZ_AXI_TEST_TAGS so tag previews, no-op detection and delete
+// scenarios stay deterministic; AZ_AXI_TEST_TAGS_MISSING=1 simulates a scope
+// with no tags wrapper yet (merge creates it, delete is a no-op).
+const tagsBody = () => ({
+  id: "https://management.azure.com/tags/default",
+  name: "default",
+  type: "Microsoft.Resources/tags",
+  properties: { tags: JSON.parse(process.env.AZ_AXI_TEST_TAGS ?? '{"env":"dev"}') },
+});
+
+const tagsMissing = () => process.env.AZ_AXI_TEST_TAGS_MISSING === "1" || scenario === "gone";
+
+const tagsGet = () => {
+  if (tagsMissing()) return json({ error: { code: "ResourceNotFound", message: "no tags yet" } }, 404);
+  return json(tagsBody(), 200, { etag: '"tags1"' });
+};
+
+const tagsPatch = (body) => {
+  if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
+  const sent = body?.properties?.tags ?? {};
+  const current = process.env.AZ_AXI_TEST_TAGS_MISSING === "1" ? {} : tagsBody().properties.tags;
+  const tags = body?.operation === "Delete"
+    ? Object.fromEntries(Object.entries(current).filter(([key]) => !(key in sent)))
+    : { ...current, ...sent };
+  return json({ id: "https://management.azure.com/tags/default", name: "default",
+    type: "Microsoft.Resources/tags", properties: { tags } });
+};
+
 globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
   let body;
@@ -41,6 +70,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (method === "GET") {
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
+    if (new URL(url).pathname.endsWith("/tags/default")) return tagsGet();
     if (new URL(url).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
     const incidentsPath = new URL(url).pathname;
     if (incidentsPath.includes("/incidents/") || incidentsPath.endsWith("/incidents")) {
@@ -75,6 +105,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (new URL(url).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });
   if (scenario === "precondition") return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
+  if (method === "PATCH" && new URL(url).pathname.endsWith("/tags/default")) return tagsPatch(body);
   if (["incident-race", "review-stale"].includes(scenario) && init.headers?.["If-Match"] !== '"E2"') {
     return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
   }
