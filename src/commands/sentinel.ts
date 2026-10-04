@@ -807,6 +807,8 @@ async function resolveIncidentTarget(
   label: string,
 ): Promise<IncidentSelection> {
   const bad = (message: string): never => writeInvalid(`sentinel incident ${label}`, message);
+  const selectors = selectorError(args, "show", label);
+  if (selectors) bad(selectors);
   if ("ids" in ref) {
     const match = INCIDENT_ID.exec(ref.ids.trim());
     if (match) {
@@ -823,8 +825,6 @@ async function resolveIncidentTarget(
     }
     return bad("--ids must be one incident ARM ID under Microsoft.SecurityInsights/incidents");
   }
-  const selectors = selectorError(args, "show", label);
-  if (selectors) bad(selectors);
   const target = await resolveWorkspace(profile, args, subscription);
   const base = incidentBase(target.subscription, target.resourceGroup, target.workspaceName);
   const raw = ref.name.trim();
@@ -848,9 +848,9 @@ function enumFlag(
 ): string | undefined {
   const raw = flagText(args, name);
   if (raw === undefined) return undefined;
-  const canonical = table[raw.toLowerCase()];
-  if (!canonical) writeInvalid(leaf, message);
-  return canonical;
+  const key = raw.toLowerCase();
+  if (!Object.hasOwn(table, key)) writeInvalid(leaf, message);
+  return table[key];
 }
 
 /** One identity: a GUID becomes objectId, text with @ becomes email, else the assigned-to name. */

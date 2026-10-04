@@ -276,6 +276,42 @@ describe("built Sentinel incident update, offline only", () => {
   });
 });
 
+describe.each([
+  { route: "update" as const, flags: [] },
+  { route: "update" as const, flags: ["--execute"] },
+  { route: "comment" as const, flags: [] },
+  { route: "comment" as const, flags: ["--execute"] },
+])("Sentinel $route selector validation with $flags", ({ route, flags }) => {
+  it.each(["workspace", "workspace-name", "resource-group"])("rejects --ids with --%s before transport", (selector) => {
+    const result = cli([...flags, `--${selector}`, "copied-workspace"], { route, ids: true });
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("code: VALIDATION_ERROR");
+    expect(result.stdout).toContain("workspace selectors are not accepted with --ids");
+    expect(records("requests.jsonl")).toEqual([]);
+    expect(records("writes.log")).toEqual([]);
+  });
+});
+
+describe.each([{ flags: [] }, { flags: ["--execute"] }])("Sentinel enum validation with $flags", ({ flags }) => {
+  it.each([
+    [{ status: "__proto__" }, "--status must be New, Active or Closed"],
+    [{ status: "constructor" }, "--status must be New, Active or Closed"],
+    [{ severity: "__proto__" }, "--severity must be High, Medium, Low or Informational"],
+    [{ severity: "constructor" }, "--severity must be High, Medium, Low or Informational"],
+    [{ classification: "__proto__" }, "--classification must be Undetermined"],
+    [{ classification: "constructor" }, "--classification must be Undetermined"],
+    [{ reason: "__proto__" }, "--classification-reason must be SuspiciousActivity"],
+    [{ reason: "constructor" }, "--classification-reason must be SuspiciousActivity"],
+  ])("rejects inherited enum key %j before transport", (options, message) => {
+    const result = cli(flags, options);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("code: VALIDATION_ERROR");
+    expect(result.stdout).toContain(message);
+    expect(records("requests.jsonl")).toEqual([]);
+    expect(records("writes.log")).toEqual([]);
+  });
+});
+
 describe("built Sentinel incident comment create, offline only", () => {
   it("previews a new comment with creates:true and an exact execute hint", () => {
     const result = cli([], { route: "comment" });
@@ -302,6 +338,17 @@ describe("built Sentinel incident comment create, offline only", () => {
     expect(records("writes.log")).toEqual([expect.objectContaining({ class: "write", method: "PUT",
       url: putCall()?.url, outcome: "success", httpStatus: 201, requestId: "req-test" })]);
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toMatch(/offline-sentinel-token|"headers"|Offline triage note/);
+  });
+
+  it.each([
+    ["number", { incident: "3177" }],
+    ["ARM ID", { ids: true }],
+    ["workspace alias", { workspaceAlias: true, profile: "alias" }],
+  ])("adds a comment to an incident selected by %s", (_label, options) => {
+    const result = cli(["--execute"], { route: "comment", ...options });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(putCall()?.url).toEqual(expect.stringContaining(`https://management.azure.com${INCIDENT_ID}/comments/`));
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toHaveLength(1);
   });
 
   it("adds a separate comment when invoked again with the same message", () => {
