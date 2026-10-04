@@ -68,9 +68,10 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const target = formatFlagValue("vault-name", vault);
   return {
     vault, count: `${page.rows.length}${page.truncated ? "+" : ""} ${noun}${scope}`,
-    [noun]: page.rows.length ? pickFields(page.rows, columns) : page.truncated
+    [noun]: pickFields(page.rows, columns),
+    ...(!page.rows.length ? { status: page.truncated
       ? `No matching ${noun} in scanned pages of ${vault}${scope}; listing incomplete`
-      : emptyState(noun, `in ${vault}${scope}`),
+      : emptyState(noun, `in ${vault}${scope}`) } : {}),
     ...(page.truncated
       ? { help: [page.truncationReason === "scan"
         ? "Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"

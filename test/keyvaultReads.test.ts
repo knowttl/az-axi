@@ -1,11 +1,13 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { decode, encode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/lib/client.js", () => ({ requestKeyVaultMetadata: vi.fn() }));
 import { requestKeyVaultMetadata } from "../src/lib/client.js";
 import { run } from "../src/commands/keyvault.js";
 import { routeArgv } from "../src/lib/router.js";
+import { runCommand } from "../src/lib/registry.js";
 const read = vi.mocked(requestKeyVaultMetadata);
 let dir: string;
 const args = ["secret", "list", "--vault-name", "kvexample"];
@@ -34,9 +36,12 @@ describe("key vault read commands", () => {
     expect(await run([kind, "list", "--vault-name", "kvexample", "--fields", "name,enabled", "--full"]))
       .toEqual({ vault: "kvexample", count: `1 ${noun}`, [noun]: [{ name: "example", enabled: true }] });
   });
-  it("reports an explicit empty page", async () => {
+  it.each([
+    ["secret", "secrets"], ["key", "keys"], ["certificate", "certificates"],
+  ] as const)("%s empty output preserves its diagnostic and %s array through serialization", async (kind, noun) => {
     read.mockResolvedValue({ rows: [], truncated: false });
-    expect(await run(args)).toMatchObject({ count: "0 secrets", secrets: "0 secrets found in kvexample" });
+    expect(decode(encode(await runCommand("keyvault", [kind, "list", "--vault-name", "kvexample"]))))
+      .toEqual({ vault: "kvexample", count: `0 ${noun}`, [noun]: [], status: `0 ${noun} found in kvexample` });
   });
   it("does not claim a total when the service has more pages", async () => {
     read.mockResolvedValue({ rows: [], truncated: true });
@@ -44,12 +49,13 @@ describe("key vault read commands", () => {
   });
   it.each([
     ["secret", "secrets"], ["key", "keys"], ["certificate", "certificates"],
-  ] as const)("%s discloses an incomplete empty scan of %s", async (kind, noun) => {
+  ] as const)("%s discloses an incomplete empty scan of %s through serialization", async (kind, noun) => {
     read.mockResolvedValue({ rows: [], truncated: true, truncationReason: "scan" });
-    expect(await run([kind, "list", "--vault-name", "kvexample", "--expiring-within", "30d"]))
+    expect(decode(encode(await runCommand("keyvault", [kind, "list", "--vault-name", "kvexample", "--expiring-within", "30d"]))))
       .toMatchObject({
         count: `0+ ${noun} expiring within 30d`,
-        [noun]: `No matching ${noun} in scanned pages of kvexample expiring within 30d; listing incomplete`,
+        [noun]: [],
+        status: `No matching ${noun} in scanned pages of kvexample expiring within 30d; listing incomplete`,
         help: ["Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"],
       });
   });
