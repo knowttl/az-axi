@@ -105,7 +105,7 @@ const CEILINGS: Record<string, number> = {
   "sub list": 136,
   "account list": 108,
   "account show": 72,
-  "monitor log-analytics workspace list": 140,
+  "monitor log-analytics workspace list": 168,
   "monitor log-analytics workspace show": 96,
   "group list": 111,
   "group show": 69,

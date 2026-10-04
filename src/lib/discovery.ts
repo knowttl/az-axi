@@ -175,6 +175,9 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
   }
   const shown = items.slice(0, full ? undefined : limit);
   const noun = kind === "workspace" ? "workspaces" : kind === "group" ? "resource groups" : "resources";
+  const detailSelectors = kind === "workspace" ? ["profile", "config", "tenant", "subscription"]
+    .filter((key) => typeof args.flags[key] === "string")
+    .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("") : "";
   const selectors = ["profile", "config", "tenant", "subscription", "resource-group", "name", "resource-type"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
@@ -184,7 +187,7 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
     count: `${shown.length} of ${items.length}${incomplete ? "+" : ""} ${noun}`,
     rows: shown.length ? pickFields(shown.map((item) => kind === "workspace" ? full || fields ? workspaceMetadata(item) : compact(item, kind) : fields ? { ...item, ...compact(item, kind) } : full ? item : compact(item, kind)), fields) : emptyState(noun, incomplete ? "in fetched pages; listing is incomplete" : "in selected subscriptions"),
     help: [
-      `Run \`az-axi ${command} show ${kind === "group" ? "--name <group> --subscription <id>" : "--ids <ARM-id>"}\` for details`,
+      `Run \`az-axi ${command} show ${kind === "group" ? "--name <group> --subscription <id>" : "--ids <ARM-id>"}${detailSelectors}\` for details`,
       ...(shown.length < items.length ? [`Run \`az-axi ${command} list${selectors} --full\` to show every fetched row`] : []),
       ...(incomplete ? ["More pages exist; paging stopped at 100 pages per subscription. Counts are lower bounds. Narrow the subscription or resource-group scope."] : []),
     ],

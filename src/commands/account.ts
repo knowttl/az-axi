@@ -46,13 +46,16 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const items = page.items.filter((item) => ids.has(item.subscriptionId.toLowerCase()));
   const shown = items.slice(0, full ? undefined : limit);
   const suffix = page.nextLink ? "+" : "";
+  const identitySelectors = ["profile", "config", "tenant"]
+    .filter((key) => typeof args.flags[key] === "string")
+    .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
   const selectors = ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
   return { profile: profile.name, total: page.nextLink ? `${items.length}+` : items.length,
     count: `${shown.length} of ${items.length}${suffix} subscriptions`,
     subscriptions: shown.length ? pickFields(shown.map((item) => metadata(item, full || !!fields)), fields) : emptyState("subscriptions", page.nextLink ? "in fetched pages; listing is incomplete" : "in selected scope"),
-    help: ["Run `az-axi account show --subscription <id>` for live details",
+    help: [`Run \`az-axi account show --subscription <id>${identitySelectors}\` for live details`,
       ...(shown.length < items.length ? [`Run \`az-axi account list${selectors} --full\` to show every fetched row`] : []),
       ...(page.nextLink ? ["More pages exist; paging stopped at 100 pages. Counts are lower bounds."] : [])] };
 }

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { discoveryAccount, discoveryWorkspace, SUB_A, SUB_B, subscriptionList, WORKSPACE } from "./samples.js";
+import { discoveryAccount, discoveryWorkspace, SUB_A, SUB_B, subscriptionList, TENANT, WORKSPACE } from "./samples.js";
 
 const workspace = ["monitor", "log-analytics", "workspace"];
 describe("built CLI workspace and account reads offline", () => {
@@ -60,6 +60,26 @@ describe("built CLI workspace and account reads offline", () => {
     expect(run(["account", "list"]).stdout).not.toContain(SUB_B);
     expect(run(["sub", "list"]).stdout).toContain(SUB_B);
     expect(run(["sub", "list"]).stdout).toContain("inScope");
+  });
+  it.each([
+    { path: ["account"], target: "--subscription <id>", scope: "", details: ["--subscription", SUB_A], suffix: "for live details" },
+    { path: workspace, target: "--ids <ARM-id>", scope: ` --subscription ${JSON.stringify(SUB_A)}`, details: ["--ids", discoveryWorkspace.id, "--subscription", SUB_A], suffix: "for details" },
+  ])("preserves explicit identity and scope in $path detail hints", ({ path, target, scope, details, suffix }) => {
+    const config = join(dir, "profiles with spaces.json");
+    writeFileSync(config, JSON.stringify({ defaultProfile: "ci", profiles: {
+      ci: { auth: "token", subscriptions: [SUB_B] }, prod: { auth: "token", subscriptions: [SUB_B] },
+    } }));
+    const identity = ["--config", config, "--profile", "prod", "--tenant", TENANT];
+    const list = run([...path, "list", ...identity, "--subscription", SUB_A]);
+    expect(list.status, list.stdout).toBe(0);
+    expect(decode(list.stdout)).toMatchObject({ profile: "prod", total: 1,
+      help: [`Run \`az-axi ${path.join(" ")} show ${target} --profile "prod" --config ${JSON.stringify(config)} --tenant ${JSON.stringify(TENANT)}${scope}\` ${suffix}`],
+    });
+    const show = run([...path, "show", ...details, ...identity]);
+    expect(show.status, show.stdout).toBe(0);
+    expect(decode(show.stdout)).toMatchObject({ profile: "prod" });
+    expect(show.stdout).toContain(SUB_A);
+    expect(show.stderr).toContain(`/subscriptions/${SUB_A}`);
   });
   it("shows account full metadata and requested fields", () => {
     const result = run(["account", "show", "-s", "Sandbox", "--full"]);
