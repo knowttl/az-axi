@@ -339,10 +339,12 @@ Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC 
 Management-group scope is unsupported; select subscriptions explicitly.
 
 Governance reads (`policy assignment|definition|set-definition list|show` and `policy state list`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01.
+Slice 5b part 1 covers policy reads only under the supervisor's approved split decision.
+Resource lock and deny-assignment reads are deliberately deferred to part 2, task `azx-p5b2-locks-deny`, preserved on branch `fm/azx-p5b2-locks-deny`.
 Compliance states (`policy state list`) query the latest states through a reviewed bodyless read POST against Microsoft.PolicyInsights (api-version 2024-10-01); scan triggers, summaries, exemptions and remediations stay out of scope.
 Lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping (definitions and initiatives are subscription-scoped and reject `--resource-group`) and exact, case-insensitive `--name` / `-n` filtering.
 State list adds `--assignment` (exact assignment name) and `--compliance` (Compliant or NonCompliant) filters and sorts newest first with `byCompliance` counts; assignment lists carry `byEnforcement` counts and definition and initiative lists `byType` counts.
-Assignment rows default to name, scope, definition (the assigned policy or initiative) and enforcement; the effect lives on the definition, so the assignment hint points at `policy definition show`.
+Assignment rows default to name, scope, definition (the assigned policy or initiative) and enforcement; the effect lives on the definition, so the assignment hint points at `policy definition show` or `policy set-definition show` as appropriate.
 Definition rows default to name, display, type (BuiltIn or Custom), effect and category; initiative rows replace the effect with the member definition count.
 State rows default to resource, assignment, compliance, definition and evaluation time; full views expand ARM IDs.
 Show by name needs exactly one subscription with optional `--resource-group` scoping for assignments; definitions and initiatives show customs by name in one subscription and built-ins (tenant-scoped) with `--ids`.

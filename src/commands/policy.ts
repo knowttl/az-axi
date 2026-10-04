@@ -5,7 +5,6 @@ import {
   arrOf,
   fetchStatePages,
   governanceInvalid,
-  joined,
   objOf,
   runGovernanceList,
   runGovernanceShow,
@@ -193,7 +192,6 @@ const STATES: GovernanceCollection = {
     return `Run \`az-axi policy assignment show ${formatFlagValue("ids", assignmentId)}${selectorSuffix(args, ["profile", "config", "tenant"])}` +
       `\` for the assigned policy`;
   },
-  extraListFlags: ["assignment", "compliance"],
   extraListFilter: (item, args) => {
     const assignment = args.flags["assignment"];
     if (typeof assignment === "string" && tailName(str(item.policyAssignmentId)).toLowerCase() !== assignment.toLowerCase()) return false;

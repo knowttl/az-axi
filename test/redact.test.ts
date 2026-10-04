@@ -6,6 +6,24 @@ import { REDACTED, redact } from "../src/lib/redact.js";
 const FAKE_JWT = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln";
 
 describe("redact", () => {
+  it.each([
+    { name: "adminPassword", type: "String" },
+    { name: "clientSecret", type: "Object" },
+    { name: "deploymentInput", type: "secureString" },
+    { name: "deploymentInput", type: "SecureObject" },
+  ])("redacts values, defaults and allowed values for $name of type $type", ({ name, type }) => {
+    const parameter = { type, value: { nested: "private-value" }, defaultValue: "private-default", allowedValues: ["private-allowed"] };
+    expect(redact({ parameters: { [name]: parameter } })).toEqual({ parameters: {
+      [name]: { type, value: REDACTED, defaultValue: REDACTED, allowedValues: REDACTED },
+    } });
+    expect(parameter.defaultValue).toBe("private-default");
+  });
+
+  it("retains ordinary parameter values, defaults and allowed values", () => {
+    const input = { parameters: { region: { type: "String", value: "westus", defaultValue: "westus", allowedValues: ["westus", "eastus"] } } };
+    expect(redact(input)).toEqual(input);
+  });
+
   it("redacts a storage account keys list", () => {
     const out = redact({
       keys: [

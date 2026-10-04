@@ -298,6 +298,8 @@ az-axi policy state list --compliance NonCompliant
 ```
 
 See [governance reads](../../README.md#use) for collection scope, name and ARM ID selectors, compliance filters, output fields, paging limits and the mutation, scan and summary exclusions.
+Slice 5b part 1 covers policy reads only under the supervisor's approved split decision.
+Resource lock and deny-assignment reads are deliberately deferred to part 2, task `azx-p5b2-locks-deny`, preserved on branch `fm/azx-p5b2-locks-deny`.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,

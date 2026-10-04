@@ -3,7 +3,7 @@ import { flagBool, flagList, flagNumber, flagText, type ParsedArgs } from "./arg
 import { request, requestAll, type RequestOptions } from "./client.js";
 import type { ResolvedProfile } from "./config.js";
 import { subscriptions } from "./discovery.js";
-import { countLine, emptyState, pickFields, truncate } from "./format.js";
+import { countLine, emptyState, pickFields } from "./format.js";
 import { governanceLeafHelp } from "./governanceHelp.js";
 import { parseSubscriptionId, shortenResourceId } from "./scope.js";
 import { formatFlagValue } from "./shell.js";
@@ -11,7 +11,6 @@ import { redact } from "./redact.js";
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 1000;
-export const CELL_TRUNCATE = 200;
 const STATE_PAGE_TOP = 100;
 const STATE_MAX_PAGES = 10;
 const LIST_MAX_PAGES = 100;
@@ -60,8 +59,6 @@ export interface GovernanceCollection {
    * at their definition, states at their assignment). Hints carry identity
    * selectors only, so the suggested command stays valid on every collection. */
   followHint?(first: GovernanceItem, args: ParsedArgs): string | undefined;
-  /** Name filters beyond `--name` (policy states `--assignment`, `--compliance`). */
-  extraListFlags?: string[];
   extraListFilter?(item: GovernanceItem, args: ParsedArgs, path: string): boolean;
 }
 
@@ -87,11 +84,6 @@ export function shortScope(scope: string): string {
   return shortenResourceId(scope);
 }
 
-export function propsOf(item: GovernanceItem): AnyObj {
-  const properties = item.properties;
-  return properties && typeof properties === "object" ? (properties as AnyObj) : {};
-}
-
 export function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -106,11 +98,6 @@ export function objOf(value: unknown): AnyObj {
 
 export function strArr(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
-}
-
-export function joined(values: Array<string | number>, full: boolean): string {
-  const text = values.map(String).filter(Boolean).join(", ");
-  return full ? text : truncate(text, CELL_TRUNCATE).text;
 }
 
 async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOptions[]): Promise<FetchedPage> {
@@ -175,7 +162,7 @@ export async function runGovernanceList(
   const suffix = selectorSuffix(args);
   const fetch = collection.fetchTargets ?? defaultFetchTargets;
   const targets = subs.flatMap((sub) => collection.listTargets(sub, group, path));
-  const fetched = await fetch(profile, targets);
+  const fetched = redact(await fetch(profile, targets));
   const kept = fetched.items.filter((item) => {
     const keepName = !name ||
       (collection.matchName ? collection.matchName(item, name) : item.name.toLowerCase() === name.toLowerCase());
@@ -230,10 +217,7 @@ export async function runGovernanceShow(
   args: ParsedArgs,
   collection: GovernanceCollection,
   path: string,
-  /** Builds the by-name GET path; collections without name scope take `--ids` only.
-   * `group` is undefined when `--resource-group` is absent; closures reject it
-   * when the collection has no resource-group scope (policy definitions). */
-  namedPath?: (subscription: string, group: string | undefined, name: string) => string,
+  namedPath: (subscription: string, group: string | undefined, name: string) => string,
 ): Promise<Record<string, unknown>> {
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
@@ -247,14 +231,11 @@ export async function runGovernanceShow(
   const ids = flagText(args, "ids");
   if (name && ids) governanceInvalid(`${path} takes --name or --ids, not both`, path);
   if (!name && !ids) {
-    governanceInvalid(namedPath
-      ? `${path} needs --name or --ids <ARM-id>`
-      : `${path} needs --ids <ARM-id>`, path);
+    governanceInvalid(`${path} needs --name or --ids <ARM-id>`, path);
   }
   if (ids && (groupFlag || name)) {
     governanceInvalid("--ids selects the resource itself; name and scope selectors are not accepted with --ids", path);
   }
-  if (!ids && !namedPath) governanceInvalid(`${path} needs --ids <ARM-id>`, path);
   const suffix = selectorSuffix(args);
 
   let getPath: string;
@@ -280,7 +261,7 @@ export async function runGovernanceShow(
     if (selected.length !== 1) governanceInvalid(`${path} by name needs exactly one subscription; use --subscription <id>`, path);
     subscription = selected[0]!;
     const group = groupFlag ? governanceSegment(groupFlag, "resource-group", path) : undefined;
-    getPath = namedPath!(subscription, group, governanceSegment(name!, "name", path));
+    getPath = namedPath(subscription, group, governanceSegment(name!, "name", path));
   }
 
   const item = redact(await request<GovernanceItem>(profile, { method: "GET", path: getPath, apiVersion: collection.apiVersion }));

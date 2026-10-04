@@ -30,6 +30,21 @@ describe("built CLI governance reads offline", () => {
       })};
       const envelope = (value, count) => ({ value, "@odata.count": count, "@odata.nextLink": null });
       const mode = ${JSON.stringify(mode)};
+      if (mode === 'secrets') {
+        for (const item of [...data.policyAssignments, ...data.policyDefinitions, ...data.policySetDefinitions]) {
+          item.properties.parameters = {
+            adminPassword: { type: 'String', value: 'private-password', defaultValue: 'private-default', allowedValues: ['private-allowed'] },
+            deploymentInput: { type: 'secureString', defaultValue: 'private-secure-default', allowedValues: ['private-secure-allowed'] },
+            region: { type: 'String', defaultValue: 'public-region', allowedValues: ['public-region'] },
+          };
+          item.properties.policyRule = { then: { effect: 'deployIfNotExists', details: { deployment: { properties: { template: {
+            parameters: { deploymentInput: { type: 'secureObject', defaultValue: { field: 'private-object' }, allowedValues: [{ field: 'private-object-allowed' }] } },
+          } } } } } };
+          item.properties.policyDefinitions = [{ policyDefinitionId: ${JSON.stringify(policyDefinition.id)}, parameters: {
+            clientSecret: { value: 'private-member-value', defaultValue: 'private-member-default', allowedValues: ['private-member-allowed'] },
+          } }];
+        }
+      }
       const itemsFor = (path) => {
         if (path === '/subscriptions') return data.subscriptionList;
         if (path.endsWith('/policyAssignments')) return mode === 'empty' ? [] : data.policyAssignments;
@@ -64,6 +79,31 @@ describe("built CLI governance reads offline", () => {
     });
   }
   const group = ["--resource-group", "rg-demo"];
+
+  it.each([
+    { kind: "assignment", id: policyAssignment.id },
+    { kind: "definition", id: policyDefinition.id },
+    { kind: "set-definition", id: policySetDefinition.id },
+  ])("keeps secret parameter contents out of compact and full $kind list and show output", ({ kind, id }) => {
+    const compactList = run(["policy", kind, "list"], "secrets");
+    const fullList = run(["policy", kind, "list", "--full"], "secrets");
+    const compactShow = run(["policy", kind, "show", "--ids", id], "secrets");
+    const fullShow = run(["policy", kind, "show", "--ids", id, "--full"], "secrets");
+    expect(compactList.status, compactList.stdout).toBe(0);
+    expect(fullList.status, fullList.stdout).toBe(0);
+    expect(compactShow.status, compactShow.stdout).toBe(0);
+    expect(fullShow.status, fullShow.stdout).toBe(0);
+    expect(compactList.stdout).not.toContain("private-");
+    expect(fullList.stdout).not.toContain("private-");
+    expect(compactShow.stdout).not.toContain("private-");
+    expect(fullShow.stdout).not.toContain("private-");
+    expect((decode(fullList.stdout) as { rows: unknown[] }).rows.length).toBeGreaterThan(0);
+    expect(JSON.parse((decode(fullShow.stdout) as { parameters: string }).parameters)).toEqual({
+      adminPassword: { type: "String", value: "***redacted***", defaultValue: "***redacted***", allowedValues: "***redacted***" },
+      deploymentInput: { type: "secureString", defaultValue: "***redacted***", allowedValues: "***redacted***" },
+      region: { type: "String", defaultValue: "public-region", allowedValues: ["public-region"] },
+    });
+  });
 
   it("lists every collection and shows one row of each by name and ARM ID", () => {
     const assignments = run(["policy", "assignment", "list", ...group]);

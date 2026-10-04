@@ -158,19 +158,32 @@ describe("policy assignment show", () => {
   it.each(["assignment", "definition", "set-definition"])("redacts %s nested secrets before compact and full serialization", async (kind) => {
     const item = { ...policyAssignment, properties: {
       ...policyAssignment.properties,
-      parameters: { adminPassword: { value: "private-password" }, allowed: { value: "public-value" } },
+      parameters: {
+        adminPassword: { type: "String", value: "private-password", defaultValue: "private-default", allowedValues: ["private-allowed"] },
+        deploymentInput: { type: "secureString", defaultValue: "private-secure-default", allowedValues: ["private-secure-allowed"] },
+        allowed: { value: "public-value", defaultValue: "public-default", allowedValues: ["public-allowed"] },
+      },
       policyRule: { then: { effect: "deployIfNotExists", details: { deployment: { properties: {
-        parameters: { clientSecret: { value: "private-credential" } },
+        parameters: { clientSecret: { value: "private-credential" } }, template: {
+          parameters: { deploymentInput: { type: "secureObject", defaultValue: { field: "private-object" }, allowedValues: [{ field: "private-object-allowed" }] } },
+        },
       } } } } },
-      policyDefinitions: [{ policyDefinitionId: policyDefinition.id, parameters: { adminPassword: { value: "member-password" } } }],
+      policyDefinitions: [{ policyDefinitionId: policyDefinition.id, parameters: {
+        adminPassword: { value: "member-password", defaultValue: "private-member-default", allowedValues: ["private-member-allowed"] },
+      } }],
     } };
     requestMock.mockResolvedValue(item as never);
     const compact = await runPolicy([kind, "show", "--name", "demo"]);
     const full = await runPolicy([kind, "show", "--name", "demo", "--full"]);
-    expect(JSON.stringify(compact)).not.toMatch(/private-password|private-credential|member-password/);
-    expect(JSON.stringify(full)).not.toMatch(/private-password|private-credential|member-password/);
+    expect(JSON.stringify(compact)).not.toMatch(/private-|member-password/);
+    expect(JSON.stringify(full)).not.toMatch(/private-|member-password/);
     expect(full.parameters).toContain("public-value");
     expect(full.parameters).toContain("***redacted***");
+    expect(JSON.parse(full.parameters as string)).toEqual({
+      adminPassword: { type: "String", value: "***redacted***", defaultValue: "***redacted***", allowedValues: "***redacted***" },
+      deploymentInput: { type: "secureString", defaultValue: "***redacted***", allowedValues: "***redacted***" },
+      allowed: { value: "public-value", defaultValue: "public-default", allowedValues: ["public-allowed"] },
+    });
     expect(item.properties.parameters.adminPassword.value).toBe("private-password");
   });
 

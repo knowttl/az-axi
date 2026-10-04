@@ -36,17 +36,22 @@ function walk(value: unknown, parentKey: string | undefined): unknown {
   if (proto !== Object.prototype && proto !== null) return value;
 
   const record = value as Record<string, unknown>;
+  const isSecretParameter =
+    (parentKey !== undefined && isSecretKeyName(parentKey)) ||
+    (typeof record.type === "string" && /^(secureString|secureObject)$/i.test(record.type));
   // Pair objects and values nested under secret-named parameters.
   const isSecretPair =
     "value" in record &&
     ("keyName" in record ||
-      (parentKey !== undefined && isSecretKeyName(parentKey)) ||
+      isSecretParameter ||
       ("name" in record && (parentKey === "passwords" || parentKey === "keys")));
 
   return Object.fromEntries(
     Object.entries(record).map(([key, child]) => {
       const redactChild =
-        (key === "value" && isSecretPair) || (typeof child === "string" && isSecretKeyName(key));
+        (key === "value" && isSecretPair) ||
+        ((key === "defaultValue" || key === "allowedValues") && isSecretParameter) ||
+        (typeof child === "string" && isSecretKeyName(key));
       return [key, redactChild ? REDACTED : walk(child, key)];
     }),
   );
