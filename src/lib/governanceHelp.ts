@@ -20,10 +20,10 @@ const DETAIL: Record<string, string> = {
   "policy set-definition list": "Rows default to name, display, type (BuiltIn or Custom), definitions (the member definition count) and category.",
   "policy set-definition show": "Show returns the display name, description, type, category and every member definition reference.",
   "policy state list": "Rows default to resource, assignment, compliance, definition and evaluation time, newest first, with byCompliance counts over every fetched state. The query is a reviewed bodyless read POST; scan triggers, summaries and remediations stay out of scope.",
-  "lock list": "Rows default to name, level (CanNotDelete or ReadOnly) and scope, with byLevel counts. Resource-level locks are not enumerated: point queries need --ids.",
-  "lock show": "Show returns the level, scope, notes and owner application IDs. Lock creation, update and deletion stay out of scope: they are destructive under policy.",
-  "deny-assignment list": "Rows default to name, scope and actions (the denied control-plane actions), with byScopeKind counts. Resource-level denies are not enumerated: point queries need --ids.",
-  "deny-assignment show": "Show returns the scope, description, denied actions and data actions, excluded actions, principals, excluded principals, and whether the deny skips child scopes or is system-protected. Deny-assignment mutations stay out of scope: they are destructive under policy.",
+  "lock list": "Rows default to name, level (CanNotDelete or ReadOnly) and scope, with byLevel counts. Lists include resource-level locks returned by the selected scope; resource-level show needs --ids.",
+  "lock show": "Show returns the level, scope, notes and owner application IDs. No native lock mutation commands are available; generic api writes are destructive under policy and require the existing destructive confirmation.",
+  "deny-assignment list": "Rows default to name, scope, actions (denied control-plane actions) and dataActions (denied data-plane actions), with byScopeKind counts. Lists include resource-level denies returned by the selected scope; resource-level show needs --ids.",
+  "deny-assignment show": "Show returns the scope, description, actions and dataActions with separate notActions and notDataActions exceptions, principals, excluded principals, and whether the deny skips child scopes or is system-protected. No native deny-assignment mutation commands are available; generic api writes are destructive under policy and require the existing destructive confirmation.",
 }
 
 const FIELDS: Record<string, string> = {
@@ -36,8 +36,8 @@ const FIELDS: Record<string, string> = {
   "policy state list": "--fields: resource, assignment, compliance, definition, time.",
   "lock list": "--fields: name, level, scope.",
   "lock show": "--fields: name, id, level, scope, notes, owners.",
-  "deny-assignment list": "--fields: name, scope, actions.",
-  "deny-assignment show": "--fields: name, id, scope, description, actions, excluded, principals, excludePrincipals, totalPrincipals, doNotApplyToChildScopes, systemProtected.",
+  "deny-assignment list": "--fields: name, scope, actions, dataActions.",
+  "deny-assignment show": "--fields: name, id, scope, description, actions, dataActions, notActions, notDataActions, principals, excludePrincipals, totalPrincipals, doNotApplyToChildScopes, systemProtected.",
 }
 
 export function governanceLeafHelp(path: string): string {
@@ -51,7 +51,7 @@ export function governanceLeafHelp(path: string): string {
     DETAIL[path] ?? "",
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata and shows every fetched row. No view returns secrets, keys or credential fields.",
     FIELDS[path] ?? "",
-    "Assignment, lock and deny-assignment mutations are destructive under policy and stay blocked. Policy scans, summaries, exemptions and remediations stay out of scope.",
+    "No native policy-assignment, lock or deny-assignment mutation commands are available; generic api writes to these types are destructive under policy and require the existing destructive confirmation. Policy scans, summaries, exemptions and remediations stay out of scope.",
     "Globals: --profile, --tenant, --subscription / -s, --management-group, --config, --fields, --full, --limit, --help / -h.",
     `Examples: az-axi ${path}${show ? " --ids <ARM-id> --full" : ""}`,
   ].join("\n");

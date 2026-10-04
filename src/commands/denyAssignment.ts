@@ -25,9 +25,9 @@ function joined(values: Array<string | number>, full: boolean): string {
   return full ? text : truncate(text, CELL_TRUNCATE).text;
 }
 
-function permissionStrings(permissions: AnyObj[], keys: string[]): string[] {
+function permissionStrings(permissions: AnyObj[], key: string): string[] {
   return permissions.flatMap((permission) =>
-    keys.flatMap((key) => (Array.isArray(permission[key]) ? permission[key].map(String) : []))).filter(Boolean);
+    Array.isArray(permission[key]) ? permission[key].map(String) : []).filter(Boolean);
 }
 
 function scopeKind(scope: string): string {
@@ -56,15 +56,18 @@ const DENIES: GovernanceCollection = {
     return {
       name: item.name,
       scope: full ? str(props.scope) : shortScope(str(props.scope)),
-      actions: joined(permissionStrings(permissions, ["actions", "dataActions"]), full),
+      actions: joined(permissionStrings(permissions, "actions"), full),
+      dataActions: joined(permissionStrings(permissions, "dataActions"), full),
     };
   },
-  fields: ["name", "scope", "actions"],
+  fields: ["name", "scope", "actions", "dataActions"],
   detail: (item, full, _limit) => {
     const props = objOf(item.properties);
     const permissions = arrOf(props.permissions);
-    const actions = permissionStrings(permissions, ["actions", "dataActions"]);
-    const excluded = permissionStrings(permissions, ["notActions", "notDataActions"]);
+    const actions = permissionStrings(permissions, "actions");
+    const dataActions = permissionStrings(permissions, "dataActions");
+    const notActions = permissionStrings(permissions, "notActions");
+    const notDataActions = permissionStrings(permissions, "notDataActions");
     const principals = arrOf(props.principals).map((principal) => str(principal.id) || str(principal.displayName));
     const excludePrincipals = arrOf(props.excludePrincipals).map((principal) => str(principal.id) || str(principal.displayName));
     return {
@@ -74,7 +77,9 @@ const DENIES: GovernanceCollection = {
         scope: str(props.scope),
         description: full ? str(props.description) : truncate(str(props.description), CELL_TRUNCATE).text,
         actions: full ? actions : [joined(actions, full)],
-        excluded: full ? excluded : [joined(excluded, full)],
+        dataActions: full ? dataActions : [joined(dataActions, full)],
+        notActions: full ? notActions : [joined(notActions, full)],
+        notDataActions: full ? notDataActions : [joined(notDataActions, full)],
         principals: full ? principals : [joined(principals, full)],
         excludePrincipals: full ? excludePrincipals : [joined(excludePrincipals, full)],
         totalPrincipals: principals.length,

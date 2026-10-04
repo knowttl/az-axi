@@ -457,9 +457,9 @@ describe("deny-assignment list and show", () => {
       count: "2 deny assignments",
       byScopeKind: { subscription: 1, resourceGroup: 1 },
       rows: [
-        { name: "deny-example", scope: `${SUB_A}/rg-demo`, actions: "Microsoft.Storage/storageAccounts/write" },
+        { name: "deny-example", scope: `${SUB_A}/rg-demo`, actions: "Microsoft.Storage/storageAccounts/write", dataActions: "" },
         { name: "sub-deny", scope: SUB_A,
-          actions: "*, Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read" },
+          actions: "*", dataActions: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read" },
       ],
     });
     expect(result.help).toEqual([
@@ -482,7 +482,43 @@ describe("deny-assignment list and show", () => {
     expect(show.principals).toEqual(["00000000-0000-0000-0000-000000000031"]);
     const sub = await runDeny(["show", "--name", "sub-deny"]);
     expect(sub).toMatchObject({ name: "sub-deny", doNotApplyToChildScopes: true });
-    expect(sub.excluded).toEqual(["Microsoft.Resources/subscriptions/resourceGroups/read"]);
+    expect(sub.notActions).toEqual(["Microsoft.Resources/subscriptions/resourceGroups/read"]);
+  });
+
+  it.each([
+    { mode: "compact", flags: [] },
+    { mode: "full", flags: ["--full"] },
+    { mode: "selected", flags: ["--fields", "actions,dataActions,notActions,notDataActions"] },
+    { mode: "selected full", flags: ["--fields", "actions,dataActions,notActions,notDataActions", "--full"] },
+  ])("keeps permission planes and exceptions separate in $mode detail", async ({ flags }) => {
+    requestMock.mockResolvedValueOnce({
+      ...denyAssignment,
+      properties: { ...denyAssignment.properties, permissions: [{
+        actions: ["Microsoft.Storage/storageAccounts/write"],
+        dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write"],
+        notActions: ["Microsoft.Storage/storageAccounts/read"],
+        notDataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],
+      }] },
+    } as never);
+    expect(await runDeny(["show", "--ids", denyAssignment.id, ...flags])).toMatchObject({
+      actions: ["Microsoft.Storage/storageAccounts/write"],
+      dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write"],
+      notActions: ["Microsoft.Storage/storageAccounts/read"],
+      notDataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],
+    });
+  });
+
+  it("distinguishes control-plane and data-plane wildcards in full list output", async () => {
+    allMock.mockResolvedValueOnce({ items: [
+      { ...denyAssignment, name: "control-deny", properties: { ...denyAssignment.properties,
+        permissions: [{ actions: ["*"], dataActions: [], notActions: [], notDataActions: [] }] } },
+      { ...denyAssignment, id: denyAssignments[1]!.id, name: "data-deny", properties: { ...denyAssignment.properties,
+        permissions: [{ actions: [], dataActions: ["*"], notActions: [], notDataActions: [] }] } },
+    ] });
+    expect(await runDeny(["list", "--full", "--fields", "name,actions,dataActions"])).toMatchObject({ rows: [
+      { name: "control-deny", actions: "*", dataActions: "" },
+      { name: "data-deny", actions: "", dataActions: "*" },
+    ] });
   });
 
   it.each([

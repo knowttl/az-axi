@@ -264,8 +264,9 @@ export const MANAGEMENT_LOCKS = "2020-05-01";
  * assignment reference documents the same list operation with the `{ value,
  * nextLink }` shape and the policyDefinitionId/scope/enforcementMode record).
  * Reason: long-standing stable version covering assignments, definitions and
- * initiatives with `{ value: T[] }` plus `nextLink` list responses. Assignment
- * and definition mutations stay destructive under policy and are never sent.
+ * initiatives with `{ value: T[] }` plus `nextLink` list responses. No native
+ * policy mutation commands are available; generic api writes to assignments
+ * are destructive under policy and require the existing destructive confirmation.
  */
 export const POLICY = "2021-06-01";
 
@@ -302,8 +303,9 @@ export const POLICY_STATES = "2024-10-01";
  * get reference documents the same path, version and DenyAssignment shape
  * with principals, permissions and scope).
  * Reason: newest stable; `DenyAssignments_List` and `DenyAssignments_Get`
- * present with `{ value: T[] }` plus `nextLink` list responses. Deny-assignment
- * mutations are destructive under policy and are never sent.
+ * present with `{ value: T[] }` plus `nextLink` list responses. No native
+ * deny-assignment mutation commands are available; generic api writes are
+ * destructive under policy and require the existing destructive confirmation.
  */
 export const DENY_ASSIGNMENTS = "2022-04-01";
 

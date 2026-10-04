@@ -352,14 +352,16 @@ Totals and aggregates count fetched matches after filtering, before the display 
 Assignment rows default to name, scope, definition (the assigned policy or initiative) and enforcement; the effect lives on the definition, so the assignment hint points at `policy definition show` or `policy set-definition show` as appropriate.
 Definition rows default to name, display, type (BuiltIn or Custom), effect and category; initiative rows replace the effect with the member definition count.
 State rows default to resource, assignment, compliance, definition and evaluation time; full views expand ARM IDs.
-Lock rows default to name, level (CanNotDelete or ReadOnly) and scope; deny rows default to name, scope and denied actions.
+Lock rows default to name, level (CanNotDelete or ReadOnly) and scope; deny rows default to name, scope, actions (denied control-plane actions) and dataActions (denied data-plane actions).
+Lock and deny lists include resource-level records returned by the selected scope; showing a resource-level record requires `--ids`.
+Deny detail output labels actions, dataActions, notActions and notDataActions separately and includes principals and excludePrincipals; each field supports `--fields` selection.
 Show by name needs exactly one subscription with optional `--resource-group` scoping (assignments, locks, denies); definitions and initiatives show customs by name in one subscription and built-ins (tenant-scoped) with `--ids`.
 `--ids` takes exactly one ARM ID of the same collection and uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
 Long descriptions, rules, parameters, notes and action lists truncate at 200 characters with a selector-preserving `--full` hint; `--limit` defaults to 50 and accepts integers from 1 to 1000.
 `--full` shows every fetched matching row, expands assignment definition IDs, and includes assignment exclusions and metadata or initiative member references in show views; `--fields` selects supported fields.
 Definition show reads its version from `metadata.version`.
 ARM lists follow up to 100 pages per subscription and compliance queries up to 10 service pages per subscription without imposing a query result limit; incomplete counts are disclosed as lower bounds.
-Assignment, lock and deny-assignment mutations are destructive under policy and stay blocked; there is no governance write command.
+There are no native policy-assignment, lock or deny-assignment mutation commands; generic `api` writes to these types are destructive under policy and require the existing destructive confirmation.
 Deny assignments have no dedicated Azure CLI group: the spelling follows the ARM resource type.
 Management-group scope is unsupported; select subscriptions explicitly.
 
