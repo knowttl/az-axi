@@ -1,15 +1,13 @@
 ---
 name: az-axi
-description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, NSG and public IP exposure, Log Analytics KQL queries.
+description: Use az-axi for read-only Azure inspection - subscriptions, Resource Graph inventory, RBAC role assignments, activity log, Defender for Cloud alerts and secure score, network and public DNS resources, NSG and public IP exposure, Log Analytics KQL queries.
 user-invocable: false
 ---
 
 # az-axi
 
-Agent-ergonomic CLI for Azure, read-only by default. Resource inventory through
-Resource Graph, RBAC, activity log, Defender for Cloud, internet exposure checks,
-and Log Analytics KQL queries through token-efficient TOON output, with a raw
-REST escape hatch for everything else.
+Agent-ergonomic CLI for Azure, read-only by default.
+Resource inventory through Resource Graph, RBAC, activity log, Defender for Cloud, network and public DNS reads, internet exposure checks, and Log Analytics KQL queries through token-efficient TOON output, with a raw REST escape hatch for everything else.
 
 Call the globally installed, pinned `az-axi` binary. Never use unpinned
 `npx -y`. If `az-axi` is not on PATH, install
