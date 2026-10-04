@@ -629,7 +629,7 @@ async function runMetricsList(
     total: values.length,
     count: countLine(rows.length, values.length, "metrics"),
     rows: pickFields(rows, fields),
-    ...(full ? {} : { help: [`Run \`az-axi ${path}${valueSuffix} --full\` for every returned point`] }),
+    ...(full ? {} : { help: [`Run \`az-axi ${path}${valueSuffix} --full\` for the per-metric series (points capped at --limit; narrow the window or interval)`] }),
   };
 }
 

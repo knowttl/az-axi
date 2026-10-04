@@ -138,6 +138,14 @@ The offline test suite checks this list against the registry.
 | `az-axi network dns record-set srv show` | native | read |
 | `az-axi network dns record-set txt list` | native | read |
 | `az-axi network dns record-set txt show` | native | read |
+| `az-axi vm list` | native | read |
+| `az-axi vm show` | native | read |
+| `az-axi vm get-instance-view` | native | read |
+| `az-axi vmss list` | native | read |
+| `az-axi vmss show` | native | read |
+| `az-axi vmss get-instance-view` | native | read |
+| `az-axi disk list` | native | read |
+| `az-axi disk show` | native | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.
@@ -211,6 +219,14 @@ az-axi monitor diagnostic-settings list --resource <ARM-id>
 az-axi monitor diagnostic-settings show --resource <ARM-id> --name to-hub
 az-axi monitor metrics list --resource <ARM-id>
 az-axi monitor metrics list --resource <ARM-id> --metric "Percentage CPU"
+az-axi vm list -g rg-demo
+az-axi vm show --name vm-demo -g rg-demo
+az-axi vm get-instance-view --name vm-demo -g rg-demo
+az-axi vmss list -g rg-demo
+az-axi vmss show --name vmss-demo -g rg-demo
+az-axi vmss get-instance-view --name vmss-demo -g rg-demo
+az-axi disk list -g rg-demo
+az-axi disk show --name disk-demo -g rg-demo
 ```
 
 See [README.md#use](../../README.md#use) for discovery subscription scope, including `resource show --ids`.
@@ -229,6 +245,7 @@ Management-group discovery is unsupported; select subscriptions explicitly.
 
 See [README.md#use](../../README.md#use) for native account and workspace discovery scope, selectors, metadata fields, paging limits and credential exclusions, including how `account list` differs from legacy `sub list`.
 See [README.md#use](../../README.md#use) for Monitor alert, action-group, diagnostic-setting and metric selectors, projections, redaction, paging and point limits.
+See [compute reads](../../README.md#use) for VM, scale-set and disk ARM-ID selectors, default and expanded projections, field selection, paging limits and the action, credential and SAS exclusions.
 
 ```sh
 az-axi graph query -q Resources

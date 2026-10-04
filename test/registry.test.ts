@@ -57,6 +57,8 @@ describe("exact leaf contracts", () => {
       "network dns record-set soa list", "network dns record-set soa show",
       "network dns record-set srv list", "network dns record-set srv show",
       "network dns record-set txt list", "network dns record-set txt show",
+      "vm list", "vm show", "vm get-instance-view",
+      "vmss list", "vmss show", "vmss get-instance-view", "disk list", "disk show",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
@@ -120,7 +122,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role", "vm", "vmss", "disk"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 
