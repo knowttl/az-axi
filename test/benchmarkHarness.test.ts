@@ -8,6 +8,10 @@ import { scrub } from "../scripts/benchmark/scrub.mjs";
 import { countTokens } from "../scripts/benchmark/tokens.mjs";
 import { scenarios } from "../benchmark/scenarios.mjs";
 import { OWNER_ROLE_ID } from "../src/lib/roles.js";
+import {
+  SUB_A, monitorActionGroup, monitorAlertRules, monitorDiagnosticSetting, monitorMetricDefinitions,
+  monitorMetricValues, monitorResource,
+} from "./samples.js";
 
 const root = resolve(import.meta.dirname, "..");
 const scratchPaths: string[] = [];
@@ -20,6 +24,58 @@ function scratch(): string {
 afterEach(() => { for (const path of scratchPaths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 describe("benchmark preload", () => {
+  it.each([
+    { name: "Monitor alerts", argv: ["monitor", "metrics", "alert", "list", "--full"],
+      body: { value: monitorAlertRules }, expected: { total: 2, rows: expect.arrayContaining([
+        expect.objectContaining({ severity: 2, enabled: false, criteria: expect.stringContaining("4 failing of 4 evaluation periods") }),
+        expect.objectContaining({ severity: 3, enabled: true, criteria: expect.stringContaining("GreaterThan 80") }),
+      ]) } },
+    { name: "Monitor action groups", argv: ["monitor", "action-group", "list"],
+      body: { value: [monitorActionGroup] }, expected: { total: 1, rows: [{
+        shortName: scrub("agdemo"), receivers: "email:1, webhook:1, eventHub:1",
+      }] } },
+    { name: "Monitor receiver details", argv: ["monitor", "action-group", "show", "--name", "ag-demo", "--resource-group", "rg-demo", "--full"],
+      body: monitorActionGroup, expected: { shortName: scrub("agdemo"), receivers: [
+        { type: "email", address: scrub("oncall@contoso.com") },
+        { type: "webhook", uri: scrub("https://hooks.contoso.com/alerts") },
+        { type: "eventHub", namespace: scrub("evns-demo"), hub: scrub("alerts") },
+      ] } },
+    { name: "Monitor diagnostic settings", argv: ["monitor", "diagnostic-settings", "list", "--resource", monitorResource, "--full"],
+      body: { value: [monitorDiagnosticSetting] }, expected: { total: 1, rows: [{
+        logs: [{ category: scrub("AuditEvent"), enabled: true, retentionDays: 30 },
+          { category: scrub("AzurePolicyEvaluationDetails"), enabled: false, retentionDays: 0 }],
+        metrics: [{ category: scrub("AllMetrics"), enabled: true, retentionDays: 30 }],
+        destinations: { storage: scrub(monitorDiagnosticSetting.properties.storageAccountId),
+          workspace: scrub(monitorDiagnosticSetting.properties.workspaceId) },
+      }] } },
+    { name: "Monitor metric definitions", argv: ["monitor", "metrics", "list", "--resource", monitorResource],
+      body: { value: monitorMetricDefinitions }, expected: { total: 2, rows: [
+        { unit: "Percent", aggregations: "Average, Minimum, Maximum" },
+        { unit: "Bytes", aggregations: "Total, Average" },
+      ] } },
+    { name: "Monitor metric values", argv: ["monitor", "metrics", "list", "--resource", monitorResource, "--metric", "Percentage CPU", "--full"],
+      body: monitorMetricValues, expected: { total: 1, rows: [{ unit: "Percent", points: 2,
+        latest: { average: 44 }, series: [{ average: 12.5 }, { average: 44 }],
+      }] } },
+  ])("replays nonempty scrubbed $name responses without network", ({ argv, body, expected }) => {
+    const dir = scratch();
+    const file = join(dir, "recording.json");
+    const bootstrap = join(dir, "bootstrap.mjs");
+    const config = join(dir, "config.json");
+    const scrubbed = scrub(body, { leakCheck: [SUB_A, "contoso", "rg-demo", "agdemo"] });
+    writeFileSync(file, JSON.stringify({ responses: [{ method: "GET", host: "management.azure.com", status: 200, body: scrubbed }] }));
+    writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
+    writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token", subscriptions: [SUB_A] } } }));
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+      "dist/bin/az-axi.js", ...argv], {
+      cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
+        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
+        AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
+    });
+    expect(child.status, child.stderr + child.stdout).toBe(0);
+    expect(decode(child.stdout)).toMatchObject(expected);
+  });
+
   it.each(["assignment", "definition", "set-definition", "state"])("replays nonempty scrubbed policy %s recordings without network", (kind) => {
     const dir = scratch();
     const file = join(dir, "recording.json");

@@ -114,6 +114,54 @@ describe("built CLI Monitor reads offline", () => {
   const window = ["--start-time", "2026-10-04T00:00:00Z", "--end-time", "2026-10-04T01:00:00Z",
     "--interval", "PT1H", "--aggregation", "Average,Maximum"];
 
+  it.each([
+    ["diagnostic list", ["monitor", "diagnostic-settings", "list", "--resource"]],
+    ["diagnostic show", ["monitor", "diagnostic-settings", "show", "--name", "to-hub", "--resource"]],
+    ["diagnostic ID", ["monitor", "diagnostic-settings", "show", "--ids"]],
+    ["metric definitions", ["monitor", "metrics", "list", "--resource"]],
+    ["metric values", ["monitor", "metrics", "list", "--metric", "Percentage CPU", "--resource"]],
+  ])("rejects dot-segment subscription escapes before transport for %s", (_name, argv) => {
+    const escape = monitorResource.replace(`/subscriptions/${SUB_A}`, `/subscriptions/${SUB_A}/../${SUB_B}`);
+    const result = run([...argv, `${escape}/providers/Microsoft.Insights/diagnosticSettings/to-hub`]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("must not contain dot segments");
+    expect(result.stderr).toBe("");
+  });
+
+  it.each([
+    ["monitor", "metrics", "alert", "show", "--ids", monitorAlertRule.id.replace("rg-demo", ".")],
+    ["monitor", "action-group", "show", "--ids", monitorActionGroup.id.replace("ag-demo", "..")],
+    ["monitor", "diagnostic-settings", "show", "--ids", monitorDiagnosticSetting.id.replace("to-hub", ".")],
+    ["monitor", "metrics", "list", "--resource", monitorResource.replace("vm-demo", ".")],
+  ])("rejects dot segments in Monitor resource groups and names: %j", (...argv) => {
+    const result = run(argv);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("must not contain dot segments");
+    expect(result.stderr).toBe("");
+  });
+
+  it.each([
+    ["2026-02-30T00:00:00Z", "2026-03-03T00:00:00Z"],
+    ["2026-02-28T00:00:00Z", "2026-02-30T00:00:00Z"],
+    ["2026-04-31T00:00:00+02:00", "2026-05-02T00:00:00+02:00"],
+    ["2026-02-29T00:00:00Z", "2026-03-01T00:00:00Z"],
+    ["2100-02-29T00:00:00Z", "2100-03-01T00:00:00Z"],
+  ])("rejects impossible calendar dates in metric windows %s to %s", (start, end) => {
+    const result = run([...metrics, "--metric", "Percentage CPU", "--start-time", start, "--end-time", end]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("must be an ISO 8601 datetime");
+    expect(result.stderr).toBe("");
+  });
+
+  it.each([
+    ["2024-02-29T23:30:00+02:00", "2024-03-01T00:30:00+02:00", "2024-02-29T21:30:00.000Z/2024-02-29T22:30:00.000Z"],
+    ["2000-02-29T00:00:00Z", "2000-03-01T00:00:00Z", "2000-02-29T00:00:00.000Z/2000-03-01T00:00:00.000Z"],
+  ])("preserves valid leap days and offsets in metric windows %s to %s", (start, end, timespan) => {
+    const result = run([...metrics, "--metric", "Percentage CPU", "--start-time", start, "--end-time", end]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(result.stderr).toContain(new URLSearchParams({ timespan }).toString());
+  });
+
   it.each([{ flags: [] }, { flags: ["--full"] }])("preserves rule descriptions containing colons, question marks and hashes with $flags", ({ flags }) => {
     const result = run(["monitor", "metrics", "alert", "show", "--ids", monitorAlertRule.id, ...flags], "prose");
     expect(result.status, result.stdout).toBe(0);

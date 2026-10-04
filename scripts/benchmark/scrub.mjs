@@ -1,9 +1,13 @@
 import { createHash } from "node:crypto";
 import {
   ACTIVITY_LOG,
+  ACTION_GROUPS,
   DEFENDER_ALERTS,
   DEFENDER_PRICINGS,
   DEFENDER_SUB_ASSESSMENTS,
+  DIAGNOSTIC_SETTINGS,
+  METRIC_ALERTS,
+  MONITOR_METRICS,
   POLICY,
   POLICY_STATES,
   RESOURCE_GRAPH_RESOURCES,
@@ -70,6 +74,24 @@ export const PUBLIC_VOCABULARY = Object.freeze([
   "eventDataId", "eventTimestamp", "caller", "operationName", "localizedValue", "resourceGroupName", "correlationId",
   "Microsoft.Insights", "eventtypes", "management", "values", "customerId",
   "TimeGenerated", "UserPrincipalName", "IPAddress", "ResultType", "AppDisplayName",
+  ACTION_GROUPS, DIAGNOSTIC_SETTINGS, METRIC_ALERTS, MONITOR_METRICS,
+  "metricAlerts", "actionGroups", "diagnosticSettings", "metricDefinitions", "metrics",
+  "scopes", "criteria", "allOf", "metricName", "metricNamespace", "operator", "threshold",
+  "failingPeriods", "numberOfEvaluationPeriods", "minFailingPeriodsToAlert", "alertSensitivity", "componentId",
+  "evaluationFrequency", "windowSize", "actionGroupId", "webHookProperties", "groupShortName",
+  "emailReceivers", "smsReceivers", "webhookReceivers", "itsmReceivers", "automationRunbookReceivers",
+  "voiceReceivers", "logicAppReceivers", "eventHubReceivers", "armRoleReceivers", "azureAppPushReceivers",
+  "azureFunctionReceivers", "emailAddress", "countryCode", "phoneNumber", "serviceUri", "workspaceId",
+  "connectionId", "region", "automationAccountId", "runbookName", "webhookResourceId", "eventHubNameSpace",
+  "eventHubName", "roleId", "functionAppResourceId", "functionName", "useCommonAlertSchema",
+  "logs", "categoryGroup", "retentionPolicy", "days", "storageAccountId", "eventHubAuthorizationRuleId",
+  "marketplacePartnerId", "unit", "supportedAggregationTypes", "primaryAggregationType",
+  "timeseries", "timeStamp", "average", "minimum", "maximum", "timespan", "interval",
+  "errorCode", "errorMessage", "metadatavalues", "criterionType", "timeAggregation", "odata.type",
+  "Average", "Minimum", "Maximum", "Total", "Count", "Percent", "Bytes", "Seconds", "Milliseconds",
+  "BytesPerSecond", "CountPerSecond", "Unspecified", "Success", "InvalidSamplingType",
+  "GreaterThan", "LessThan", "GreaterThanOrEqual", "LessThanOrEqual", "Equals", "NotEquals",
+  "StaticThresholdCriterion", "DynamicThresholdCriterion",
 ]);
 
 const PUBLIC = new Set(PUBLIC_VOCABULARY);

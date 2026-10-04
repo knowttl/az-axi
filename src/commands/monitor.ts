@@ -59,6 +59,9 @@ function resourceScope(value: string | undefined, flag: string, path: string): s
     invalid(`--${flag} must be one ARM resource, resource-group or subscription ID`, path);
   }
   const id = value.trim();
+  if (id.split("/").some((segment) => segment === "." || segment === "..")) {
+    invalid(`--${flag} must not contain dot segments`, path);
+  }
   const match = /^\/subscriptions\/([^/]+)(\/.*)?$/i.exec(id);
   if (!match || !GUID.test(match[1]!)) {
     invalid(`--${flag} must be one ARM ID under /subscriptions/<id>`, path);
@@ -396,10 +399,9 @@ async function runDiagnosticSettingsShow(
   let getPath: string;
   let subscription: string;
   if (ids) {
-    const id = ids.trim();
-    if (/[?#%\\]/.test(id)) invalid("--ids requires an unescaped ARM resource ID without a query or fragment", path);
+    const id = resourceScope(ids, "ids", path);
     const match = /^\/subscriptions\/([^/]+)(\/.*)?\/providers\/Microsoft\.Insights\/diagnosticSettings\/([^/]+)$/i.exec(id);
-    if (!match || !GUID.test(match[1]!)) {
+    if (!match) {
       invalid("--ids must be one diagnostic-setting ARM ID .../providers/Microsoft.Insights/diagnosticSettings/<name>", path);
     }
     getPath = id;
@@ -462,8 +464,14 @@ interface MetricValue extends Record<string, unknown> {
 
 function parseInstant(value: string | undefined, flag: string, path: string): number | undefined {
   if (value === undefined) return undefined;
+  const date = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
+  const year = Number(date?.[1]);
+  const month = Number(date?.[2]);
+  const day = Number(date?.[3]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
   const instant = Date.parse(value);
-  if (!Number.isFinite(instant)) {
+  if (!date || day < 1 || day > days || !Number.isFinite(instant)) {
     invalid(`--${flag} must be an ISO 8601 datetime, for example 2026-10-01T00:00:00Z`, path);
   }
   return instant;
@@ -642,6 +650,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
       invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
     }
     if (verb === "list") return runGovernanceList(profile, args, collection, path);
+    const ids = flagText(args, "ids");
+    if (ids) resourceScope(ids, "ids", path);
     return runGovernanceShow(profile, args, collection, path, (subscription, group, name) =>
       showPath(collection, subscription, group, name, path));
   }
