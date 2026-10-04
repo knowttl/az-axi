@@ -4,7 +4,7 @@ import { StringDecoder } from "node:string_decoder";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
+import { tokenEnvFor, type CredentialResource, type ResolvedProfile } from "./config.js";
 
 export type { Resource } from "./config.js";
 
@@ -12,16 +12,18 @@ const MAX_AZ_OUTPUT_BYTES = 8 * 1024 * 1024;
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 /** Token audience per resource; `graph` is requested through az's `--resource-type ms-graph`. */
-const RESOURCE_URL: Record<Resource, string> = {
+const RESOURCE_URL: Record<CredentialResource, string> = {
   arm: "https://management.azure.com/",
   logs: "https://api.loganalytics.io",
   graph: "https://graph.microsoft.com",
+  storage: "https://storage.azure.com/",
 };
 
-const AZ_RESOURCE_ARGS: Record<Resource, string[]> = {
+const AZ_RESOURCE_ARGS: Record<CredentialResource, string[]> = {
   arm: ["--resource", RESOURCE_URL.arm],
   logs: ["--resource", RESOURCE_URL.logs],
   graph: ["--resource-type", "ms-graph"],
+  storage: ["--resource", RESOURCE_URL.storage],
 };
 
 export interface Credential {
@@ -41,7 +43,7 @@ const cache = new Map<string, Credential>();
 
 export async function resolveCredential(
   profile: ResolvedProfile,
-  resource: Resource,
+  resource: CredentialResource,
   signal?: AbortSignal,
 ): Promise<Credential> {
   signal?.throwIfAborted();
@@ -58,7 +60,7 @@ export async function resolveCredential(
   return credential;
 }
 
-function tokenCredential(profile: ResolvedProfile, resource: Resource): Credential {
+function tokenCredential(profile: ResolvedProfile, resource: CredentialResource): Credential {
   const varName = tokenEnvFor(profile, resource);
   const token = process.env[varName];
   if (!token) {
@@ -75,14 +77,20 @@ function tokenCredential(profile: ResolvedProfile, resource: Resource): Credenti
   return { header: `Bearer ${token}`, mode: "token" };
 }
 
-async function azCredential(profile: ResolvedProfile, resource: Resource, signal?: AbortSignal): Promise<Credential> {
+async function azCredential(profile: ResolvedProfile, resource: CredentialResource, signal?: AbortSignal): Promise<Credential> {
   let stdout: string;
   try {
     const azArgs = ["account", "get-access-token", ...AZ_RESOURCE_ARGS[resource], "--output", "json"];
     if (profile.tenant) azArgs.push("--tenant", profile.tenant);
-    stdout = await runAz(azArgs, signal);
+    stdout = await runAz(azArgs, signal, resource === "storage");
   } catch (err) {
     signal?.throwIfAborted();
+    if (resource === "storage") {
+      throw new AxiError("could not acquire an Entra storage token", "AUTH_REQUIRED", [
+        "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_STORAGE_TOKEN",
+        "Storage key and SAS fallback is disabled",
+      ]);
+    }
     throw azError(err instanceof Error ? err.message : String(err), profile, resource);
   }
   let parsed: { accessToken?: string; expiresOn?: string; expires_on?: number | string };
@@ -113,7 +121,7 @@ function parseExpiry(parsed: { expiresOn?: string; expires_on?: number | string 
   return new Date(year, month - 1, day, hour, minute, second).getTime();
 }
 
-function azError(message: string, profile: ResolvedProfile, resource: Resource): AxiError {
+function azError(message: string, profile: ResolvedProfile, resource: CredentialResource): AxiError {
   const notInstalled = /az CLI is not installed/i.test(message);
   const conditionalAccess =
     !notInstalled && /AADSTS50076|AADSTS50079|AADSTS53003|claims/i.test(message);

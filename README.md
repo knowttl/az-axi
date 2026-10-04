@@ -297,10 +297,35 @@ az-axi exposure --check mgmt-ports                      # NSGs exposing manageme
 az-axi logs query --file hunt.kql --workspace sentinel   # Log Analytics KQL (see Query logs)
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
 az-axi az group show -n rg-demo --subscription <uuid>   # pinned, reviewed Azure CLI read
+az-axi storage container list --account-name stexample # container properties using Entra auth
+az-axi storage container show --account-name stexample --name example
+az-axi storage blob list --account-name stexample --container-name example
+az-axi storage blob show --account-name stexample --container-name example --name folder/example.txt
 az-axi op status '<operation-url>' --profile work       # read the current result of a pending operation
 ```
 
 See [Profiles](#profiles) for selector flags and environment overrides, and [Behavior](#behavior) for output controls.
+
+### Storage metadata reads
+
+`storage container list|show` and `storage blob list|show` use native public Azure Blob REST reads with forced Entra bearer authentication, equivalent to `--auth-mode login`.
+That is the only accepted auth mode.
+List calls use GET with `comp=list`; show calls use HEAD for properties and never download blob content.
+No account key lookup, SAS, connection string, anonymous fallback, credential command or local output file is supported.
+Azure CLI storage config and `AZURE_STORAGE_*` credentials/defaults are never consumed.
+Only internal `az account get-access-token --resource https://storage.azure.com/` token acquisition runs for az-auth profiles, with a bounded, sanitized child environment and extensions disabled.
+Token profiles require `$AZ_AXI_STORAGE_TOKEN`, or a custom environment variable named by `tokenEnv.storage` in the profile; they never use ambient az login or ARM tokens as a fallback.
+
+`--account-name` explicitly selects the account; subscription and management-group selectors do not filter this data plane.
+Blob commands require `--container-name`; show also requires `--name` (`-n`).
+Lists fetch one page with `--limit` (default 50, integer 1-1000), optional `--prefix`, and optional `--marker`.
+When `nextMarker` is present, the count is a lower bound and the output includes a continuation command; an empty page can still have a continuation.
+Outputs allow only name, lastModified, etag and publicAccess for containers, or size and blobType for blobs.
+`--fields` selects from those properties; `--full` preserves the same safe schema and page bound.
+User metadata, tags, blob contents and all secret values are excluded, including from errors.
+Redirects and arbitrary endpoints are refused; responses have a 30-second deadline and list XML has a 1 MiB bound.
+Entra access needs Blob data RBAC permissions for the operation; a denied read fails without trying other authentication.
+See Microsoft's [List Containers](https://learn.microsoft.com/rest/api/storageservices/list-containers2), [List Blobs](https://learn.microsoft.com/rest/api/storageservices/list-blobs), [Get Container Properties](https://learn.microsoft.com/rest/api/storageservices/get-container-properties) and [Get Blob Properties](https://learn.microsoft.com/rest/api/storageservices/get-blob-properties) contracts.
 
 These az-shaped paths run the same native operation as the legacy path, with identical TOON output and scope:
 

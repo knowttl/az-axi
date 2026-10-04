@@ -3,6 +3,7 @@ import { redact } from "./redact.js";
 import type { RequestClass } from "./policy.js";
 import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
 import { AZ_HELP } from "./azHelp.js";
+import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 
 /**
  * What a command may do to Azure (PLAN.md Section 6.13.9). `config init` writes a
@@ -59,6 +60,10 @@ export const COMMAND_LEAVES = [
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "op status", effect: "read", capability: "native", positionalInput: true },
   { path: "az group show", effect: "read", capability: "passthrough", flags: { name: "value", "resource-group": "value" } },
+  { path: "storage container list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", prefix: "value", marker: "value" } },
+  { path: "storage container show", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", name: "value" } },
+  { path: "storage blob list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", prefix: "value", marker: "value" } },
+  { path: "storage blob show", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", name: "value" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -105,6 +110,7 @@ const LOADERS = {
   api: () => import("../commands/api.js"),
   op: () => import("../commands/op.js"),
   az: () => import("../commands/az.js"),
+  storage: () => import("../commands/storage.js"),
 } satisfies Record<CommandName, () => Promise<CommandModule>>;
 
 let activeEffect: Effect | undefined;
@@ -159,10 +165,12 @@ const HELP_OVERVIEWS = {
   api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
   op: "az-axi op status <operation-url>         # check a long-running operation",
   az: "az-axi az group show -n <name> --subscription <uuid>  # reviewed Azure CLI read",
+  storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
 export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
+  if (path.startsWith("storage ")) return storageLeafHelp(path);
   if (leaf.capability === "passthrough") return AZ_HELP;
   const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
   const canonical = path === leaf.path && leaf.handlerPath !== undefined;
@@ -218,6 +226,7 @@ const HELP_FOOTER = [
 ];
 
 const HELP_TEXT = {
+  storage: STORAGE_HELP,
   az: AZ_HELP,
   group: ["az-axi group list", "az-axi group show --name <group> --subscription <id>", LEAF_HELP["group list"], LEAF_HELP["group show"]].join("\n"),
   resource: ["az-axi resource list", "az-axi resource show --ids <ARM-id>", LEAF_HELP["resource list"], LEAF_HELP["resource show"]].join("\n"),

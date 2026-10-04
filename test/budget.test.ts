@@ -21,6 +21,7 @@ vi.mock("../src/lib/client.js", async (importOriginal) => ({
   sendRequest: vi.fn(),
   requestAll: vi.fn(),
   request: vi.fn(),
+  requestStorageMetadata: vi.fn(),
 }));
 vi.mock("../src/lib/auth.js", () => ({ runAz: vi.fn(), identityOf: vi.fn(), resolveCredential: vi.fn() }));
 vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn() }));
@@ -31,6 +32,7 @@ import { run as runConfig } from "../src/commands/config.js";
 import { run as runSub } from "../src/commands/sub.js";
 import { run as runGroup } from "../src/commands/group.js";
 import { run as runResource } from "../src/commands/resource.js";
+import { run as runStorage } from "../src/commands/storage.js";
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runActivity } from "../src/commands/activity.js";
@@ -51,9 +53,10 @@ import {
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
-import { offlineWritePreviews, offlinePassthroughReads } from "../benchmark/scenarios.mjs";
+import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
+  storageMetadataRows,
   TENANT,
   azResourceGroup,
   discoveryGroup,
@@ -113,6 +116,10 @@ const CEILINGS: Record<string, number> = {
   api: 135,
   "api execute": 140,
   "az group show": 60,
+  "storage container list": 93,
+  "storage container show": 59,
+  "storage blob list": 110,
+  "storage blob show": 68,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -171,6 +178,13 @@ afterEach(() => {
 });
 
 describe("token budgets", () => {
+  it.each(offlineStorageReads)("$name stays under its metadata ceiling", async ({ argv }) => {
+    const { requestStorageMetadata } = await import("../src/lib/client.js");
+    const kind = argv[1] as "container" | "blob";
+    vi.mocked(requestStorageMetadata).mockResolvedValue({ rows: [storageMetadataRows[kind]] });
+    const { argv: routed } = routeArgv(argv);
+    await expectUnderBudget(argv.slice(0, 3).join(" "), await runStorage(routed.slice(1)));
+  });
   it("security alert update preview stays under its ceiling", async () => {
     writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },

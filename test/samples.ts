@@ -18,6 +18,16 @@ export const SUB_A = SYN(20);
 export const defenderAlertUpdateState = { properties: { status: "Active" } };
 export const SUB_B = SYN(21);
 export const SUB_C = SYN(22);
+
+// source: learn.microsoft.com/rest/api/storageservices/list-containers2 and list-blobs (synthetic).
+export const storageContainers = '<?xml version="1.0" encoding="utf-8"?><EnumerationResults ServiceEndpoint="https://stexample.blob.core.windows.net"><Containers><Container><Name>example</Name><Properties><Last-Modified>Wed, 30 Sep 2026 12:00:00 GMT</Last-Modified><Etag>&quot;etag-1&quot;</Etag><PublicAccess>blob</PublicAccess></Properties><Metadata><password>never-output-this-value</password></Metadata></Container></Containers><NextMarker /></EnumerationResults>';
+export const storageBlobs = '<EnumerationResults><Blobs><Blob><Name>folder/a&amp;b.txt</Name><Properties><Last-Modified>Wed, 30 Sep 2026 12:00:00 GMT</Last-Modified><Etag>&quot;etag-2&quot;</Etag><Content-Length>42</Content-Length><BlobType>BlockBlob</BlobType></Properties><Metadata><value>never-output-this-value</value></Metadata><Tags><TagSet><Tag><Key>secret</Key><Value>never-output-this-value</Value></Tag></TagSet></Tags></Blob></Blobs><NextMarker>next&amp;page</NextMarker></EnumerationResults>';
+// source: learn.microsoft.com/rest/api/storageservices/get-blob-properties and get-container-properties.
+export const storageProperties = { "last-modified": "Wed, 30 Sep 2026 12:00:00 GMT", etag: '"etag-1"', "content-length": "42", "x-ms-blob-type": "BlockBlob", "x-ms-blob-public-access": "blob", "x-ms-meta-value": "never-output-this-value" };
+export const storageMetadataRows = {
+  container: { name: "example", lastModified: storageProperties["last-modified"], etag: storageProperties.etag, publicAccess: "blob" },
+  blob: { name: "example", lastModified: storageProperties["last-modified"], etag: storageProperties.etag, size: "42", blobType: "BlockBlob" },
+};
 export const WORKSPACE = SYN(10);
 
 // source: azure-mgmt-resource 23.3.0 ResourceGroup (catalogue-pinned GET)

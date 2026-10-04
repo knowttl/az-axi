@@ -32,7 +32,7 @@ const PUBLIC_GUIDS: readonly string[] = [
 ];
 
 // Documentation domains for synthetic examples (any subdomain is allowed).
-const EXAMPLE_DOMAINS: readonly string[] = ["contoso.com", "fabrikam.com", "example.com"];
+const EXAMPLE_DOMAINS: readonly string[] = ["contoso.com", "fabrikam.com", "example.com", "stexample.blob.core.windows.net"];
 
 // Public hosts that docs, API endpoints, tooling and links legitimately name (any subdomain is allowed).
 const PUBLIC_HOSTS: readonly string[] = [
