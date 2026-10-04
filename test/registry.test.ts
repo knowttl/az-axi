@@ -40,7 +40,6 @@ describe("exact leaf contracts", () => {
       "policy assignment list", "policy assignment show",
       "policy definition list", "policy definition show",
       "policy set-definition list", "policy set-definition show", "policy state list",
-      "lock list", "lock show", "deny-assignment list", "deny-assignment show",
       "network dns record-set list",
       "network dns record-set a list", "network dns record-set a show",
       "network dns record-set aaaa list", "network dns record-set aaaa show",
@@ -109,7 +108,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

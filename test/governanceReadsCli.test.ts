@@ -7,8 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { leafHelp, COMMAND_LEAVES, type CommandLeaf } from "../src/lib/registry.js";
 import {
   SUB_A,
-  denyAssignment, denyAssignments,
-  managementLock, managementLocks,
   policyAssignment, policyAssignments,
   policyDefinition, policyDefinitions,
   policySetDefinition, policySetDefinitions,
@@ -28,7 +26,7 @@ describe("built CLI governance reads offline", () => {
     const stub = `
       const data = ${JSON.stringify({
         policyAssignments, policyDefinitions, policySetDefinitions,
-        policyStates, managementLocks, denyAssignments, subscriptionList,
+        policyStates, subscriptionList,
       })};
       const envelope = (value, count) => ({ value, "@odata.count": count, "@odata.nextLink": null });
       const mode = ${JSON.stringify(mode)};
@@ -37,8 +35,6 @@ describe("built CLI governance reads offline", () => {
         if (path.endsWith('/policyAssignments')) return mode === 'empty' ? [] : data.policyAssignments;
         if (path.endsWith('/policyDefinitions')) return mode === 'empty' ? [] : data.policyDefinitions;
         if (path.endsWith('/policySetDefinitions')) return mode === 'empty' ? [] : data.policySetDefinitions;
-        if (path.endsWith('/locks')) return mode === 'empty' ? [] : data.managementLocks;
-        if (path.endsWith('/denyAssignments')) return mode === 'empty' ? [] : data.denyAssignments;
         return undefined;
       };
       globalThis.fetch = async (url, options) => {
@@ -54,8 +50,7 @@ describe("built CLI governance reads offline", () => {
         if (options.method !== 'GET') throw new Error('non-GET request');
         const items = itemsFor(path);
         if (items) return Response.json({value: items});
-        const all = [...data.policyAssignments, ...data.policyDefinitions, ...data.policySetDefinitions,
-          ...data.managementLocks, ...data.denyAssignments];
+        const all = [...data.policyAssignments, ...data.policyDefinitions, ...data.policySetDefinitions];
         const found = all.find((item) => item.id.toLowerCase() === path.toLowerCase());
         if (!found) return Response.json({error:{code:'NotFound',message:'Missing'}},{status:404});
         return Response.json(found);
@@ -102,18 +97,6 @@ describe("built CLI governance reads offline", () => {
     const filtered = run(["policy", "state", "list", "--compliance", "Compliant"]);
     expect(filtered.status, filtered.stdout).toBe(0);
     expect(decode(filtered.stdout)).toMatchObject({ total: 1 });
-
-    const locks = run(["lock", "list"]);
-    expect(locks.status, locks.stdout).toBe(0);
-    expect(locks.stdout).toContain("sub-lock");
-    expect(locks.stderr).toContain("Microsoft.Authorization/locks?api-version=2020-05-01");
-    expect(run(["lock", "show", "--ids", managementLock.id]).stdout).toContain("CanNotDelete");
-
-    const denies = run(["deny-assignment", "list"]);
-    expect(denies.status, denies.stdout).toBe(0);
-    expect(denies.stdout).toContain("deny-example");
-    expect(denies.stderr).toContain("Microsoft.Authorization/denyAssignments?api-version=2022-04-01");
-    expect(run(["deny-assignment", "show", "--ids", denyAssignment.id]).stdout).toContain("systemProtected");
   });
 
   it("accepts short flags and filters definitions by type", () => {
@@ -129,8 +112,6 @@ describe("built CLI governance reads offline", () => {
   it("reports empty and access-denied output", () => {
     expect(run(["policy", "assignment", "list", ...group], "empty").stdout).toContain("0 policy assignments found in subscription");
     expect(run(["policy", "state", "list", ...group], "empty").stdout).toContain("0 policy states found in subscription");
-    expect(run(["lock", "list"], "empty").stdout).toContain("0 management locks found in subscription");
-    expect(run(["deny-assignment", "list"], "empty").stdout).toContain("0 deny assignments found in subscription");
     const denied = run(["policy", "assignment", "list", ...group], "denied");
     expect(denied.status).toBe(2);
     expect(denied.stdout).toContain("FORBIDDEN");
@@ -140,25 +121,20 @@ describe("built CLI governance reads offline", () => {
     ["policy", "assignment", "update", ...group],
     ["policy", "assignment", "list", ...group, "--fields", "properties"],
     ["policy", "assignment", "show", "--name", "CostManagement", ...group, "--ids", policyAssignment.id],
-    ["policy", "assignment", "show", "--ids", managementLock.id],
+    ["policy", "assignment", "show", "--ids", policyDefinition.id],
     ["policy", "definition", "list", "--resource-group", "rg-demo"],
     ["policy", "definition", "show", "--name", "ResourceNaming", ...group],
     ["policy", "definition", "show", "--ids", policyAssignment.id],
     ["policy", "set-definition", "show", "--ids", policyDefinition.id],
     ["policy", "state", "show"],
     ["policy", "state", "list", "--workspace", "x"],
-    ["lock", "delete"],
-    ["lock", "show", "--name", "sub-lock", "--ids", managementLock.id],
-    ["lock", "show", "--ids", denyAssignment.id],
-    ["deny-assignment", "create"],
-    ["deny-assignment", "show", "--ids", managementLock.id],
   ])("refuses %j without governance transport", (...argv) => {
     const result = run(argv);
     expect(result.status, result.stdout).toBe(2);
     expect(result.stderr).toBe("");
   });
 
-  it.each(COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.path.startsWith("policy ") || leaf.path.startsWith("lock ") || leaf.path.startsWith("deny-assignment ")))("prints leaf help matching the registry without Azure access for $path", (leaf) => {
+  it.each(COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.path.startsWith("policy ")))("prints leaf help matching the registry without Azure access for $path", (leaf) => {
     const result = run([...leaf.path.split(" "), "--help"]);
     expect(result.status).toBe(0);
     expect(result.stdout.trimEnd()).toBe(leafHelp(leaf, leaf.path).trimEnd());

@@ -73,7 +73,6 @@ export const PROTECTED_AUTHORIZATION_TYPES: readonly string[] = [
   "roleDefinitions",
   "locks",
   "policyAssignments",
-  "denyAssignments",
 ];
 
 const lower = (values: readonly string[]) => new Set(values.map((v) => v.toLowerCase()));

@@ -1,12 +1,12 @@
 {
   "tokenizer": "o200k_base",
   "skill": {
-    "frontmatter": 73,
-    "body": 5297,
-    "total": 5369
+    "frontmatter": 71,
+    "body": 5180,
+    "total": 5250
   },
   "help": {
-    "topLevel": 843,
+    "topLevel": 813,
     "home": 244,
     "doctor": 231,
     "config": 171,
@@ -31,9 +31,7 @@
     "keyvault": 359,
     "acr": 342,
     "network": 515,
-    "policy": 452,
-    "lock": 423,
-    "deny-assignment": 466
+    "policy": 403
   },
-  "helpTotal": 10719
+  "helpTotal": 9751
 }

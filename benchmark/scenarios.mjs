@@ -29,8 +29,6 @@ export const scenarios = [
   { name: "policy-definition", argv: ["policy", "definition", "list"] },
   { name: "policy-set-definition", argv: ["policy", "set-definition", "list"] },
   { name: "policy-state", argv: ["policy", "state", "list"] },
-  { name: "lock", argv: ["lock", "list"] },
-  { name: "deny-assignment", argv: ["deny-assignment", "list"] },
   { name: "defender-alerts", argv: ["defender", "alerts"] },
   { name: "exposure", argv: ["exposure"] },
   { name: "logs-query", argv: ["logs", "query", "SigninLogs | take 50", "--workspace", "benchmark"] },
