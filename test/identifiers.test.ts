@@ -37,6 +37,7 @@ const EXAMPLE_DOMAINS: readonly string[] = ["contoso.com", "fabrikam.com", "exam
 // Public hosts that docs, API endpoints, tooling and links legitimately name (any subdomain is allowed).
 const PUBLIC_HOSTS: readonly string[] = [
   "azure.com",
+  "vault.azure.net",
   "claude.com",
   "github.com",
   "loganalytics.io",

@@ -95,6 +95,29 @@ describe("az mode", () => {
     expect(render(error)).not.toContain("credential-value");
     expect(spawnMock).toHaveBeenCalledTimes(1);
   });
+
+  it("vault requests only the Entra audience with isolated extensions", async () => {
+    vi.stubEnv("AZURE_EXTENSION_DEV_SOURCES", "/hostile");
+    fakeAz({ stdout: tokenJson() });
+    const result = await resolveCredential(profile({ tenant: "tenant-example" }), "vault");
+    expect(result.header).toBe(`Bearer ${TOKEN}`);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock.mock.calls[0]![1]).toEqual(["account", "get-access-token", "--resource", "https://vault.azure.net/", "--output", "json", "--tenant", "tenant-example"]);
+    const options = spawnMock.mock.calls[0]![2];
+    expect(options.stdio).toEqual(["ignore", "pipe", "pipe"]);
+    expect(options.env.AZURE_EXTENSION_DEV_SOURCES).toBe("");
+    expect(options.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL).toBe("no");
+  });
+
+  it("vault authentication failure names the vault token and never a key fallback", async () => {
+    fakeAz({ code: 1, stderr: `credential-value ${TOKEN}` });
+    const error = await failure(resolveCredential(profile(), "vault"));
+    expect(error.code).toBe("AUTH_REQUIRED");
+    expect(render(error)).toContain("AZ_AXI_VAULT_TOKEN");
+    expect(render(error)).not.toContain(TOKEN);
+    expect(render(error)).not.toContain("credential-value");
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
   it.each(["arm", "logs", "graph"] as const)("cancels pending %s credentials and closes the child pipes", async (resource) => {
     vi.stubGlobal("process", { ...process, platform: "linux" });
     const controller = new AbortController();
@@ -485,6 +508,18 @@ describe("token mode", () => {
     clearCredentialCache();
     vi.stubEnv("AZ_AXI_STORAGE_TOKEN", "");
     await expect(resolveCredential(profile({ auth: "token" }), "storage")).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+  it("vault uses its own token without an ARM token fallback", async () => {
+    vi.stubEnv("AZ_AXI_VAULT_TOKEN", "vault-token");
+    vi.stubEnv("AZ_AXI_ARM_TOKEN", "arm-token");
+    expect((await resolveCredential(profile({ auth: "token" }), "vault")).header).toBe("Bearer vault-token");
+    clearCredentialCache();
+    vi.stubEnv("CUSTOM_VAULT_TOKEN", "custom-vault-token");
+    expect((await resolveCredential(profile({ auth: "token", tokenEnv: { vault: "CUSTOM_VAULT_TOKEN" } }), "vault")).header).toBe("Bearer custom-vault-token");
+    clearCredentialCache();
+    vi.stubEnv("AZ_AXI_VAULT_TOKEN", "");
+    await expect(resolveCredential(profile({ auth: "token" }), "vault")).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
     expect(spawnMock).not.toHaveBeenCalled();
   });
   it("reads the env var named for the resource", async () => {

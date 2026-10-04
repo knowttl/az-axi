@@ -163,7 +163,7 @@ Several profiles and no selection is an error.
 | `managementGroup` | Default scope for Resource Graph queries |
 | `subscriptions` | Default subscription IDs; empty or missing means every subscription the identity can see |
 | `workspaces` | Alias to Log Analytics workspace ID (the workspace GUID, not the ARM resource ID) |
-| `tokenEnv` | Token audience (`arm`, `logs`, `graph`, `storage`) to environment variable name, for `token` mode; `storage` is only for native [storage metadata reads](#storage-metadata-reads), not `api --resource` |
+| `tokenEnv` | Token audience (`arm`, `logs`, `graph`, `storage`, `vault`) to environment variable name, for `token` mode; `storage` and `vault` are only for native [storage](#storage-metadata-reads) and [key vault](#key-vault-metadata-reads) metadata reads, not `api --resource` |
 
 Create a profile without editing JSON:
 
@@ -320,6 +320,10 @@ az-axi storage container list --account-name stexample # container properties us
 az-axi storage container show --account-name stexample --name example
 az-axi storage blob list --account-name stexample --container-name example
 az-axi storage blob show --account-name stexample --container-name example --name folder/example.txt
+az-axi keyvault secret list --vault-name kvexample     # secret properties and expiry using Entra auth
+az-axi keyvault secret show --vault-name kvexample --name example-secret
+az-axi keyvault key list --vault-name kvexample
+az-axi keyvault certificate list --vault-name kvexample --expiring-within 30d
 az-axi op status '<operation-url>' --profile work       # read the current result of a pending operation
 ```
 
@@ -348,6 +352,26 @@ User metadata, tags, blob contents and all secret values are excluded, including
 Redirects and arbitrary endpoints are refused; responses have a 30-second deadline and list XML has a 1 MiB bound.
 Entra access needs Blob data RBAC permissions for the operation; a denied read fails without trying other authentication.
 See Microsoft's [List Containers](https://learn.microsoft.com/rest/api/storageservices/list-containers2), [List Blobs](https://learn.microsoft.com/rest/api/storageservices/list-blobs), [Get Container Properties](https://learn.microsoft.com/rest/api/storageservices/get-container-properties) and [Get Blob Properties](https://learn.microsoft.com/rest/api/storageservices/get-blob-properties) contracts.
+
+### Key Vault metadata reads
+
+`keyvault secret|key|certificate list|show` use native public Azure Key Vault REST property listings (api-version 7.4) with forced Entra bearer authentication.
+Only the collection endpoints are ever called: `GET /secrets`, `/keys` and `/certificates` on `{vault}.vault.azure.net`, plus service continuations validated back to the same vault and collection.
+Single-object endpoints (`/{collection}/{name}[/{version}]`), which return secret values or key material, are never constructed: `show` filters the property list client-side by `--name`, even though the verb reads like value retrieval.
+Secret download, key export and backup, certificate download with private key, deleted-object, purge, recover, set and rotation operations have no command path and are refused as unknown paths before transport.
+Only internal `az account get-access-token --resource https://vault.azure.net/` token acquisition runs for az-auth profiles, with a bounded, sanitized child environment and extensions disabled.
+Token profiles require `$AZ_AXI_VAULT_TOKEN`, or a custom environment variable named by `tokenEnv.vault` in the profile; they never use ambient az login or ARM tokens as a fallback.
+
+`--vault-name` explicitly selects the vault; subscription and management-group selectors do not filter this data plane.
+Show requires `--name` (`-n`); vault and object names retain strict service-name validation.
+Lists page through the service continuation to `--limit` (default 50, integer 1-1000); a trailing `+` on the count means more pages remain.
+`--expiring-within 30d` (also `Nh` or `Nm`) keeps only items expiring soon, filtered client-side from the listed `expiresOn` properties.
+Lists default to name, enabled and expiresOn; `--fields` or `--full` expands to the safe schema (notBefore, created, updated, contentType for secrets, thumbprint for certificates, managed).
+Show returns every safe property for the named object, or a `NOT_FOUND` error naming the list command.
+Tags, secret values, key material and certificate bytes are excluded, including from errors.
+Redirects and arbitrary endpoints are refused; requests have a 30-second deadline and list bodies have a 1 MiB bound.
+Entra access needs Key Vault data-plane list permission for the collection; a denied read fails without trying other authentication.
+See Microsoft's [Get Secrets](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4), [Get Keys](https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4) and [Get Certificates](https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4) contracts.
 
 These az-shaped paths run the same native operation as the legacy path, with identical TOON output and scope:
 
@@ -462,6 +486,7 @@ Resource inspection commands bound rows and long cells by default, except `api` 
 Use `--limit N` to cap rows and `--fields a,b` to select list columns.
 `--full` expands truncated cells and removes display row limits for most inspection lists; `rg query` keeps its page cap, and `logs query` and `api` still honor `--limit`.
 For storage's fixed schema and page bound, see [Storage metadata reads](#storage-metadata-reads).
+For key vault's minimal default list schema and page bound, see [Key Vault metadata reads](#key-vault-metadata-reads).
 `api` follows additional pages only with `--all`, subject to a page cap.
 For JSON request bodies, use `--body-file <path>` or pipe JSON on stdin, for example `az-axi api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json` or the same command with `< query.json` instead of `--body-file query.json`.
 Inline `--body` remains supported; choose exactly one source.
