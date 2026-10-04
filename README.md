@@ -776,7 +776,9 @@ Select the NSG with `--nsg-name` plus `--resource-group` / `-g`, or with `--ids 
 `--subscription` / `-s` requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.
 `--name` / `-n` names the new rule and `--priority` takes one integer 100-4096; a name or priority that already exists on the NSG refuses instead of overwriting, and rule updates and deletes stay out of scope.
 `--access` takes Deny alone and defaults to Deny; Allow is refused.
-`--direction` defaults to Inbound and `--protocol` to `*`; the four address/port lists default to `*` (unlike az, whose destination-port default is 80).
+`--direction` takes Inbound or Outbound and defaults to Inbound; `--protocol` takes Tcp, Udp, Icmp, Esp, Ah or `*` and defaults to `*`.
+The four address/port lists default to `*` (unlike az, whose destination-port default is 80).
+Source and destination ports accept `*`, individual ports in 0-65535, or ascending ranges within those bounds; invalid ports are refused before reading the NSG.
 Application security groups are unsupported and rejected as unknown flags.
 The preview reads the NSG (`GET .../networkSecurityGroups/<nsg>?api-version=2024-05-01`) and lists its existing rules plus the exact rule to be added, with the native execute command.
 Execution checks the exact rule for existence and sends one child `PUT .../securityRules/<rule>?api-version=2024-05-01` through the shared pipeline, retaining mandatory destructive `--confirm <rule-name>`.
@@ -784,6 +786,7 @@ This is best-effort creation: Azure's documented [Security Rules Create Or Updat
 No `If-Match` header is sent and the native command does not accept `--if-match`, because Azure does not document rule-absence protection.
 Immediately after the PUT, including asynchronous acceptance and `--no-wait`, the command re-reads the rule and compares its name and writable properties with the rule sent, excluding service metadata.
 A differing rule or failed read is reported clearly with the write outcome and an inspection command; a matching readback does not prove that no concurrent rule was overwritten, and asynchronous acceptance remains acceptance rather than completion.
+If readback fails after asynchronous acceptance, automatic polling stops; the error retains the validated `operationUrl` and an `az-axi op status` command so the accepted operation can still be monitored.
 Owner-run live check: in an isolated NSG, create the same rule name concurrently between the existence check and PUT, inspect overwrite behavior and post-write readback, and confirm the documented best-effort limitation.
 Offline tests use fake transports and do not perform this live check.
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
@@ -826,7 +829,7 @@ Without it, execution uses the fresh GET's ETag when available; generic `api` ex
 Native execution reports its operation-specific protection limits as described above.
 An unchanged PUT/PATCH or DELETE of an already absent resource returns `result: already in desired state (no-op)` without sending or logging a write.
 
-Async writes with HTTP 201/202 and an operation URL poll automatically, preferring `Azure-AsyncOperation` over `Location`.
+Async writes with HTTP 201/202 and an operation URL poll automatically after any immediate post-write verification succeeds, preferring `Azure-AsyncOperation` over `Location`.
 `--timeout <seconds>` sets a positive polling budget, defaulting to 600 seconds; it does not bound the initial resource read or write request.
 `--no-wait` returns `result: operation accepted`, the operation URL and an `op status` command instead of polling.
 HTTP 202 without an operation URL reports `API_ERROR` because completion cannot be tracked.

@@ -631,9 +631,9 @@ async function runShow(
 /**
  * Slice 10c: one Deny rule on one existing NSG (destructive). Deny rules can
  * cut live traffic, so this is the first native leaf with the destructive
- * effect: typed --confirm on top of every write gate. Only creation exists;
- * a name or priority that already exists refuses instead of overwriting, and
- * Allow is refused outright. Only address/port selectors are supported.
+ * effect: typed --confirm on top of every write gate. Existence checks refuse
+ * known conflicts, but the child PUT has no documented atomic create-only
+ * protection. See README.md#writes for the concurrency limits.
  */
 const NSG_ID =
   /^\/subscriptions\/([^/]+)\/resourceGroups\/([^/]+)\/providers\/Microsoft\.Network\/networkSecurityGroups\/([^/]+)$/i;
