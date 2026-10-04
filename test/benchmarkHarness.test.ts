@@ -19,29 +19,34 @@ function scratch(): string {
 afterEach(() => { for (const path of scratchPaths.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 describe("benchmark preload", () => {
-  it("replays synthetic responses and pagination through the built CLI with no network", () => {
+  it.each([["sub", "list"], ["account", "list"], ["account", "show"]])("replays synthetic %s %s responses through the built CLI with no network", (group, verb) => {
     const dir = scratch();
     const file = join(dir, "recording.json");
     const bootstrap = join(dir, "bootstrap.mjs");
     const config = join(dir, "config.json");
     const nextLink = "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=contoso-page";
-    writeFileSync(file, JSON.stringify({ responses: [
-      { method: "GET", host: "management.azure.com", status: 200, body: scrub({ value: [{
-        subscriptionId: "00000000-0000-0000-0000-000000000001", displayName: "contoso-sub", state: "Enabled",
-      }], nextLink }) },
+    const sub = "00000000-0000-0000-0000-000000000001";
+    const tenantId = "00000000-0000-0000-0000-000000000003";
+    const account = { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId };
+    writeFileSync(file, JSON.stringify({ responses: verb === "show" ? [
+      { method: "GET", host: "management.azure.com", status: 200, body: scrub(account, { leakCheck: [tenantId] }) },
+    ] : [
+      { method: "GET", host: "management.azure.com", status: 200, body: scrub({ value: [account], nextLink }, { leakCheck: [tenantId] }) },
       { method: "GET", host: "management.azure.com", status: 200, body: { value: [] } },
     ] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
     writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token" } } }));
     const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
-      "dist/bin/az-axi.js", "sub", "list"], {
+      "dist/bin/az-axi.js", group, verb], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
-        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
+        AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: verb === "show" ? sub : "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
         AZ_AXI_READ_ONLY: "1", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
     });
     expect(child.status, child.stderr + child.stdout).toBe(0);
     expect(child.stdout).toContain(scrub("contoso-sub"));
     expect(child.stdout).toContain("Enabled");
+    if (group === "account") expect(child.stdout).toContain(scrub(tenantId));
+    expect(child.stdout).not.toContain(tenantId);
     expect(child.stdout).not.toContain("contoso-sub");
     expect(child.stdout).not.toContain("benchmark-dummy");
   });
@@ -156,17 +161,18 @@ describe("benchmark surface", () => {
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
     mkdirSync(join(dir, "benchmark/fixtures"), { recursive: true });
     const sub = "00000000-0000-0000-0000-000000000001";
+    const tenantId = "00000000-0000-0000-0000-000000000003";
     const principal = "00000000-0000-0000-0000-000000000002";
     const id = `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.Compute/virtualMachines/contoso-vm`;
     const response = (method: string, body: unknown, host = "management.azure.com") => ({ method, host, status: 200, body: scrub(body) });
-    const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" }] });
+    const subscriptions = () => response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId }] });
     for (const scenario of scenarios) {
       if (omitted.includes(scenario.name)) continue;
       let responses;
       if (scenario.name === "account-list") {
         responses = [subscriptions()];
       } else if (scenario.name === "account-show") {
-        responses = [response("GET", { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled" })];
+        responses = [response("GET", { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId })];
       } else if (scenario.name === "workspace-list") {
         responses = [response("GET", { value: [] })];
       } else if (scenario.name === "workspace-show") {
