@@ -17,7 +17,7 @@ The separate `offlineWritePreviews` export is measured only by [test/budget.test
 The `offlinePassthroughReads` export is also measured only by that budget suite, using fake Azure CLI responses.
 The fetch capture/replay transport cannot record or replay child-process reads.
 Scenario argv contains no profile or subscription flags; capture injects the owner's selectors.
-The logs workspace is supplied by targets rather than relying on an owner's workspace alias.
+The logs and Sentinel workspace is supplied by targets rather than relying on an owner's workspace alias.
 Optional `resourceGroup`, `resourceId` and `workspaceResourceId` targets select the group-show, resource-show and workspace-show captures.
 `workspaceResourceId` is the full workspace ARM ID, distinct from the query workspace customer GUID.
 Use a resource group name and a virtual machine ARM ID in the selected subscription; the VM scenario uses API version `2024-07-01`.
@@ -38,6 +38,7 @@ Fixtures are owner-local, gitignored files with owner-only permissions where sup
 ## Offline replay
 
 Run `pnpm bench` after owner captures exist.
+Keep the matching `benchmark/targets.json` available so Sentinel replay can match its scrubbed workspace customer GUID and normalize that workspace in a temporary capture copy, including when no incidents were captured.
 It launches each real CLI scenario under `node --import scripts/benchmark/fetch-hook.mjs` in replay mode.
 Replay uses an isolated temporary token-mode profile with synthetic subscription/workspace identifiers and dummy ARM, Graph and Logs tokens, bypassing Azure CLI authentication.
 For scoped account-list replay, a temporary copy aligns the first captured subscription's GUID and matching ARM ID with the synthetic selector across all captured pages.

@@ -144,6 +144,25 @@ export const DEFENDER_ASSESSMENTS = "2025-05-04";
 export const DEFENDER_SECURE_SCORES = "2020-01-01";
 
 /**
+ * Microsoft Sentinel incidents, List and Get by ID
+ * (`GET .../workspaces/{workspaceName}/providers/Microsoft.SecurityInsights/incidents[/{incidentId}]`).
+ *
+ * Value: 2025-09-01. Newer stable: none (2025-09-01 is the newest stable folder).
+ * Spec: securityinsights/resource-manager/Microsoft.SecurityInsights/SecurityInsights/stable/2025-09-01/openapi.json
+ * Docs: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list?view=rest-securityinsights-2025-09-01
+ * and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/get?view=rest-securityinsights-2025-09-01
+ * Verified: 2026-10-04 against the spec tree and the REST reference.
+ * Reason: newest stable. `Incidents_List` returns `{ value: Incident[] }` with
+ * `nextLink` paging and `$filter`/`$orderby`/`$top`/`$skipToken` support;
+ * `Incidents_Get` takes the incident GUID name. Incident identity is the GUID
+ * `name` plus the sequential `properties.incidentNumber`; status is
+ * New/Active/Closed and severity is High/Medium/Low/Informational.
+ * Related alerts/entities and incident updates are separate operations and are
+ * not covered by this read contract.
+ */
+export const SENTINEL_INCIDENTS = "2025-09-01";
+
+/**
  * Management locks, list by scope (`GET /{scope}/providers/Microsoft.Authorization/locks`).
  * Used by dry runs to warn about locks on a delete target.
  *

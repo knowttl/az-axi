@@ -55,6 +55,8 @@ The offline test suite checks this list against the registry.
 | `az-axi defender assessments` | native | read |
 | `az-axi defender score` | native | read |
 | `az-axi security secure-scores list` | native | read |
+| `az-axi sentinel incident list` | native | read |
+| `az-axi sentinel incident show` | native | read |
 | `az-axi exposure` | native | read |
 | `az-axi monitor log-analytics query` | native | read |
 | `az-axi logs query` | native | read |
@@ -206,6 +208,13 @@ returns description, remediation steps, and an entities summary.
 `defender score` returns one row per subscription
 (`subscription, current, max, percent`), lowest percent first.
 `--show-query` on `assessments` prints the exact KQL without running it.
+
+```sh
+az-axi sentinel incident list -g rg-demo --workspace-name logs-demo
+az-axi sentinel incident show --name 3177 --workspace sentinel
+```
+
+See [Sentinel incident triage](../../README.md#use) for workspace and subscription selectors, incident identities and aliases, filters, output fields, paging limits and investigation scope.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,

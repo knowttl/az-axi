@@ -92,11 +92,11 @@ describe("benchmark preload", () => {
 
 describe("benchmark surface", () => {
   it.each([
-    { details: {}, count: 18, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
-    { details: { resourceGroup: "owner-group" }, count: 19, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
+    { details: {}, count: 19, notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], detailCalls: [] },
+    { details: { resourceGroup: "owner-group" }, count: 20, notes: ["Skipped resource-show", "Skipped workspace-show"], detailCalls: [
       ["group", "show", "--name", "owner-group"],
     ] },
-    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 19, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
+    { details: { resourceId: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm" }, count: 20, notes: ["Skipped group-show", "Skipped workspace-show"], detailCalls: [
       ["resource", "show", "--ids", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/owner-group/providers/Microsoft.Compute/virtualMachines/owner-vm", "--api-version", "2024-07-01"],
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
@@ -152,17 +152,19 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: false },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[18]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false },
-    { omitted: [], rows: "rows[21]", notes: [], duplicate: true, capped: false },
-    { omitted: [], rows: "rows[21]", notes: [], duplicate: false, capped: true },
-  ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped", ({ omitted, rows, notes, duplicate, capped }) => {
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[19]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
+  ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped, empty Sentinel $sentinelEmpty", ({ omitted, rows, notes, duplicate, capped, sentinelEmpty }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
     }
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
     mkdirSync(join(dir, "benchmark/fixtures"), { recursive: true });
+    writeFileSync(join(dir, "benchmark/targets.json"), JSON.stringify({ workspace: "00000000-0000-0000-0000-000000000020" }));
     const sub = "00000000-0000-0000-0000-000000000001";
     const capturedSub = "00000000-0000-0000-0000-000000000004";
     const tenantId = "00000000-0000-0000-0000-000000000003";
@@ -207,6 +209,24 @@ describe("benchmark surface", () => {
           alertDisplayName: "contoso-alert", severity: "High", status: "Active", timeGeneratedUtc: "2026-10-02T12:34:56Z",
           resourceIdentifiers: [{ azureResourceId: id }],
         } }] }), subscriptions()];
+      } else if (scenario.name === "sentinel-incidents") {
+        const workspaceList = response("GET", { value: [{
+          id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/other-ws`,
+          name: "other-ws",
+          properties: { customerId: "00000000-0000-0000-0000-000000000021" },
+        }, {
+          id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws`,
+          name: "contoso-ws",
+          properties: { customerId: "00000000-0000-0000-0000-000000000020" },
+        }] });
+        responses = [
+          workspaceList,
+          response("GET", { value: sentinelEmpty ? [] : [{
+            id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws/providers/Microsoft.SecurityInsights/incidents/contoso-incident`,
+            name: "contoso-incident",
+            properties: { incidentNumber: 7, title: "contoso-title", severity: "High", status: "Active", createdTimeUtc: "2026-10-02T12:34:56Z" },
+          }] }),
+        ];
       } else if (scenario.name === "monitor-activity") {
         responses = [response("GET", { value: [] })];
       } else if (scenario.name === "security-scores") {
@@ -222,8 +242,11 @@ describe("benchmark surface", () => {
     }
     const accountCapture = join(dir, "benchmark/fixtures/account-list.json");
     const persistedAccount = readFileSync(accountCapture, "utf8");
+    const sentinelCapture = join(dir, "benchmark/fixtures/sentinel-incidents.json");
+    const persistedSentinel = readFileSync(sentinelCapture, "utf8");
     const bootstrap = join(dir, "bootstrap.mjs");
     const accountOutput = join(dir, "account-output.toon");
+    const sentinelOutput = join(dir, "sentinel-output.toon");
     writeFileSync(bootstrap, [
       'import childProcess from "node:child_process";',
       'import { syncBuiltinESMExports } from "node:module";',
@@ -232,6 +255,7 @@ describe("benchmark surface", () => {
       'childProcess.spawnSync = (command, argv, options) => {',
       '  const child = spawnSync(command, argv, options);',
       `  if (argv.includes("account") && argv.includes("list")) writeFileSync(${JSON.stringify(accountOutput)}, child.stdout);`,
+      `  if (argv.includes("sentinel")) writeFileSync(${JSON.stringify(sentinelOutput)}, child.stdout);`,
       '  return child;',
       '};',
       'syncBuiltinESMExports();',
@@ -244,6 +268,13 @@ describe("benchmark surface", () => {
     });
     expect(output.subscriptions).toEqual([{ id: sub, name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }]);
     expect(readFileSync(accountCapture, "utf8")).toBe(persistedAccount);
+    expect(decode(readFileSync(sentinelOutput, "utf8"))).toMatchObject({
+      workspace: scrub("contoso-ws"),
+      total: sentinelEmpty ? 0 : 1,
+      rows: sentinelEmpty ? `0 incidents found in workspace ${scrub("contoso-ws")}` : [{ number: 7, title: scrub("contoso-title"), severity: "High", status: "Active", time: expect.stringMatching(/^2026-10-02(?: 12:34)?$/) }],
+    });
+    expect(readFileSync(sentinelCapture, "utf8")).toBe(persistedSentinel);
+    expect(persistedSentinel).not.toContain("00000000-0000-0000-0000-000000000020");
     expect(JSON.parse(persistedAccount).responses[0].body.value[0].subscriptionId).toBe(scrub(capturedSub));
     expect(persistedAccount).not.toContain(capturedSub);
     expect(child.stdout).toContain(rows);
@@ -263,7 +294,7 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(21);
+    expect(Object.keys(result.help)).toHaveLength(22);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 
@@ -271,7 +302,7 @@ describe("benchmark surface", () => {
     expect(scenarios.map((scenario: { name: string }) => scenario.name)).toEqual([
       "account-list", "account-show", "workspace-list", "workspace-show",
       "group-list", "group-show", "resource-list", "resource-show",
-      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
+      "rg-1", "rg-10", "rg-50", "rbac-privileged", "role-assignment-privileged", "monitor-activity", "security-alerts", "sentinel-incidents", "security-scores", "defender-alerts", "exposure", "logs-query", "graph-query", "monitor-log-analytics-query",
     ]);
     for (const scenario of scenarios) {
       expect(scenario.argv).not.toContain("--profile");

@@ -15,6 +15,7 @@ export const scenarios = [
   { name: "role-assignment-privileged", argv: ["role", "assignment", "list", "--privileged"] },
   { name: "monitor-activity", argv: ["monitor", "activity-log", "list", "--offset", "24h"] },
   { name: "security-alerts", argv: ["security", "alert", "list"] },
+  { name: "sentinel-incidents", argv: ["sentinel", "incident", "list", "--workspace", "benchmark"] },
   { name: "security-scores", argv: ["security", "secure-scores", "list"] },
   { name: "defender-alerts", argv: ["defender", "alerts"] },
   { name: "exposure", argv: ["exposure"] },
