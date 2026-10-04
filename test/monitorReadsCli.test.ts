@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { quoteFlagValue } from "../src/lib/shell.js";
 import {
   SUB_A,
   SUB_B,
@@ -108,10 +109,14 @@ describe("built CLI Monitor reads offline", () => {
     const preload = `data:text/javascript,${encodeURIComponent(stub)}`;
     const command = typeof argv === "string" ? "sh" : process.execPath;
     const commandArgs = typeof argv === "string"
-      ? ["-c", `exec "$1" --import "$2" "$3" ${argv}`, "monitor-hint", process.execPath, preload, "dist/bin/az-axi.js"]
+      ? ["-s"]
       : ["--import", preload, "dist/bin/az-axi.js", ...argv];
     return spawnSync(command, commandArgs, {
       encoding: "utf8",
+      // Feed shell code through stdin to avoid Windows command-line quote rewriting.
+      input: typeof argv === "string"
+        ? `exec ${quoteFlagValue(process.execPath)} --import ${quoteFlagValue(preload)} dist/bin/az-axi.js ${argv}`
+        : undefined,
       // Git Bash must pass ARM IDs to Node without converting them to Windows paths.
       env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*", AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: subscription, AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
     });
