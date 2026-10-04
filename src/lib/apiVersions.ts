@@ -177,6 +177,44 @@ export const DEFENDER_SECURE_SCORES = "2020-01-01";
 export const SENTINEL_INCIDENTS = "2025-09-01";
 
 /**
+ * Microsoft Sentinel alert rules. List and Get by ID use
+ * (`GET .../workspaces/{workspaceName}/providers/Microsoft.SecurityInsights/alertRules[/{ruleId}]`).
+ *
+ * Value: 2025-09-01. Newer stable: none (same newest stable folder as incidents).
+ * Spec: securityinsights/resource-manager/Microsoft.SecurityInsights/SecurityInsights/stable/2025-09-01/
+ * (the same stable family as SENTINEL_INCIDENTS; AlertRules_List/Get share it).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/securityinsights/alert-rules/list?view=rest-securityinsights-2025-09-01
+ * and https://learn.microsoft.com/en-us/cli/azure/sentinel/alert-rule?view=azure-cli-latest
+ * (`az sentinel alert-rule list|show --resource-group --workspace-name`).
+ * Verified: 2026-10-04 against the Learn REST list reference and the CLI
+ * reference (second check: the CLI list maps to the same ARM list operation).
+ * Reason: `AlertRules_List` returns `{ value: AlertRule[] }` with `nextLink`
+ * paging; `AlertRules_Get` takes the rule ID name. The rule `kind`
+ * (Scheduled, NRT, MicrosoftSecurityIncidentCreation, Fusion, ...) selects the
+ * properties shape; only metadata is read, never a rule mutation.
+ */
+export const SENTINEL_ALERT_RULES = "2025-09-01";
+
+/**
+ * Microsoft Sentinel data connectors. List and Get by ID use
+ * (`GET .../workspaces/{workspaceName}/providers/Microsoft.SecurityInsights/dataConnectors[/{connectorId}]`).
+ *
+ * Value: 2025-09-01. Newer stable: none (same newest stable folder as incidents).
+ * Spec: securityinsights/resource-manager/Microsoft.SecurityInsights/SecurityInsights/stable/2025-09-01/
+ * (the same stable family as SENTINEL_INCIDENTS; DataConnectors_List/Get share it).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/securityinsights/data-connectors/list?view=rest-securityinsights-2025-09-01
+ * and https://learn.microsoft.com/en-us/cli/azure/sentinel/data-connector?view=azure-cli-latest
+ * (`az sentinel data-connector list|show --resource-group --workspace-name`).
+ * Verified: 2026-10-04 against the Learn REST list reference and the CLI
+ * reference (second check: the CLI list maps to the same ARM list operation).
+ * Reason: `DataConnectors_List` returns `{ value: DataConnector[] }` with
+ * `nextLink` paging; `DataConnectors_Get` takes the connector ID name. Only
+ * connector metadata is projected; credential-bearing fields are omitted by
+ * construction and credential-returning actions are never called.
+ */
+export const SENTINEL_DATA_CONNECTORS = "2025-09-01";
+
+/**
  * Management locks, list by scope (`GET /{scope}/providers/Microsoft.Authorization/locks`).
  * Used by dry runs to warn about locks on a delete target.
  *

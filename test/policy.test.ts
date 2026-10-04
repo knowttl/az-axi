@@ -29,6 +29,10 @@ const CLASSIFICATION: Row[] = [
   ["arm", "HEAD", STORAGE, "read"],
   ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents`, "read"],
   ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/00000000-0000-0000-0000-000000000090`, "read"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/alertRules`, "read"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/alertRules/00000000-0000-0000-0000-000000000096`, "read"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/dataConnectors`, "read"],
+  ["arm", "GET", `${RG}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/dataConnectors/00000000-0000-0000-0000-000000000098`, "read"],
   ["logs", "GET", "/v1/workspaces", "read"],
   ["graph", "GET", "/v1.0/me", "read"],
   // query: exactly the listed POST paths

@@ -385,6 +385,74 @@ export const sentinelIncidentEntities = {
   metaData: [{ entityKind: "Account", count: 1 }, { entityKind: "Host", count: 1 }],
 };
 
+// source: securityinsights stable/2025-09-01 examples/alertRules/GetScheduledAlertRuleById.json
+// and GetMicrosoftSecurityIncidentCreationAlertRuleById.json
+// (AlertRules_List response shape `{ value: AlertRule[] }`, identifiers replaced).
+const sentinelAlertRule = (name: string, kind: string, properties: Record<string, unknown>) => ({
+  id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/alertRules/${name}`,
+  name,
+  type: "Microsoft.SecurityInsights/alertRules",
+  kind,
+  properties,
+});
+
+export const sentinelAlertRules = [
+  sentinelAlertRule(SYN(96), "Scheduled", {
+    displayName: "Suspicious sign-in burst",
+    description: "Raises an incident when one account fails to sign in from many locations in a short window. Tune the failure and location thresholds per site before enabling the scheduled run, and exclude service accounts that roam by design.",
+    severity: "High",
+    enabled: true,
+    query: "SigninLogs | where ResultType != 0 | summarize failures = count(), locations = dcount(Location), apps = dcount(AppDisplayName) by UserPrincipalName, bin(TimeGenerated, 15m) | where failures > 10 and locations > 3 | order by failures desc",
+    queryFrequency: "PT15M",
+    queryPeriod: "PT1H",
+    triggerOperator: "GreaterThan",
+    triggerThreshold: 10,
+    tactics: ["InitialAccess"],
+    alertRuleTemplateName: SYN(61),
+    lastModifiedUtc: "2026-09-30T13:15:30Z",
+  }),
+  sentinelAlertRule(SYN(97), "MicrosoftSecurityIncidentCreation", {
+    displayName: "Create incidents from Defender alerts",
+    description: "Creates a Sentinel incident for every matching Defender for Cloud alert.",
+    enabled: false,
+    productFilter: "Azure Security Center",
+    alertRuleTemplateName: SYN(62),
+    lastModifiedUtc: "2026-09-29T10:00:00Z",
+  }),
+];
+
+export const sentinelAlertRuleDetail = sentinelAlertRules[0];
+
+// source: securityinsights stable/2025-09-01 examples/dataConnectors/
+// (DataConnectors_List response shape `{ value: DataConnector[] }`, identifiers replaced).
+// The Office365 entry carries credential-shaped decoy fields: only safelisted
+// metadata may ever reach output rows, so these values assert omission.
+const sentinelDataConnector = (name: string, kind: string, properties: Record<string, unknown>) => ({
+  id: `${discoveryGroup.id}/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/dataConnectors/${name}`,
+  name,
+  type: "Microsoft.SecurityInsights/dataConnectors",
+  kind,
+  properties,
+});
+
+export const sentinelDataConnectors = [
+  sentinelDataConnector(SYN(98), "AzureActiveDirectory", {
+    tenantId: TENANT,
+    dataTypes: { alerts: { state: "Connected" } },
+    lastModifiedUtc: "2026-09-30T13:15:30Z",
+  }),
+  sentinelDataConnector(SYN(99), "Office365", {
+    tenantId: TENANT,
+    dataTypes: { exchange: { state: "Connected" }, sharePoint: { state: "Disconnected" } },
+    password: "never-output-this-value",
+    apiKey: "never-output-this-value",
+    connectionString: "never-output-this-value",
+    lastModifiedUtc: "2026-09-29T10:00:00Z",
+  }),
+];
+
+export const sentinelDataConnectorDetail = sentinelDataConnectors[0];
+
 // source: Defender for Cloud Resource Graph samples for securityresources (identifiers replaced)
 const assessment = (recommendation: string, severity: string, status: string, resource: string) => ({
   recommendation,

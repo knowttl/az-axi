@@ -1,6 +1,6 @@
 import { AxiError } from "axi-sdk-js";
 import { randomUUID } from "node:crypto";
-import { LOG_ANALYTICS_WORKSPACES, SENTINEL_INCIDENTS } from "../lib/apiVersions.js";
+import { LOG_ANALYTICS_WORKSPACES, SENTINEL_ALERT_RULES, SENTINEL_DATA_CONNECTORS, SENTINEL_INCIDENTS } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
 import { buildUrl, request, requestAll } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
@@ -744,6 +744,442 @@ async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseAr
 }
 
 /**
+ * Slice 4c: read-only analytics rules and data connectors. All four verbs are
+ * plain ARM GETs (AlertRules_List/Get, DataConnectors_List/Get), so they
+ * classify as reads with no policy change. Rule and connector mutation stays
+ * out of scope: no PUT/POST/PATCH/DELETE path exists here. Connector rows
+ * project an explicit safelist of metadata fields, so secrets, keys and
+ * credential fields are omitted by construction on top of global redaction.
+ */
+const ALERT_RULE_ID =
+  /^\/subscriptions\/([^/]+)\/resourceGroups\/([^/]+)\/providers\/Microsoft\.OperationalInsights\/workspaces\/([^/]+)\/providers\/Microsoft\.SecurityInsights\/alertRules\/([^/]+)$/i;
+const DATA_CONNECTOR_ID =
+  /^\/subscriptions\/([^/]+)\/resourceGroups\/([^/]+)\/providers\/Microsoft\.OperationalInsights\/workspaces\/([^/]+)\/providers\/Microsoft\.SecurityInsights\/dataConnectors\/([^/]+)$/i;
+
+/** `--fields` accepts the compact rule keys plus id, tactics, template and modified. */
+const RULE_FIELD_ALLOWLIST = ["name", "rule", "kind", "enabled", "severity", "id", "tactics", "template", "modified"];
+
+/** `--fields` accepts the compact connector keys plus the full-row safe metadata. */
+const CONNECTOR_FIELD_ALLOWLIST = ["name", "kind", "types", "id", "tenant", "subscriptionId", "modified"];
+
+interface AlertRuleProperties {
+  displayName?: string;
+  description?: string;
+  severity?: string;
+  enabled?: boolean;
+  tactics?: string[];
+  query?: string;
+  alertRuleTemplateName?: string;
+  lastModifiedUtc?: string;
+}
+
+interface AlertRule {
+  id?: string;
+  name?: string;
+  kind?: string;
+  properties?: AlertRuleProperties;
+}
+
+interface DataConnectorProperties {
+  tenantId?: string;
+  subscriptionId?: string;
+  lastModifiedUtc?: string;
+  dataTypes?: Record<string, unknown>;
+}
+
+interface DataConnector {
+  id?: string;
+  name?: string;
+  kind?: string;
+  properties?: DataConnectorProperties;
+}
+
+function compactAlertRuleRow(rule: AlertRule): Record<string, unknown> {
+  const properties = rule.properties ?? {};
+  return {
+    name: rule.name ?? "",
+    rule: properties.displayName ?? "",
+    kind: rule.kind ?? "",
+    enabled: properties.enabled ?? "",
+    severity: properties.severity ?? "",
+  };
+}
+
+function fullAlertRuleRow(rule: AlertRule): Record<string, unknown> {
+  const properties = rule.properties ?? {};
+  return {
+    ...compactAlertRuleRow(rule),
+    id: rule.id ?? "",
+    tactics: properties.tactics ?? [],
+    template: properties.alertRuleTemplateName ?? "",
+    modified: properties.lastModifiedUtc ?? "",
+  };
+}
+
+/** `alerts:Enabled, incidents:Enabled`, sorted; only names and states are read. */
+function connectorTypes(properties: DataConnectorProperties | undefined): string {
+  const dataTypes = properties?.dataTypes;
+  if (!dataTypes || typeof dataTypes !== "object") return "";
+  return Object.entries(dataTypes)
+    .map(([name, entry]) => {
+      const state = typeof entry === "object" && entry !== null
+        ? (entry as Record<string, unknown>)["state"]
+        : undefined;
+      return typeof state === "string" && state ? `${name}:${state}` : name;
+    })
+    .sort()
+    .join(", ");
+}
+
+function safeText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function compactConnectorRow(connector: DataConnector): Record<string, unknown> {
+  return {
+    name: connector.name ?? "",
+    kind: connector.kind ?? "",
+    types: connectorTypes(connector.properties),
+  };
+}
+
+function fullConnectorRow(connector: DataConnector): Record<string, unknown> {
+  const properties = connector.properties ?? {};
+  return {
+    ...compactConnectorRow(connector),
+    id: connector.id ?? "",
+    tenant: safeText(properties.tenantId),
+    subscriptionId: safeText(properties.subscriptionId),
+    modified: safeText(properties.lastModifiedUtc),
+  };
+}
+
+function collectionBase(target: WorkspaceTarget, collection: "alertRules" | "dataConnectors"): string {
+  return `/subscriptions/${target.subscription}/resourceGroups/${segment(target.resourceGroup, "resource-group")}` +
+    `/providers/Microsoft.OperationalInsights/workspaces/${segment(target.workspaceName, "workspace-name")}` +
+    `/providers/Microsoft.SecurityInsights/${collection}`;
+}
+
+/** Pure selector validation for the rule/connector verbs: no transport, so
+ * unknown or conflicting selectors fail before any dependency call. */
+function collectionSelectorError(
+  args: ReturnType<typeof parseArgs>,
+  noun: "alert-rule" | "data-connector",
+  verb: "list" | "show",
+): string | undefined {
+  const ids = flagText(args, "ids");
+  const workspaceName = flagText(args, "workspace-name");
+  const group = flagText(args, "resource-group");
+  const workspace = flagText(args, "workspace");
+  if (ids) {
+    if (verb === "list") return `${noun} list takes no --ids; use \`sentinel ${noun} show --ids <${noun}-ARM-id>\``;
+    if (workspaceName || group || workspace) return `--ids selects the ${noun} itself; workspace selectors are not accepted with --ids`;
+    return undefined;
+  }
+  if (workspace && (workspaceName || group)) return "--workspace conflicts with --workspace-name and --resource-group";
+  if (!workspace && !(workspaceName && group)) {
+    return verb !== "list"
+      ? `${noun} ${verb} needs --name <id> with --workspace-name and --resource-group, --workspace <alias|guid>, or --ids <${noun}-ARM-id>`
+      : `${noun} ${verb} needs --workspace-name and --resource-group, or --workspace <alias|guid>`;
+  }
+  // Path-segment shape is pure: reject it before any subscription transport.
+  if (workspaceName) segment(workspaceName, "workspace-name");
+  if (group) segment(group, "resource-group");
+  return undefined;
+}
+
+interface CollectionScope {
+  subscription: string;
+  target: WorkspaceTarget;
+  suffix: string;
+}
+
+/** Exactly one subscription plus the workspace target both list verbs and
+ * name-selected show verbs share. */
+async function resolveCollectionScope(
+  profile: ResolvedProfile,
+  args: ReturnType<typeof parseArgs>,
+  noun: string,
+): Promise<CollectionScope> {
+  // Alias existence is profile-local: reject unknown workspaces before transport.
+  const workspaceFlag = flagText(args, "workspace");
+  if (workspaceFlag) workspaceGuid(profile, workspaceFlag);
+  const ids = await subscriptions(profile);
+  if (ids.length !== 1) invalid(`${noun} needs exactly one subscription; use --subscription <id>`);
+  const target = await resolveWorkspace(profile, args, ids[0]!);
+  return { subscription: ids[0]!, target, suffix: selectorSuffix(args, ids[0]!, target) };
+}
+
+function enabledLabel(enabled: boolean | undefined): string {
+  if (enabled === true) return "Enabled";
+  if (enabled === false) return "Disabled";
+  return "(unknown)";
+}
+
+async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const full = flagBool(args, "full");
+  const fields = flagList(args, "fields");
+  if (fields?.some((field) => !RULE_FIELD_ALLOWLIST.includes(field))) {
+    invalid(`alert-rule list --fields supports only: ${RULE_FIELD_ALLOWLIST.join(", ")}`);
+  }
+  const limit = limitValue(args);
+  const selectors = collectionSelectorError(args, "alert-rule", "list");
+  if (selectors) invalid(selectors);
+
+  const { target, suffix } = await resolveCollectionScope(profile, args, "alert-rule list");
+
+  const page = await requestAll<AlertRule>(profile,
+    { method: "GET", path: collectionBase(target, "alertRules"), apiVersion: SENTINEL_ALERT_RULES });
+  const collected = page.items
+    .sort((a, b) => (a.properties?.displayName ?? a.name ?? "").localeCompare(b.properties?.displayName ?? b.name ?? ""));
+
+  const scopeHint = `in workspace ${target.workspaceName}`;
+  if (collected.length === 0) {
+    return {
+      profile: profile.name,
+      workspace: target.workspaceName,
+      total: page.nextLink ? "0+" : 0,
+      count: countLine(0, 0, "alert rules"),
+      rows: emptyState("alert rules", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
+      help: [
+        `Run \`az-axi sentinel alert-rule show --name <rule-id>${suffix}\` for a rule in detail`,
+        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds."] : []),
+      ],
+    };
+  }
+
+  const byKind: Record<string, number> = {};
+  const byEnabled: Record<string, number> = {};
+  for (const rule of collected) {
+    const kind = rule.kind || "(unknown)";
+    byKind[kind] = (byKind[kind] ?? 0) + 1;
+    const state = enabledLabel(rule.properties?.enabled);
+    byEnabled[state] = (byEnabled[state] ?? 0) + 1;
+  }
+
+  const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullAlertRuleRow : compactAlertRuleRow);
+  const picked = pickFields(shown, fields);
+  const first = collected[0]!;
+  const help: string[] = [
+    `Run \`az-axi sentinel alert-rule show --name ${first.name ?? ""}${suffix}\` for the first rule in detail`,
+  ];
+  if (shown.length < collected.length) {
+    help.push(`Run \`az-axi sentinel alert-rule list${suffix} --full\` to show every fetched row`);
+  }
+  if (page.nextLink) {
+    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds.");
+  }
+  return {
+    profile: profile.name,
+    workspace: target.workspaceName,
+    total: page.nextLink ? `${collected.length}+` : collected.length,
+    count: countLine(shown.length, collected.length, "alert rules"),
+    byKind,
+    byEnabled,
+    rows: picked,
+    help,
+  };
+}
+
+async function runAlertRuleShow(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const full = flagBool(args, "full");
+  const name = flagText(args, "name");
+  const ids = flagText(args, "ids");
+  if (name && ids) invalid("alert-rule show takes --name or --ids, not both");
+  if (!name && !ids) invalid("alert-rule show needs --name <rule-id> or --ids <rule-ARM-id>");
+  const selectors = collectionSelectorError(args, "alert-rule", "show");
+  if (selectors) invalid(selectors);
+  if (name) segment(name.trim(), "name");
+  const workspaceFlag = flagText(args, "workspace");
+  if (workspaceFlag) workspaceGuid(profile, workspaceFlag);
+
+  let rule: AlertRule;
+  let target: WorkspaceTarget | undefined;
+  let subscription: string;
+  let suffix: string;
+  if (ids) {
+    const match = ALERT_RULE_ID.exec(ids.trim());
+    if (!match) invalid("--ids must be one alert-rule ARM ID under Microsoft.SecurityInsights/alertRules");
+    subscription = match[1]!;
+    if (!GUID.test(subscription)) invalid("--ids must carry a subscription GUID");
+    const selected = profile.subscriptions?.length ? await subscriptions(profile) : [subscription];
+    if (!selected.some((id) => id.toLowerCase() === subscription.toLowerCase())) {
+      invalid("--ids conflicts with selected subscriptions");
+    }
+    suffix = selectorSuffix(args, subscription, undefined);
+    rule = await request<AlertRule>(profile, {
+      method: "GET",
+      path: `/subscriptions/${subscription}/resourceGroups/${segment(match[2]!, "ids")}` +
+        `/providers/Microsoft.OperationalInsights/workspaces/${segment(match[3]!, "ids")}` +
+        `/providers/Microsoft.SecurityInsights/alertRules/${match[4]!}`,
+      apiVersion: SENTINEL_ALERT_RULES,
+    });
+  } else {
+    const scope = await resolveCollectionScope(profile, args, "alert-rule show");
+    subscription = scope.subscription;
+    target = scope.target;
+    suffix = scope.suffix;
+    rule = await request<AlertRule>(profile, {
+      method: "GET",
+      path: `${collectionBase(target, "alertRules")}/${segment(name!.trim(), "name")}`,
+      apiVersion: SENTINEL_ALERT_RULES,
+    });
+  }
+
+  const properties = rule.properties ?? {};
+  const description = properties.description ?? "";
+  const descriptionText = full ? { text: description, truncated: false } : truncate(description, CELL_TRUNCATE);
+  const queryText = properties.query === undefined
+    ? undefined
+    : full ? { text: properties.query, truncated: false } : truncate(properties.query, CELL_TRUNCATE);
+  const help: string[] = [];
+  if (!full && (descriptionText.truncated || queryText?.truncated)) {
+    const selector = ids ? `--ids ${rule.id ?? ids.trim()}` : `--name ${rule.name ?? name!.trim()}`;
+    help.push(`Run \`az-axi sentinel alert-rule show ${selector}${suffix} --full\` for the complete description and query`);
+  }
+
+  const workspaceFromId = (rule.id ?? "").split("/workspaces/")[1]?.split("/")[0] ?? "";
+  return {
+    profile: profile.name,
+    workspace: target?.workspaceName ?? workspaceFromId,
+    name: rule.name ?? "",
+    id: rule.id ?? "",
+    rule: properties.displayName ?? "",
+    kind: rule.kind ?? "",
+    enabled: properties.enabled ?? "",
+    severity: properties.severity ?? "",
+    description: descriptionText.text,
+    tactics: properties.tactics ?? [],
+    template: properties.alertRuleTemplateName ?? "",
+    modified: properties.lastModifiedUtc ?? "",
+    ...(queryText === undefined ? {} : { query: queryText.text }),
+    subscription: parseSubscriptionId(rule.id ?? "") ?? subscription,
+    ...(help.length > 0 ? { help } : {}),
+  };
+}
+
+async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const full = flagBool(args, "full");
+  const fields = flagList(args, "fields");
+  if (fields?.some((field) => !CONNECTOR_FIELD_ALLOWLIST.includes(field))) {
+    invalid(`data-connector list --fields supports only: ${CONNECTOR_FIELD_ALLOWLIST.join(", ")}`);
+  }
+  const limit = limitValue(args);
+  const selectors = collectionSelectorError(args, "data-connector", "list");
+  if (selectors) invalid(selectors);
+
+  const { target, suffix } = await resolveCollectionScope(profile, args, "data-connector list");
+
+  const page = await requestAll<DataConnector>(profile,
+    { method: "GET", path: collectionBase(target, "dataConnectors"), apiVersion: SENTINEL_DATA_CONNECTORS });
+  const collected = page.items
+    .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+
+  const scopeHint = `in workspace ${target.workspaceName}`;
+  if (collected.length === 0) {
+    return {
+      profile: profile.name,
+      workspace: target.workspaceName,
+      total: page.nextLink ? "0+" : 0,
+      count: countLine(0, 0, "data connectors"),
+      rows: emptyState("data connectors", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
+      help: [
+        `Run \`az-axi sentinel data-connector show --name <connector-id>${suffix}\` for a connector in detail`,
+        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds."] : []),
+      ],
+    };
+  }
+
+  const byKind: Record<string, number> = {};
+  for (const connector of collected) {
+    const kind = connector.kind || "(unknown)";
+    byKind[kind] = (byKind[kind] ?? 0) + 1;
+  }
+
+  const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullConnectorRow : compactConnectorRow);
+  const picked = pickFields(shown, fields);
+  const first = collected[0]!;
+  const help: string[] = [
+    `Run \`az-axi sentinel data-connector show --name ${first.name ?? ""}${suffix}\` for the first connector in detail`,
+  ];
+  if (shown.length < collected.length) {
+    help.push(`Run \`az-axi sentinel data-connector list${suffix} --full\` to show every fetched row`);
+  }
+  if (page.nextLink) {
+    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds.");
+  }
+  return {
+    profile: profile.name,
+    workspace: target.workspaceName,
+    total: page.nextLink ? `${collected.length}+` : collected.length,
+    count: countLine(shown.length, collected.length, "data connectors"),
+    byKind,
+    rows: picked,
+    help,
+  };
+}
+
+async function runDataConnectorShow(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const name = flagText(args, "name");
+  const ids = flagText(args, "ids");
+  if (name && ids) invalid("data-connector show takes --name or --ids, not both");
+  if (!name && !ids) invalid("data-connector show needs --name <connector-id> or --ids <connector-ARM-id>");
+  const selectors = collectionSelectorError(args, "data-connector", "show");
+  if (selectors) invalid(selectors);
+  if (name) segment(name.trim(), "name");
+  const workspaceFlag = flagText(args, "workspace");
+  if (workspaceFlag) workspaceGuid(profile, workspaceFlag);
+
+  let connector: DataConnector;
+  let target: WorkspaceTarget | undefined;
+  let subscription: string;
+  if (ids) {
+    const match = DATA_CONNECTOR_ID.exec(ids.trim());
+    if (!match) invalid("--ids must be one data-connector ARM ID under Microsoft.SecurityInsights/dataConnectors");
+    subscription = match[1]!;
+    if (!GUID.test(subscription)) invalid("--ids must carry a subscription GUID");
+    const selected = profile.subscriptions?.length ? await subscriptions(profile) : [subscription];
+    if (!selected.some((id) => id.toLowerCase() === subscription.toLowerCase())) {
+      invalid("--ids conflicts with selected subscriptions");
+    }
+    connector = await request<DataConnector>(profile, {
+      method: "GET",
+      path: `/subscriptions/${subscription}/resourceGroups/${segment(match[2]!, "ids")}` +
+        `/providers/Microsoft.OperationalInsights/workspaces/${segment(match[3]!, "ids")}` +
+        `/providers/Microsoft.SecurityInsights/dataConnectors/${match[4]!}`,
+      apiVersion: SENTINEL_DATA_CONNECTORS,
+    });
+  } else {
+    const scope = await resolveCollectionScope(profile, args, "data-connector show");
+    subscription = scope.subscription;
+    target = scope.target;
+    connector = await request<DataConnector>(profile, {
+      method: "GET",
+      path: `${collectionBase(target, "dataConnectors")}/${segment(name!.trim(), "name")}`,
+      apiVersion: SENTINEL_DATA_CONNECTORS,
+    });
+  }
+
+  // Only safelisted metadata leaves this function: tenant and subscription IDs,
+  // data-type states and timestamps. Anything else the service returns -
+  // secrets, keys, credential fields - is never projected.
+  const properties = connector.properties ?? {};
+  const workspaceFromId = (connector.id ?? "").split("/workspaces/")[1]?.split("/")[0] ?? "";
+  return {
+    profile: profile.name,
+    workspace: target?.workspaceName ?? workspaceFromId,
+    name: connector.name ?? "",
+    id: connector.id ?? "",
+    kind: connector.kind ?? "",
+    types: connectorTypes(connector.properties),
+    tenant: safeText(properties.tenantId),
+    subscriptionId: safeText(properties.subscriptionId),
+    modified: safeText(properties.lastModifiedUtc),
+    subscription: parseSubscriptionId(connector.id ?? "") ?? subscription,
+  };
+}
+
+/**
  * Native incident writes (slice 10b). Both verbs are PUTs through the shared
  * write pipeline so the write log, LRO handling and approval hook apply.
  * Incident updates merge against the same read used for the diff and ETag;
@@ -1024,6 +1460,28 @@ async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeo
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const args = parseArgs(argv);
+  const group = args.positionals[0];
+  if (group === "alert-rule" || group === "data-connector") {
+    const verb = args.positionals[1];
+    const tail = args.positionals.slice(2);
+    const leaf = (verb === "list" || verb === "show") && tail.length === 0 ? `sentinel ${group} ${verb}` : undefined;
+    if (!leaf) {
+      throw new AxiError(
+        verb ? `unknown command \`sentinel ${[group, verb, ...tail].join(" ")}\`` : `missing verb for \`sentinel ${group}\``,
+        "VALIDATION_ERROR",
+        ["Expected one of: list | show", `Run \`az-axi sentinel ${group} list --help\` for usage`],
+      );
+    }
+    assertKnownFlags(args, commandFlags(leaf), leaf);
+    const profile = profileFromArgs(args);
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+      invalid("management-group scope is unsupported for Sentinel analytics rules and connectors; select one subscription explicitly");
+    }
+    if (leaf === "sentinel alert-rule list") return runAlertRuleList(profile, args);
+    if (leaf === "sentinel alert-rule show") return runAlertRuleShow(profile, args);
+    if (leaf === "sentinel data-connector list") return runDataConnectorList(profile, args);
+    return runDataConnectorShow(profile, args);
+  }
   if (args.positionals[0] !== "incident") {
     throw new AxiError(
       args.positionals[0] ? `unknown command \`sentinel ${args.positionals[0]}\`` : "missing subcommand for `sentinel`",

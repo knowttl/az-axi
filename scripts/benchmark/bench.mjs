@@ -31,7 +31,7 @@ try {
   } } }), { mode: 0o600 });
   const rows = replayScenarios.map((scenario, index) => {
     let replayFile = fileURLToPath(files[index]);
-    if (scenario.name === "account-list" || scenario.name === "sentinel-incidents") {
+    if (scenario.name === "account-list" || scenario.name.startsWith("sentinel-")) {
       const capture = structuredClone(captures[index]);
       const items = capture.responses.flatMap((response) => response.body?.value ?? []);
       if (scenario.name === "account-list") {

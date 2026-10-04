@@ -16,6 +16,8 @@ export const scenarios = [
   { name: "monitor-activity", argv: ["monitor", "activity-log", "list", "--offset", "24h"] },
   { name: "security-alerts", argv: ["security", "alert", "list"] },
   { name: "sentinel-incidents", argv: ["sentinel", "incident", "list", "--workspace", "benchmark"] },
+  { name: "sentinel-alert-rules", argv: ["sentinel", "alert-rule", "list", "--workspace", "benchmark"] },
+  { name: "sentinel-data-connectors", argv: ["sentinel", "data-connector", "list", "--workspace", "benchmark"] },
   { name: "security-scores", argv: ["security", "secure-scores", "list"] },
   { name: "defender-alerts", argv: ["defender", "alerts"] },
   { name: "exposure", argv: ["exposure"] },

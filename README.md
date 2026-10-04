@@ -257,6 +257,10 @@ az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscrip
 az-axi sentinel incident show --name 3177 --workspace sentinel
 az-axi sentinel incident list-alert --name 3177 --workspace sentinel
 az-axi sentinel incident list-entity --name 3177 --workspace sentinel
+az-axi sentinel alert-rule list -g rg-demo --workspace-name logs-demo
+az-axi sentinel alert-rule show --name <rule-id> --workspace sentinel
+az-axi sentinel data-connector list -g rg-demo --workspace-name logs-demo
+az-axi sentinel data-connector show --name <connector-id> --workspace sentinel
 ```
 
 Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
@@ -279,7 +283,19 @@ Alert rows default to name, alert, severity, status and time with `bySeverity` a
 Entity rows default to kind, entity and name with `byKind` aggregates from the server metadata, falling back to returned entity counts when metadata counts are absent; `--full` adds ARM IDs, and `--fields` accepts kind, entity, name and id.
 Both related commands use the same display limit as incident list; `--full` shows every returned row, and `--fields` takes precedence over the full row schema.
 Neither related response pages.
-Analytics rules and connectors are out of scope; query workspace tables with `logs query` to investigate further.
+Analytics rules (`sentinel alert-rule list|show`) and data connectors (`sentinel data-connector list|show`) read workspace configuration through plain ARM GETs (api-version 2025-09-01) with the same workspace selectors as incident show: `--name` takes the rule or connector ID with `--workspace-name` and `--resource-group` (or `--workspace <alias|guid>`), while `--ids` takes the full ARM ID alone.
+List and name-based show require exactly one subscription; `show --ids` uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
+Both lists follow up to 10 pages and mark incomplete counts as lower bounds; `--limit` defaults to 50 and accepts integers from 1 to 1000, while `--full` shows every fetched row.
+Rule lists sort by display name with `byKind` and `byEnabled` aggregates (kinds include Scheduled, NRT, MicrosoftSecurityIncidentCreation and Fusion).
+Rule rows default to name, rule, kind, enabled and severity; `--full` adds ARM IDs, tactics, templates and modification times.
+Rule list `--fields` accepts name, rule, kind, enabled, severity, id, tactics, template and modified, and takes precedence over the full row schema.
+Rule show returns the description and, for query-based kinds, the KQL query, each truncated at 200 characters unless `--full`.
+Connector lists sort by name with `byKind` aggregates.
+Connector rows default to name, kind and types (connected data types with state); `--full` adds ARM IDs plus tenant, subscription and modification metadata.
+Connector list `--fields` accepts name, kind, types, id, tenant, subscriptionId and modified, and takes precedence over the full row schema.
+Connector show returns all of that safelisted metadata by default; `--full` does not expand it.
+Connector views project safelisted metadata only: secrets, keys and credential fields are never printed, and credential-returning actions are never called.
+There is no rule or connector mutation command; query workspace tables with `logs query` to investigate further.
 For the native incident update and comment create writes, see [Writes](#writes).
 Management-group scope is unsupported; select one subscription explicitly.
 
@@ -344,6 +360,10 @@ az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscrip
 az-axi sentinel incident show --name 3177 --workspace sentinel  # one incident by GUID or number
 az-axi sentinel incident list-alert --name 3177 --workspace sentinel  # related alerts for one incident
 az-axi sentinel incident list-entity --name 3177 --workspace sentinel  # related entities for one incident
+az-axi sentinel alert-rule list -g rg-demo --workspace-name logs-demo -s <subscription>  # analytics rules, by display name
+az-axi sentinel alert-rule show --name <rule-id> --workspace sentinel  # one analytics rule with description and query
+az-axi sentinel data-connector list -g rg-demo --workspace-name logs-demo -s <subscription>  # data connectors, safelisted metadata only
+az-axi sentinel data-connector show --name <connector-id> --workspace sentinel  # one data connector
 az-axi sentinel incident update -s <subscription> --name 3177 -g rg-demo --workspace-name logs-demo --status Closed --classification FalsePositive --classification-reason IncorrectAlertLogic  # gated preview only
 az-axi sentinel incident comment create -s <subscription> --incident-id <incident-id> -g rg-demo --workspace-name logs-demo --message Triaged  # gated preview only
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
