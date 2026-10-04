@@ -129,17 +129,18 @@ describe("built API body inputs, offline only", () => {
     expect(requests()).toEqual([]);
   });
 
-  it("treats empty stdin as absent and accepts all JSON values", () => {
+  it("treats empty stdin as absent", () => {
     expect(cli([], "", "/subscriptions", "GET").status).toBe(0);
-    for (const input of ["null", "false", "0", '"text"', "[]", "{}"]) {
-      const result = cli([], input, "/providers/Microsoft.ResourceGraph/resources", "POST");
-      expect(result.status, result.stdout + result.stderr).toBe(0);
-      expect(requests().at(-1)?.body).toEqual(JSON.parse(input));
-    }
   });
 
-  it.each(["inline", "file", "stdin"])("preserves %s JSON strings through queries, execution and deployment previews", (form) => {
-    for (const body of ["text", "false", '{"tags":{"env":"prod"}}']) {
+  it.each(["null", "false", "0", '"text"', "[]", "{}"])("accepts stdin JSON value %s", (input) => {
+    const result = cli([], input, "/providers/Microsoft.ResourceGraph/resources", "POST");
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(requests().at(-1)?.body).toEqual(JSON.parse(input));
+  });
+
+  describe.each(["inline", "file", "stdin"])("%s JSON strings", (form) => {
+    it.each(["text", "false", '{"tags":{"env":"prod"}}'])("preserves %j through queries, execution and deployment previews", (body) => {
       const input = JSON.stringify(body);
       writeFileSync(join(dir, "body file.json"), input);
       const flags = form === "inline" ? ["--body", input] : form === "file" ? ["--body-file", join(dir, "body file.json")] : [];
@@ -154,6 +155,6 @@ describe("built API body inputs, offline only", () => {
         expect(result.status, result.stdout + result.stderr).toBe(0);
         expect(requests().at(-1)).toMatchObject({ method: request.method === "PUT" ? "POST" : request.method, body });
       }
-    }
+    });
   });
 });

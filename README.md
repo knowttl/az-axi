@@ -279,7 +279,8 @@ Alert rows default to name, alert, severity, status and time with `bySeverity` a
 Entity rows default to kind, entity and name with `byKind` aggregates from the server metadata, falling back to returned entity counts when metadata counts are absent; `--full` adds ARM IDs, and `--fields` accepts kind, entity, name and id.
 Both related commands use the same display limit as incident list; `--full` shows every returned row, and `--fields` takes precedence over the full row schema.
 Neither related response pages.
-Analytics rules, connectors and incident updates are out of scope; query workspace tables with `logs query` to investigate further.
+Analytics rules and connectors are out of scope; query workspace tables with `logs query` to investigate further.
+For the native incident update and comment create writes, see [Writes](#writes).
 Management-group scope is unsupported; select one subscription explicitly.
 
 Discovery uses live ARM GETs.
@@ -343,6 +344,8 @@ az-axi sentinel incident list -g rg-demo --workspace-name logs-demo -s <subscrip
 az-axi sentinel incident show --name 3177 --workspace sentinel  # one incident by GUID or number
 az-axi sentinel incident list-alert --name 3177 --workspace sentinel  # related alerts for one incident
 az-axi sentinel incident list-entity --name 3177 --workspace sentinel  # related entities for one incident
+az-axi sentinel incident update -s <subscription> --name 3177 -g rg-demo --workspace-name logs-demo --status Closed --classification FalsePositive --classification-reason IncorrectAlertLogic  # gated preview only
+az-axi sentinel incident comment create -s <subscription> --incident-id <incident-id> -g rg-demo --workspace-name logs-demo --message Triaged  # gated preview only
 az-axi exposure --check mgmt-ports                      # NSGs exposing management ports
 az-axi logs query --file hunt.kql --workspace sentinel   # Log Analytics KQL (see Query logs)
 az-axi api /subscriptions --api-version 2022-12-01      # escape hatch for any read or query request
@@ -592,6 +595,26 @@ These Defender actions do not document ETag/If-Match support.
 An explicit `--if-match` is forwarded, but no concurrency guarantee is claimed even when the read returns an ETag.
 `--execute`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
 Only the three named actions are supported; batches, `inprogress`, body input and credential actions are refused.
+
+`sentinel incident update` sets status, severity, owner and classification on exactly one Sentinel incident.
+Incident selection mirrors `incident show`: `--name / --incident-id` takes the incident GUID or its sequential number with `--workspace-name` and `--resource-group` (or `--workspace <alias|guid>`), while `--ids` takes the full incident ARM ID alone.
+`--subscription / -s` requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.
+At least one of `--status New|Active|Closed`, `--severity High|Medium|Low|Informational`, `--owner <object-id|email|name>` or `--classification Undetermined|TruePositive|BenignPositive|FalsePositive` is required.
+Closing (`--status Closed`) requires `--classification`; a concrete classification requires `--classification-reason SuspiciousActivity|SuspiciousButExpected|IncorrectAlertLogic|InaccurateData`, with optional `--classification-comment`.
+`--owner` takes one identity: a GUID becomes `objectId`, text with `@` becomes email, anything else becomes the assigned-to name.
+When that identity already matches the current owner, its existing metadata is preserved: object IDs and email or user principal name match case-insensitively; assigned-to names match exactly.
+The preview re-reads the incident and shows the field-level diff plus the exact native execute command.
+Execution re-reads again, returns a no-op without a PUT or log entry when nothing would change, and otherwise sends one merged `PUT .../Microsoft.SecurityInsights/incidents/<incident-id>?api-version=2025-09-01` (GET-merge-PUT, as az does) through the shared pipeline.
+The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
+Without `--if-match`, execution uses the fresh re-read ETag when available, protecting only against changes between that read and the PUT.
+
+`sentinel incident comment create` appends one comment to exactly one Sentinel incident, selected with `--incident-id` (GUID or number, with workspace selectors) or `--ids`.
+`--message` is required; each invocation generates a new comment GUID, so executing the preview's command uses a fresh ID rather than the previewed ID.
+Existing comments cannot be edited with this command; repeated execution adds another comment.
+The preview reports the new comment resource; execution sends one `PUT .../incidents/<incident-id>/comments/<comment-id>?api-version=2025-09-01` with `{properties:{message}}` through the shared pipeline.
+`--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
+`--if-match` applies to incident updates.
+Both Sentinel previews include the redacted request body; `--full` expands a truncated body.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 
@@ -610,7 +633,7 @@ Prefer PIM-eligible roles with temporary activation over standing Owner or Contr
 Use the [agent approval hook](#agent-integration) when an agent performs writes, and review the preview before approving execution.
 
 Without `--execute`, a permitted write or destructive request returns a dry run using current-state reads or a deployment what-if query, without sending the write.
-The following preview details apply to `api`; native alert previews are described above.
+The following preview details apply to `api`; native write previews are described above.
 For example, `az-axi api PATCH <resource-path> --api-version <version> --body-file body.json --profile <profile>` previews a field-level diff.
 PUT and PATCH previews show `changes[]{path,from,to}`, capped at 20 rows with `remaining` for additional changes, and `noop: true` when nothing would change.
 PUT also lists omitted fields as removals; PATCH normally compares supplied fields, but supplying `tags` replaces the tag set, so omitted tags appear as removals.

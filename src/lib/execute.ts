@@ -22,6 +22,7 @@ export async function executeWrite(options: {
   path: string;
   cls: "write" | "destructive";
   body: unknown;
+  mergeBody?: (current: unknown) => unknown;
   ifMatch?: string;
   confirm?: string;
   selectors: string;
@@ -32,7 +33,7 @@ export async function executeWrite(options: {
   /** Operation-specific limits on review-to-execute protection. */
   protection?: string;
 }): Promise<Record<string, unknown>> {
-  const { profile, method, path, body } = options;
+  const { profile, method, path } = options;
   const started = Date.now();
   const url = new URL(path);
   const pathname = url.pathname.replace(/\/+$/, "");
@@ -50,9 +51,10 @@ export async function executeWrite(options: {
   try {
     current = await sendRequest(profile, { path: probePath });
   } catch (error) {
-    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || options.desiredState !== undefined || (method !== "PUT" && method !== "DELETE" && method !== "POST")) throw error;
+    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || options.mergeBody !== undefined || options.desiredState !== undefined || (method !== "PUT" && method !== "DELETE" && method !== "POST")) throw error;
     if (error instanceof ApiRequestError) missing = error;
   }
+  const body = options.mergeBody ? options.mergeBody(current!.body) : options.body;
   const noop = method === "DELETE" ? current === undefined :
     (method === "PUT" || method === "PATCH") && current !== undefined && body !== undefined && diffResource(current.body, body, method).noop ||
     method === "POST" && current !== undefined && options.desiredState !== undefined && diffResource(current.body, options.desiredState, "PATCH").noop;
