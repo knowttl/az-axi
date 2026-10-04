@@ -169,6 +169,7 @@ describe("command effect registry", () => {
       api: "dynamic",
       az: "read",
       storage: "read",
+      keyvault: "read",
     });
   });
 

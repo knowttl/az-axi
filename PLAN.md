@@ -869,6 +869,20 @@ Safe output fields are name/lastModified/etag plus publicAccess for containers o
 `--full` never broadens that schema and `--fields` rejects other fields.
 Reference: [List Containers](https://learn.microsoft.com/rest/api/storageservices/list-containers2), [List Blobs](https://learn.microsoft.com/rest/api/storageservices/list-blobs), [Get Container Properties](https://learn.microsoft.com/rest/api/storageservices/get-container-properties), [Get Blob Properties](https://learn.microsoft.com/rest/api/storageservices/get-blob-properties).
 
+### 6.15 Key Vault object metadata/expiry listing
+
+Native `keyvault secret|key|certificate list|show` are read-only and additive.
+`client.ts` exposes a dedicated key vault metadata operation with no arbitrary method, URL, body or query-map input.
+It constructs only the collection list GETs (`/secrets`, `/keys`, `/certificates` on `{vault}.vault.azure.net` with api-version 7.4) and follows only service continuations validated back to the same vault host and collection path.
+Single-object endpoints, which return secret values or key material, are never constructed: `show` filters the property list client-side by `--name`.
+Secret download, key export and backup, certificate private-key download, deleted-object, purge, recover, set and rotation operations have no command path.
+Bearer auth uses the `https://vault.azure.net/` audience; az-auth acquisition is bounded and strips ambient overrides with extensions disabled, while token profiles use `AZ_AXI_VAULT_TOKEN` or `tokenEnv.vault`.
+Native ARM envelopes and the raw API host map are unchanged.
+Redirects are refused, requests have a 30-second deadline and list bodies are bounded to 1 MiB of JSON.
+Lists page to `--limit` (default 50, maximum 1000) and disclose further pages with a `+` count suffix; `--expiring-within Nd` filters client-side to items expiring soon.
+Lists default to name/enabled/expiresOn; `--fields` or `--full` expands to the safe schema (notBefore, created, updated, contentType for secrets, thumbprint for certificates, managed); tags, values, key material and certificate bytes are never requested or returned.
+Reference: [Get Secrets](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4), [Get Keys](https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4), [Get Certificates](https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4).
+
 ## 7. Invariants
 
 These are non-negotiable. The agent must not weaken them; if one blocks progress, stop and ask the owner.
@@ -1379,6 +1393,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `doctor` (identity) | `az account show --query "{name:user.name,type:user.type,tenant:tenantId}"` |
 | `sub list` | `az account list --query "length(@)"` |
 | `storage container/blob list/show` | Owner only: compare safe properties with the same Azure CLI operation using explicit `--auth-mode login`; worker tests use synthetic XML/headers and offline transports only |
+| `keyvault secret/key/certificate list/show` | Owner only: compare safe properties with `az keyvault secret|key|certificate list --vault-name <vault>`; `show` has no CLI equivalent (it filters the property list, never `get_secret`); worker tests use synthetic JSON and offline transports only |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
 | `group list/show` | `az group list` and `az group show -n <group> -s <subscription>` with identical subscription scope |
 | `resource list/show` | `az resource list -g <group>` and `az resource show --ids <ARM-id>` with identical subscription and API version |
@@ -1446,6 +1461,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Deployments - What If | https://learn.microsoft.com/en-us/rest/api/resources/deployments/what-if |
 | Resource locks | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources |
 | Storage metadata GET lists and HEAD properties (2023-11-03) | https://learn.microsoft.com/rest/api/storageservices/list-containers2 and https://learn.microsoft.com/rest/api/storageservices/list-blobs and https://learn.microsoft.com/rest/api/storageservices/get-container-properties and https://learn.microsoft.com/rest/api/storageservices/get-blob-properties |
+| Key Vault property listings (7.4) | https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4 and https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4 and https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4 |
 
 ### 15.3 Resource Graph
 

@@ -37,3 +37,13 @@ export const offlineStorageReads = [
   { name: "storage-blob-list", argv: ["storage", "blob", "list", "--account-name", "stexample", "--container-name", "example"] },
   { name: "storage-blob-show", argv: ["storage", "blob", "show", "--account-name", "stexample", "--container-name", "example", "--name", "example"] },
 ];
+
+// Key Vault property listings are measured offline without data-plane access.
+export const offlineKeyvaultReads = [
+  { name: "keyvault-secret-list", argv: ["keyvault", "secret", "list", "--vault-name", "kvexample"] },
+  { name: "keyvault-secret-show", argv: ["keyvault", "secret", "show", "--vault-name", "kvexample", "--name", "example-secret"] },
+  { name: "keyvault-key-list", argv: ["keyvault", "key", "list", "--vault-name", "kvexample"] },
+  { name: "keyvault-key-show", argv: ["keyvault", "key", "show", "--vault-name", "kvexample", "--name", "example-key"] },
+  { name: "keyvault-certificate-list", argv: ["keyvault", "certificate", "list", "--vault-name", "kvexample"] },
+  { name: "keyvault-certificate-show", argv: ["keyvault", "certificate", "show", "--vault-name", "kvexample", "--name", "example-cert"] },
+];
