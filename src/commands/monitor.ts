@@ -188,7 +188,7 @@ function receiverDetails(props: AnyObj): AnyObj[] {
     details.push({ type: "sms", name: str(entry.name), country: str(entry.countryCode), number: str(entry.phoneNumber) });
   }
   for (const entry of arrOf(props.webhookReceivers)) {
-    details.push({ type: "webhook", name: str(entry.name), uri: str(entry.serviceUri),
+    details.push({ type: "webhook", name: str(entry.name), uri: str(entry.serviceUri).split(/[?#]/, 1)[0] ?? "",
       properties: Object.keys(objOf(entry.properties)) });
   }
   for (const entry of arrOf(props.itsmReceivers)) {

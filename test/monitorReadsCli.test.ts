@@ -38,6 +38,9 @@ describe("built CLI Monitor reads offline", () => {
       if (mode === 'prose') {
         data.monitorAlertRules[0].properties.description = 'CPU: overloaded? Restart the worker; Note: incident#123';
       }
+      if (mode === 'receiver-query') {
+        data.monitorActionGroups[0].properties.webhookReceivers[0].serviceUri = 'https://hooks.contoso.com/alerts?code=never-output-this-value#never-output-this-value';
+      }
       if (mode === 'aggregations') {
         data.monitorMetricValues.value[0].errorCode = 'Success';
         data.monitorMetricValues.value[0].timeseries[0].data = [
@@ -357,8 +360,17 @@ describe("built CLI Monitor reads offline", () => {
       receivers: Array<{ type: string; uri?: string; properties?: string[] }>;
     };
     const webhook = shown.receivers.find((receiver) => receiver.type === "webhook");
-    expect(webhook?.uri).toBe("https://hooks.contoso.com/alerts");
+    expect(webhook?.uri).toBe("***redacted***");
     expect(webhook?.properties).toEqual(["token"]);
+  });
+
+  it("suppresses webhook URI query and fragment only in receiver output", () => {
+    const result = run(["monitor", "action-group", "show", "--ids", monitorActionGroup.id, "--full"], "receiver-query");
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ receivers: expect.arrayContaining([
+      expect.objectContaining({ type: "webhook", uri: "https://hooks.contoso.com/alerts" }),
+    ]) });
+    expect(result.stdout).not.toContain("never-output-this-value");
   });
 
   it("lists diagnostic settings for one resource and shows one by name and ARM ID", () => {

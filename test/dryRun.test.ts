@@ -161,6 +161,25 @@ describe("default profile", () => {
 });
 
 describe("write-enabled profile without --execute", () => {
+  it("redacts credentialed URI preview bodies and requires the original body file", async () => {
+    const body = { tags: { dashboard: "https://private-user:private-password@example.com/view?team=ops#cpu" } };
+    const result = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", JSON.stringify(body), "--profile", "writer"]);
+    expect(result.body).toEqual({ tags: { dashboard: "***redacted***" } });
+    expect((result.help as string[]).join("\n")).toContain("--body-file '<body-file>'");
+    expect(JSON.stringify(result)).not.toMatch(/private-user|private-password/);
+    assertOnlyPreviewReads();
+  });
+
+  it.each([{ flags: [] }, { flags: ["--full"] }])("preserves URI query and fragment in preview bodies and inline hints with $flags", async ({ flags }) => {
+    const url = "https://example.com/view?team=ops#cpu";
+    const body = { tags: { dashboard: url } };
+    const result = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--body", JSON.stringify(body), "--profile", "writer", ...flags]);
+    expect(result.body).toEqual(body);
+    expect((result.help as string[]).join("\n")).toContain(url);
+    expect((result.help as string[]).join("\n")).not.toContain("--body-file");
+    assertOnlyPreviewReads();
+  });
+
   it("previews a PATCH diff with the etag and the exact execute command", async () => {
     const result = await patch();
     expect(result).toMatchObject({

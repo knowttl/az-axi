@@ -71,6 +71,27 @@ function records(file: string): Array<Record<string, unknown>> {
 }
 
 describe("built tag update, offline only", () => {
+  it("preserves URI query and fragment in tag previews and execute hints", () => {
+    const url = "https://example.com/view?team=ops#cpu";
+    const result = cli([], { tags: [`dashboard=${url}`] });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ changes: [{ path: "tags.dashboard", to: url }] });
+    expect(result.stdout).toContain(`--tags 'dashboard=${url}'`);
+    expect(records("writes.log")).toEqual([]);
+  });
+
+  it("redacts URI credentials in tag hints and rejects pasted placeholders", () => {
+    const result = cli([], { tags: ["dashboard=https://private-user:private-password@example.com/view?team=ops#cpu"] });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("dashboard=***redacted***");
+    expect(result.stdout).not.toMatch(/private-user|private-password/);
+    const pasted = cli(["--execute"], { tags: ["dashboard=***redacted***"] });
+    expect(pasted.status).toBe(2);
+    expect(pasted.stdout).toContain("must be the real value");
+    expect(records("writes.log")).toEqual([]);
+    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: TAGS_URL }]);
+  });
+
   it("previews a merge with the tag-map diff and an exact native execute hint", () => {
     const result = cli(["--timeout", "30", "--no-wait"], { tags: ["env=prod", "owner=team"] });
     expect(result.status, result.stdout + result.stderr).toBe(0);
