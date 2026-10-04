@@ -40,6 +40,8 @@ Fixtures are owner-local, gitignored files with owner-only permissions where sup
 Run `pnpm bench` after owner captures exist.
 It launches each real CLI scenario under `node --import scripts/benchmark/fetch-hook.mjs` in replay mode.
 Replay uses an isolated temporary token-mode profile with synthetic subscription/workspace identifiers and dummy ARM, Graph and Logs tokens, bypassing Azure CLI authentication.
+For scoped account-list replay, a temporary copy aligns the first captured subscription's GUID and matching ARM ID with the synthetic selector across all captured pages.
+This avoids display-name resolution, including duplicate names and capped pagination, while preserving production scope filtering and the persisted scrubbed capture.
 It serves responses in fetch invocation order, checking method and public host; missing, mismatched, extra and unused responses fail the run, including errors swallowed by optional command enrichment.
 Replay never calls the original fetch function and cannot fall back to live requests.
 No request URL or body matching is performed because private request selectors differ in replay and the strict scrubber is not idempotent.
