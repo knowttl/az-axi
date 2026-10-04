@@ -70,11 +70,8 @@ export const COMMAND_LEAVES = [
   { path: "storage blob list", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", prefix: "literal", marker: "literal" } },
   { path: "storage blob show", effect: "read", capability: "native", flags: { "account-name": "value", "auth-mode": "value", "container-name": "value", name: "literal" } },
   { path: "keyvault secret list", effect: "read", capability: "native", flags: { "vault-name": "value", "expiring-within": "value" } },
-  { path: "keyvault secret show", effect: "read", capability: "native", flags: { "vault-name": "value", name: "value" } },
   { path: "keyvault key list", effect: "read", capability: "native", flags: { "vault-name": "value", "expiring-within": "value" } },
-  { path: "keyvault key show", effect: "read", capability: "native", flags: { "vault-name": "value", name: "value" } },
   { path: "keyvault certificate list", effect: "read", capability: "native", flags: { "vault-name": "value", "expiring-within": "value" } },
-  { path: "keyvault certificate show", effect: "read", capability: "native", flags: { "vault-name": "value", name: "value" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -182,7 +179,7 @@ const HELP_OVERVIEWS = {
   op: "az-axi op status <operation-url>         # check a long-running operation",
   az: "az-axi az group show -n <name> --subscription <uuid>  # reviewed Azure CLI read",
   storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",
-  keyvault: "az-axi keyvault secret|key|certificate list|show  # Entra-only vault property listings",
+  keyvault: "az-axi keyvault secret|key|certificate list  # Entra-only vault property listings",
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */

@@ -878,10 +878,10 @@ Reference: [List Containers](https://learn.microsoft.com/rest/api/storageservice
 
 ### 6.15 Key Vault object metadata/expiry listing
 
-Native `keyvault secret|key|certificate list|show` are read-only and additive.
+Native `keyvault secret|key|certificate list` are read-only and additive.
 `client.ts` exposes a dedicated key vault metadata operation with no arbitrary method, URL, body or query-map input.
 It constructs only the collection list GETs (`/secrets`, `/keys`, `/certificates` on `{vault}.vault.azure.net` with api-version 7.4) and follows only service continuations validated back to the same vault host and collection path.
-Single-object endpoints, which return secret values or key material, are never constructed: `show` filters the property list client-side by `--name`.
+Single-object endpoints, which return secret values or key material, are never constructed.
 Secret download, key export and backup, certificate private-key download, deleted-object, purge, recover, set and rotation operations have no command path.
 Bearer auth uses the `https://vault.azure.net/` audience; az-auth acquisition is bounded and strips ambient overrides with extensions disabled, while token profiles use `AZ_AXI_VAULT_TOKEN` or `tokenEnv.vault`.
 Native ARM envelopes and the raw API host map are unchanged.
@@ -1402,7 +1402,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `storage container/blob list/show` | Owner only: compare safe properties with the same Azure CLI operation using explicit `--auth-mode login`; worker tests use synthetic XML/headers and offline transports only |
 | `account list/show` | Owner only: compare live ARM subscriptions under the same profile identity and selected scope; do not compare to an unrelated cached az account default |
 | `monitor log-analytics workspace list/show` | Owner only: `az monitor log-analytics workspace list -s <id>` and `show -g <group> -n <name> -s <id>` with identical scope |
-| `keyvault secret/key/certificate list/show` | Owner only: compare safe properties with `az keyvault secret|key|certificate list --vault-name <vault>`; `show` has no CLI equivalent (it filters the property list, never `get_secret`); worker tests use synthetic JSON and offline transports only |
+| `keyvault secret/key/certificate list` | Owner only: compare safe properties with `az keyvault secret|key|certificate list --vault-name <vault>`; worker tests use synthetic JSON and offline transports only |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
 | `group list/show` | `az group list` and `az group show -n <group> -s <subscription>` with identical subscription scope |
 | `resource list/show` | `az resource list -g <group>` and `az resource show --ids <ARM-id>` with identical subscription and API version |

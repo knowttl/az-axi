@@ -237,6 +237,6 @@ export const GRAPH_GET_BY_IDS = "v1.0";
  * `{ id/kid, attributes: { enabled, created, updated, exp, nbf }, tags, contentType/x5t,
  * managed }` plus an opaque `nextLink`. Single-object GETs (`/secrets/{name}`,
  * `/keys/{name}`, `/certificates/{name}`) return values or key material and are never
- * constructed by az-axi: `show` filters the property list client-side instead.
+ * constructed by az-axi.
  */
 export const KEYVAULT_DATA_PLANE = "7.4";

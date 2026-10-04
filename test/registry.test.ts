@@ -29,8 +29,7 @@ describe("exact leaf contracts", () => {
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
       "security alert update", "defender assessments", "defender score", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
       "storage container list", "storage container show", "storage blob list", "storage blob show",
-      "keyvault secret list", "keyvault secret show", "keyvault key list", "keyvault key show",
-      "keyvault certificate list", "keyvault certificate show",
+      "keyvault secret list", "keyvault key list", "keyvault certificate list",
     ]);
     expect(Object.keys(CAPABILITIES)).toEqual(["native", "passthrough", "api-only", "blocked", "unsupported"]);
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
