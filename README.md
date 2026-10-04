@@ -342,7 +342,7 @@ DNS A, AAAA and CNAME aliases return their target resource ARM ID instead of lit
 Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC signing keys, private DNS zones and any network mutation stay out of scope; `exposure` keeps its canned checks unchanged.
 Management-group scope is unsupported; select subscriptions explicitly.
 
-Governance reads (`policy assignment|definition|set-definition list|show`, `policy state list`, `lock list|show`, `deny-assignment list|show`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01.
+Governance inventory reads (`policy assignment|definition|set-definition list|show`, `lock list|show`, `deny-assignment list|show`) use read-only ARM GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01.
 Compliance states (`policy state list`) query the latest states through a reviewed bodyless read POST against Microsoft.PolicyInsights (api-version 2024-10-01); scan triggers, summaries, exemptions and remediations stay out of scope.
 Lists fan out across the selected subscriptions with `--resource-group` / `-g` scoping (definitions and initiatives are subscription-scoped and reject `--resource-group`) and exact, case-insensitive `--name` / `-n` filtering.
 Inventory records are deduplicated by case-insensitive full ARM ID across subscriptions before filtering, counting and limiting, so shared tenant-scoped built-ins appear once while distinct custom definitions remain separate.

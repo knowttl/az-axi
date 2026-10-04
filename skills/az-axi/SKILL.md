@@ -305,7 +305,7 @@ az-axi deny-assignment list
 az-axi deny-assignment show --ids <deny-assignment-ARM-id>
 ```
 
-See [governance reads](../../README.md#use) for collection scope, name and ARM ID selectors, compliance filters, output fields, paging limits and the mutation, scan and summary exclusions. Deny assignments have no dedicated Azure CLI group: the spelling follows the ARM resource type.
+See [governance reads](../../README.md#use) for collection scope, name and ARM ID selectors, compliance filters, output fields, paging limits, command naming and the mutation, scan and summary exclusions.
 
 `exposure` runs canned Resource Graph checks: `public-ips` (attached addresses
 only), `mgmt-ports` (inbound Allow rules from any source covering ports 22,
