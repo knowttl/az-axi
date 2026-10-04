@@ -339,9 +339,6 @@ async function runDiagnosticSettingsList(
   }
   const limit = limitValue(args, path);
   const resource = resourceScope(flagText(args, "resource"), "resource", path);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
-    invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
-  }
   const subs = await resourceSubscriptions(profile, resource, path);
   const scopeSuffix = ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
@@ -672,6 +669,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     }
     assertKnownFlags(args, commandFlags(path), path, monitorLeafHelp(path));
     const profile = profileFromArgs(args);
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+      invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
+    }
     if (verb === "list") return runDiagnosticSettingsList(profile, args, path);
     return runDiagnosticSettingsShow(profile, args, path);
   }

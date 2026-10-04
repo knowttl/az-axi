@@ -25,10 +25,11 @@ describe("built CLI Monitor reads offline", () => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-monitor-cli-"));
     writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
       ci: { auth: "token", subscriptions: [SUB_A] },
+      mg: { auth: "token", subscriptions: [SUB_A], managementGroup: "other-group" },
     } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
-  function run(argv: string[] | string, mode = "normal") {
+  function run(argv: string[] | string, mode = "normal", subscription = "") {
     const stub = `
       const data = ${JSON.stringify({
         monitorAlertRules, monitorActionGroups, monitorDiagnosticSettings,
@@ -112,13 +113,47 @@ describe("built CLI Monitor reads offline", () => {
     return spawnSync(command, commandArgs, {
       encoding: "utf8",
       // Git Bash must pass ARM IDs to Node without converting them to Windows paths.
-      env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*", AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
+      env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*", AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: subscription, AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
     });
   }
   const group = ["--resource-group", "rg-demo"];
   const metrics = ["monitor", "metrics", "list", "--resource", monitorResource];
   const window = ["--start-time", "2026-10-04T00:00:00Z", "--end-time", "2026-10-04T01:00:00Z",
     "--interval", "PT1H", "--aggregation", "Average,Maximum"];
+
+  describe.each([
+    { name: "list", argv: ["list", "--resource", monitorResource] },
+    { name: "show by ID", argv: ["show", "--ids", monitorDiagnosticSetting.id] },
+    { name: "show by name", argv: ["show", "--resource", monitorResource, "--name", "to-hub"] },
+  ])("diagnostic settings $name scope", ({ argv }) => {
+    it("rejects explicit management-group scope before transport even with a subscription", () => {
+      const result = run(["monitor", "diagnostic-settings", ...argv, "--management-group", "other-group", "--subscription", SUB_A]);
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("management-group scope is unsupported");
+      expect(result.stderr).toBe("");
+    });
+
+    it("rejects an unoverridden profile management group before transport", () => {
+      const result = run(["monitor", "diagnostic-settings", ...argv, "--profile", "mg"]);
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("management-group scope is unsupported");
+      expect(result.stderr).toBe("");
+    });
+
+    it("accepts an explicit subscription overriding the profile management group", () => {
+      const result = run(["monitor", "diagnostic-settings", ...argv, "--profile", "mg", "--subscription", SUB_A]);
+      expect(result.status, result.stdout).toBe(0);
+      expect(result.stdout).toContain("to-hub");
+      expect(result.stderr).toContain("Microsoft.Insights/diagnosticSettings");
+    });
+
+    it("accepts an environment subscription overriding the profile management group", () => {
+      const result = run(["monitor", "diagnostic-settings", ...argv, "--profile", "mg"], "normal", SUB_A);
+      expect(result.status, result.stdout).toBe(0);
+      expect(result.stdout).toContain("to-hub");
+      expect(result.stderr).toContain("Microsoft.Insights/diagnosticSettings");
+    });
+  });
 
   it.each([
     ["diagnostic list", ["monitor", "diagnostic-settings", "list", "--resource", monitorResource]],
