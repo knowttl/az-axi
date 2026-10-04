@@ -105,6 +105,27 @@ describe("built NSG deny-rule create, offline only", () => {
     expect(records("writes.log")).toEqual([]);
   });
 
+  describe.each([
+    { ids: false, selector: "--name nsg-web --resource-group rg-demo" },
+    { ids: true, selector: `--ids ${NSG_ID}` },
+  ])("NSG inspection hints with ids=$ids", ({ ids, selector }) => {
+    it.each([
+      { extra: ["--limit", "1"], name: RULE, priority: "400", status: 0, reason: "every existing rule" },
+      { extra: [], name: "allow-HTTPS", priority: "400", status: 2, reason: "the current rules" },
+      { extra: ["--direction", "Outbound"], name: RULE, priority: "200", status: 2, reason: "the current rules" },
+    ])("preserves scope and shows all rules for $name at priority $priority", ({ extra, name, priority, status, reason }) => {
+      const config = join(dir, "config.json");
+      const result = cli([...extra, "--tenant", OTHER, "--config", config], { ids, name, priority });
+      expect(result.status, result.stdout + result.stderr).toBe(status);
+      const output = decode(result.stdout) as { help: string[] };
+      expect(output.help).toContain(
+        `Run \`az-axi network nsg show --profile writer --tenant ${OTHER} --config ${config} ${selector} --subscription ${SUB} --full\` for ${reason}`,
+      );
+      expect(records("requests.jsonl")).toEqual([{ method: "GET", url: NSG_URL }]);
+      expect(records("writes.log")).toEqual([]);
+    });
+  });
+
   it("executes exactly one destructive PUT and audits it", () => {
     const result = cli(["--protocol", "Tcp", "--destination-port-ranges", "23", "--direction", "Outbound",
       "--execute", "--confirm", RULE]);

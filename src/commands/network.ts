@@ -724,6 +724,16 @@ async function runNsgRuleCreate(
     nsgPath = `/subscriptions/${subscription}/resourceGroups/${segment(groupFlag, "resource-group", path)}` +
       `/providers/Microsoft.Network/networkSecurityGroups/${segment(nsgLabel, "nsg-name", path)}`;
   }
+  const selectors = gateSelectorFlags(args);
+  const showCommand = [
+    "az-axi network nsg show",
+    selectors,
+    ...(ids
+      ? [formatFlagValue("ids", ids.trim())]
+      : [formatFlagValue("name", nsgLabel), formatFlagValue("resource-group", groupFlag!.trim())]),
+    formatFlagValue("subscription", subscription),
+    "--full",
+  ].filter(Boolean).join(" ");
   const rawName = flagText(args, "name");
   if (!rawName) invalid("rule creation needs --name <rule-name>", path);
   const ruleName = rawName.trim();
@@ -782,14 +792,14 @@ async function runNsgRuleCreate(
   if (nameHit) {
     throw new AxiError(`refusing to overwrite existing rule '${nameHit.name}' on NSG '${nsgLabel}'`, "VALIDATION_ERROR", [
       "Rule updates and deletes are out of scope; choose an unused --name",
-      `Run \`az-axi network nsg show --name ${nsgLabel} --resource-group <group> --subscription ${subscription}\` for the current rules`,
+      `Run \`${showCommand}\` for the current rules`,
     ]);
   }
   const priorityHit = existing.find((rule) => rule.priority === priority);
   if (priorityHit) {
     throw new AxiError(`priority ${priority} is already used by rule '${priorityHit.name}' on NSG '${nsgLabel}'`, "VALIDATION_ERROR", [
       "Priorities must be unique per NSG; choose an unused --priority",
-      `Run \`az-axi network nsg show --name ${nsgLabel} --resource-group <group> --subscription ${subscription}\` for the current rules`,
+      `Run \`${showCommand}\` for the current rules`,
     ]);
   }
 
@@ -814,7 +824,6 @@ async function runNsgRuleCreate(
   }
   const limit = limitValue(args, path);
   const shown = pickFields(full ? existing : existing.slice(0, limit), fields);
-  const selectors = gateSelectorFlags(args);
   const scopeFlags = ids
     ? [formatFlagValue("ids", ids.trim())]
     : [formatFlagValue("nsg-name", nsgLabel), formatFlagValue("resource-group", groupFlag!.trim())];
@@ -861,7 +870,7 @@ async function runNsgRuleCreate(
       protection: NSG_RULE_PROTECTION,
       help: [
         ...(shown.length < existing.length && !full
-          ? [`Run \`az-axi network nsg show --name ${nsgLabel}${ids ? "" : ` --resource-group ${groupFlag!.trim()}`} --subscription ${subscription}\` for every existing rule`]
+          ? [`Run \`${showCommand}\` for every existing rule`]
           : []),
         `\`${command(ifMatch ?? etag)}\``,
       ],
