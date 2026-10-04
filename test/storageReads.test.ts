@@ -75,6 +75,23 @@ describe("storage read commands", () => {
     expect(read).not.toHaveBeenCalled();
   });
   it.each([
+    ["container", "list", "next"], ["blob", "list", "next"],
+    ["container", "show", undefined], ["blob", "show", undefined],
+  ])("%s %s hints preserve selector whitespace through shell and routing", async (kind, verb, nextMarker) => {
+    const config = join(dir, "config.json ");
+    const profile = " ci ";
+    const tenant = " tenant ";
+    writeFileSync(config, JSON.stringify({ profiles: { [profile]: { auth: "token", tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } } } }));
+    read.mockResolvedValue({ rows: [{ name: "example", etag: "etag" }], nextMarker });
+    const expectedProfile = { name: profile, tenant, configPath: config, tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } };
+    const result = await run(routeArgv(["storage", kind!, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--config", config, "--profile", profile, "--tenant", tenant]).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.objectContaining(expectedProfile), expect.objectContaining({ kind, verb: "list" }));
+    const command = (result.help as string[])[0]!.split("`")[1]!.replace("<name>", "example");
+    const argv = execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
+    await run(routeArgv(argv).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.objectContaining(expectedProfile), expect.objectContaining({ kind, verb }));
+  });
+  it.each([
     ["--auth-mode", "key"], ["--account-key", "key"], ["--sas-token", "sas"], ["--connection-string", "connection"],
     ["--file", "output"], ["--include", "metadata"], ["--fields", "metadata"], ["--execute"],
     ["--limit", "0"], ["--limit", "1001"], ["--limit", "1.5"], ["--limit"],

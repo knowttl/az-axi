@@ -1,5 +1,5 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
+import { assertKnownFlags, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
 import { requestStorageMetadata } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { emptyState, pickFields } from "../lib/format.js";
@@ -54,7 +54,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const noun = `${kind}s`;
   const target = `${formatFlagValue("account-name", account)}${container ? ` ${formatFlagValue("container-name", container)}` : ""}`;
   const selectors = ["profile", "tenant", "config"].flatMap((flag) => {
-    const value = flagText(args, flag);
+    const value = flagString(args, flag);
     return value ? [` ${formatFlagValue(flag, value)}`] : [];
   }).join("");
   return {
