@@ -743,33 +743,25 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     );
   }
   const verb = args.positionals[1];
-  const alias = verb === "alert" && args.positionals[2] === "list" ? "list-alert"
-    : verb === "entity" && args.positionals[2] === "list" ? "list-entity"
-    : verb;
-  if (alias !== verb && args.positionals.length > 3) {
-    throw new AxiError(`unexpected argument \`${args.positionals[3]}\` for \`sentinel incident ${args.positionals.slice(1, 3).join(" ")}\``, "VALIDATION_ERROR", [
-      `Run \`az-axi sentinel incident ${alias} --help\` for usage`,
-    ]);
-  }
-  if (alias === verb && args.positionals.length > 2) {
+  if (args.positionals.length > 2) {
     throw new AxiError(`unexpected argument \`${args.positionals[2]}\` for \`sentinel incident ${verb}\``, "VALIDATION_ERROR", [
       `Run \`az-axi sentinel incident ${verb} --help\` for usage`,
     ]);
   }
-  if (alias !== "list" && alias !== "show" && alias !== "list-alert" && alias !== "list-entity") {
+  if (verb !== "list" && verb !== "show" && verb !== "list-alert" && verb !== "list-entity") {
     throw new AxiError(
       verb ? `unknown command \`sentinel incident ${args.positionals.slice(1).join(" ")}\`` : "missing verb for `sentinel incident`",
       "VALIDATION_ERROR",
       ["Expected one of: list | show | list-alert | list-entity", "Run `az-axi sentinel incident list --help` for usage"],
     );
   }
-  assertKnownFlags(args, commandFlags(`sentinel incident ${alias}`), `sentinel incident ${alias}`);
+  assertKnownFlags(args, commandFlags(`sentinel incident ${verb}`), `sentinel incident ${verb}`);
   const profile = profileFromArgs(args);
   if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
     invalid("management-group scope is unsupported for Sentinel incidents; select one subscription explicitly");
   }
-  if (alias === "list") return runList(profile, args);
-  if (alias === "list-alert") return runAlertList(profile, args);
-  if (alias === "list-entity") return runEntityList(profile, args);
+  if (verb === "list") return runList(profile, args);
+  if (verb === "list-alert") return runAlertList(profile, args);
+  if (verb === "list-entity") return runEntityList(profile, args);
   return runShow(profile, args);
 }

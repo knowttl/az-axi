@@ -74,9 +74,7 @@ describe("built CLI sentinel incident related reads offline", () => {
     expect(decode(entities.stdout)).toMatchObject({ byKind: { Account: 1, Host: 1 } });
   });
 
-  it("accepts az-shaped aliases, numbers, ARM IDs and workspace aliases", () => {
-    expect(run(["sentinel", "incident", "alert", "list", ...byName, ...selectors]).stdout).toContain("total: 2");
-    expect(run(["sentinel", "incident", "entity", "list", ...byName, ...selectors]).stdout).toContain("total: 2");
+  it("accepts numbers, ARM IDs and workspace aliases", () => {
     expect(run(["sentinel", "incident", "list-alert", "--name", "3177", ...selectors]).stdout).toContain("myAlert");
     expect(run(["sentinel", "incident", "list-entity", "--ids", INCIDENT_A.id]).stdout).toContain("administrator");
     const aliased = run(["sentinel", "incident", "list-alert", ...byName, "--workspace", "sentinel"], "normal", "alias");
@@ -95,6 +93,8 @@ describe("built CLI sentinel incident related reads offline", () => {
   });
 
   it.each([
+    ["sentinel", "incident", "alert", "list", ...byName, ...selectors],
+    ["sentinel", "incident", "entity", "list", ...byName, ...selectors],
     ["sentinel", "incident", "list-alert"],
     ["sentinel", "incident", "list-alert", ...byName, ...selectors, "--status"],
     ["sentinel", "incident", "list-alert", ...byName, ...selectors, "--output", "json"],
@@ -108,8 +108,7 @@ describe("built CLI sentinel incident related reads offline", () => {
   });
 
   it("prints leaf help matching the registry without Azure access", () => {
-    for (const path of ["sentinel incident list-alert", "sentinel incident list-entity",
-      "sentinel incident alert list", "sentinel incident entity list"]) {
+    for (const path of ["sentinel incident list-alert", "sentinel incident list-entity"]) {
       const leaf = COMMAND_LEAVES.find((entry: CommandLeaf) =>
         entry.path === path || entry.aliases?.includes(path))!;
       const result = run([...path.split(" "), "--help"]);

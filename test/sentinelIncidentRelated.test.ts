@@ -103,14 +103,12 @@ describe("sentinel incident list-alert", () => {
     }
   });
 
-  it("resolves the incident by number, ARM ID and incident-id flag, and accepts the alert-list alias", async () => {
+  it("resolves the incident by number, ARM ID and incident-id flag", async () => {
     await expect(run(["incident", "list-alert", "--name", "3177", ...SELECTORS]))
       .resolves.toMatchObject({ incident: "3177", total: 2 });
     await expect(run(["incident", "list-alert", "--ids", INCIDENT_A.id!]))
       .resolves.toMatchObject({ incident: INCIDENT_A.name, total: 2 });
     await expect(run(["incident", "list-alert", "--incident-id", INCIDENT_A.name!, ...SELECTORS]))
-      .resolves.toMatchObject({ total: 2 });
-    await expect(run(["incident", "alert", "list", "--name", INCIDENT_A.name!, ...SELECTORS]))
       .resolves.toMatchObject({ total: 2 });
     useProfile("ci", { auth: "token", subscriptions: [SUB_A], workspaces: { sentinel: WORKSPACE } });
     await expect(run(["incident", "list-alert", "--name", INCIDENT_A.name!, "--workspace", "sentinel"]))
@@ -185,13 +183,11 @@ describe("sentinel incident list-entity", () => {
     expect(options).not.toHaveProperty("body");
   });
 
-  it("resolves the incident by number, ARM ID and incident-id flag, and accepts the entity-list alias", async () => {
+  it("resolves the incident by number and ARM ID", async () => {
     await expect(run(["incident", "list-entity", "--name", "3176", ...SELECTORS]))
       .resolves.toMatchObject({ incident: "3176", total: 2 });
     await expect(run(["incident", "list-entity", "--ids", INCIDENT_A.id!]))
       .resolves.toMatchObject({ incident: INCIDENT_A.name, total: 2 });
-    await expect(run(["incident", "entity", "list", "--name", INCIDENT_A.name!, ...SELECTORS]))
-      .resolves.toMatchObject({ total: 2 });
   });
 
   it("counts kinds client-side when metadata is absent, and shows full rows and fields", async () => {

@@ -274,7 +274,7 @@ Show returns the description (truncated at 200 characters unless `--full`), owne
 Lists follow up to 10 pages and mark incomplete counts as lower bounds.
 Number-based show searches the same bounded list and reports `INCOMPLETE_SEARCH` if the number is absent from fetched pages while more pages exist; use the GUID or ARM ID for a direct lookup.
 Workspace GUID resolution stops at 100 pages and reports `INCOMPLETE_SEARCH` if more pages exist and uniqueness cannot be established; use workspace name and resource group to bypass discovery.
-Related alerts (`incident list-alert`, alias `incident alert list`) and entities (`incident list-entity`, alias `incident entity list`) read one incident's related records through reviewed bodyless POSTs (api-version 2025-09-01) with the same incident and workspace selectors as show.
+Related alerts (`incident list-alert`) and entities (`incident list-entity`) read one incident's related records through reviewed bodyless POSTs (api-version 2025-09-01) with the same incident and workspace selectors as show.
 Alert rows default to name, alert, severity, status and time with `bySeverity` and `byStatus` aggregates; `--full` adds ARM IDs, tactics and product names.
 Entity rows default to kind, entity and name with `byKind` aggregates from the server metadata; `--full` adds ARM IDs.
 Neither related response pages.

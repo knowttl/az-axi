@@ -58,9 +58,7 @@ The offline test suite checks this list against the registry.
 | `az-axi sentinel incident list` | native | read |
 | `az-axi sentinel incident show` | native | read |
 | `az-axi sentinel incident list-alert` | native | read |
-| `az-axi sentinel incident alert list` | native | read |
 | `az-axi sentinel incident list-entity` | native | read |
-| `az-axi sentinel incident entity list` | native | read |
 | `az-axi exposure` | native | read |
 | `az-axi monitor log-analytics query` | native | read |
 | `az-axi logs query` | native | read |
