@@ -363,9 +363,12 @@ Token profiles require `$AZ_AXI_VAULT_TOKEN`, or a custom environment variable n
 
 `--vault-name` explicitly selects the vault; subscription and management-group selectors do not filter this data plane.
 Vault names retain strict service-name validation.
-Lists page through the service continuation to `--limit` (default 50, integer 1-1000); a trailing `+` on the count means more pages remain.
-`--expiring-within 30d` (also `Nh` or `Nm`) keeps only items expiring soon, filtered client-side from the listed `expiresOn` properties.
+Lists page through the service continuation until `--limit` matching rows (default 50, integer 1-1000), the end of the collection or the 40-page scan cap.
+A trailing `+` on the count means the listing is incomplete: matching rows were omitted or service pages remain unscanned.
+Increasing `--limit` cannot extend the 40-page scan cap; an incomplete empty scan does not establish that no matching objects exist.
+`--expiring-within 30d` (also `Nh` or `Nm`) filters client-side to items expiring after now and no later than the end of the window; already expired items and items without an expiry are excluded.
 Lists default to name, enabled and expiresOn; `--fields` or `--full` expands to the safe schema (notBefore, created, updated, contentType for secrets, thumbprint for certificates, managed).
+`--full` retains both the row limit and scan cap; `--fields` selects only safe columns and takes precedence over `--full`.
 Tags, secret values, key material and certificate bytes are excluded, including from errors.
 Redirects and arbitrary endpoints are refused; requests have a 30-second deadline and list bodies have a 1 MiB bound.
 Entra access needs Key Vault data-plane list permission for the collection; a denied read fails without trying other authentication.
