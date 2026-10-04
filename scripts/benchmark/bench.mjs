@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { encode } from "@toon-format/toon";
 import { scenarios } from "../../benchmark/scenarios.mjs";
 import { countTokens } from "./tokens.mjs";
+import { scrub } from "./scrub.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 if (process.argv.length !== 2) throw new Error("Usage: pnpm bench (see BENCHMARK.md)");
@@ -18,6 +19,7 @@ const replayScenarios = scenarios.filter((scenario) => {
 const files = replayScenarios.map((scenario) => new URL(`../../benchmark/fixtures/${scenario.name}.json`, import.meta.url));
 // Read every capture before creating scratch files or starting a CLI.
 const captures = files.map((file) => JSON.parse(readFileSync(file, "utf8")));
+const targetWorkspace = scrub(JSON.parse(readFileSync(new URL("../../benchmark/targets.json", import.meta.url), "utf8")).workspace.toLowerCase());
 const scratch = mkdtempSync(join(root, "benchmark/fixtures/replay-"));
 try {
   const config = join(scratch, "config.json");
@@ -41,8 +43,7 @@ try {
         }
       } else {
         for (const item of items) {
-          if (item.properties?.customerId && items.some((incident) =>
-            incident.properties?.incidentNumber !== undefined && incident.id?.startsWith(`${item.id}/providers/`))) {
+          if (item.properties?.customerId === targetWorkspace) {
             item.properties.customerId = workspace;
           }
         }

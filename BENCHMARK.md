@@ -38,6 +38,7 @@ Fixtures are owner-local, gitignored files with owner-only permissions where sup
 ## Offline replay
 
 Run `pnpm bench` after owner captures exist.
+Keep the matching `benchmark/targets.json` available so Sentinel replay can match its scrubbed workspace customer GUID and normalize that workspace in a temporary capture copy, including when no incidents were captured.
 It launches each real CLI scenario under `node --import scripts/benchmark/fetch-hook.mjs` in replay mode.
 Replay uses an isolated temporary token-mode profile with synthetic subscription/workspace identifiers and dummy ARM, Graph and Logs tokens, bypassing Azure CLI authentication.
 For scoped account-list replay, a temporary copy aligns the first captured subscription's GUID and matching ARM ID with the synthetic selector across all captured pages.

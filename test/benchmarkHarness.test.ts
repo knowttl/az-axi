@@ -152,17 +152,19 @@ describe("benchmark surface", () => {
   });
 
   it.each([
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false },
-    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[19]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false },
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: true, capped: false },
-    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: true },
-  ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped", ({ omitted, rows, notes, duplicate, capped }) => {
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: ["group-show", "resource-show", "workspace-show"], rows: "rows[19]", notes: ["Skipped group-show", "Skipped resource-show", "Skipped workspace-show"], duplicate: false, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: true, capped: false, sentinelEmpty: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: true, sentinelEmpty: false },
+    { omitted: [], rows: "rows[22]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
+  ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped, empty Sentinel $sentinelEmpty", ({ omitted, rows, notes, duplicate, capped, sentinelEmpty }) => {
     const dir = scratch();
     for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
     }
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
     mkdirSync(join(dir, "benchmark/fixtures"), { recursive: true });
+    writeFileSync(join(dir, "benchmark/targets.json"), JSON.stringify({ workspace: "00000000-0000-0000-0000-000000000020" }));
     const sub = "00000000-0000-0000-0000-000000000001";
     const capturedSub = "00000000-0000-0000-0000-000000000004";
     const tenantId = "00000000-0000-0000-0000-000000000003";
@@ -219,7 +221,7 @@ describe("benchmark surface", () => {
         }] });
         responses = [
           workspaceList,
-          response("GET", { value: [{
+          response("GET", { value: sentinelEmpty ? [] : [{
             id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws/providers/Microsoft.SecurityInsights/incidents/contoso-incident`,
             name: "contoso-incident",
             properties: { incidentNumber: 7, title: "contoso-title", severity: "High", status: "Active", createdTimeUtc: "2026-10-02T12:34:56Z" },
@@ -268,8 +270,8 @@ describe("benchmark surface", () => {
     expect(readFileSync(accountCapture, "utf8")).toBe(persistedAccount);
     expect(decode(readFileSync(sentinelOutput, "utf8"))).toMatchObject({
       workspace: scrub("contoso-ws"),
-      total: 1,
-      rows: [{ number: 7, title: scrub("contoso-title"), severity: "High", status: "Active", time: expect.stringMatching(/^2026-10-02(?: 12:34)?$/) }],
+      total: sentinelEmpty ? 0 : 1,
+      rows: sentinelEmpty ? `0 incidents found in workspace ${scrub("contoso-ws")}` : [{ number: 7, title: scrub("contoso-title"), severity: "High", status: "Active", time: expect.stringMatching(/^2026-10-02(?: 12:34)?$/) }],
     });
     expect(readFileSync(sentinelCapture, "utf8")).toBe(persistedSentinel);
     expect(persistedSentinel).not.toContain("00000000-0000-0000-0000-000000000020");
