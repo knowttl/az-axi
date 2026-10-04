@@ -164,7 +164,7 @@ describe("benchmark surface", () => {
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
     mkdirSync(join(dir, "benchmark/fixtures"), { recursive: true });
     const sub = "00000000-0000-0000-0000-000000000001";
-    const capturedSub = "11111111-1111-1111-1111-111111111111";
+    const capturedSub = "00000000-0000-0000-0000-000000000004";
     const tenantId = "00000000-0000-0000-0000-000000000003";
     const principal = "00000000-0000-0000-0000-000000000002";
     const id = `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.Compute/virtualMachines/contoso-vm`;

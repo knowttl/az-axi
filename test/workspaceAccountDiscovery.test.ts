@@ -7,6 +7,7 @@ vi.mock("../src/lib/client.js", () => ({ request: vi.fn(), requestAll: vi.fn() }
 import { request, requestAll } from "../src/lib/client.js";
 import { run as account } from "../src/commands/account.js";
 import { run as monitor } from "../src/commands/monitor.js";
+import { enforceGates } from "../src/lib/gates.js";
 import { discoveryAccount, discoveryWorkspace, SUB_A, SUB_B, subscriptionList } from "./samples.js";
 
 let dir: string;
@@ -25,10 +26,20 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); rmSync(dir, { recursive: true, force: true }); });
 
 describe("account and workspace discovery scope contracts", () => {
-  it("uses environment selection without widening configured write subscriptions", async () => {
+  it("overrides discovery read scope while preserving configured writable scope and read-only gates", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A], allowWrites: true } } }));
     vi.stubEnv("AZ_AXI_SUBSCRIPTION", SUB_B);
+    vi.stubEnv("AZ_AXI_READ_ONLY", "");
     expect(await account(["list"])).toMatchObject({ total: 1, subscriptions: [{ name: "Lab", id: SUB_B }] });
-    expect(all).toHaveBeenCalledWith(expect.objectContaining({ subscriptions: [SUB_B], writeSubscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", path: "/subscriptions" }), 100);
+    expect(all).toHaveBeenCalledWith(expect.objectContaining({ allowWrites: true, subscriptions: [SUB_B], writeSubscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", path: "/subscriptions" }), 100);
+    const profile = all.mock.calls[0]![0];
+    const writable = { resource: "arm" as const, method: "PATCH", path: `/subscriptions/${SUB_A}/resourceGroups/rg-demo` };
+    expect(enforceGates(profile, writable, "write", { execute: true })).toBe(true);
+    expect(() => enforceGates(profile, { ...writable, path: `/subscriptions/${SUB_B}/resourceGroups/rg-demo` }, "write", { execute: true }))
+      .toThrowError(expect.objectContaining({ code: "SUBSCRIPTION_NOT_WRITABLE" }));
+    vi.stubEnv("AZ_AXI_READ_ONLY", "1");
+    expect(() => enforceGates(profile, writable, "write", { execute: true }))
+      .toThrowError(expect.objectContaining({ code: "WRITES_DISABLED" }));
   });
   it("lets explicit selection override the environment", async () => {
     vi.stubEnv("AZ_AXI_SUBSCRIPTION", SUB_B);
