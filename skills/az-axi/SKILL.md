@@ -215,7 +215,7 @@ az-axi monitor metrics list --resource <ARM-id> --metric "Percentage CPU"
 
 See [README.md#use](../../README.md#use) for discovery subscription scope, including `resource show --ids`.
 Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
-Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
+Discovery lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
 `--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
 Generic `resource show` returns only the ARM envelope: id, name, type, kind, location, tags, sku, identity type and provisioningState.
 Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
@@ -228,6 +228,7 @@ Credential-bearing child resources and actions are refused before retrieval.
 Management-group discovery is unsupported; select subscriptions explicitly.
 
 See [README.md#use](../../README.md#use) for native account and workspace discovery scope, selectors, metadata fields, paging limits and credential exclusions, including how `account list` differs from legacy `sub list`.
+See [README.md#use](../../README.md#use) for Monitor alert, action-group, diagnostic-setting and metric selectors, projections, redaction, paging and point limits.
 
 ```sh
 az-axi graph query -q Resources

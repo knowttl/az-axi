@@ -2,8 +2,8 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 79,
-    "body": 5799,
-    "total": 5877
+    "body": 5836,
+    "total": 5914
   },
   "help": {
     "topLevel": 1011,

@@ -559,18 +559,16 @@ export const METRIC_ALERTS = "2026-01-01";
  * collection with email, SMS, webhook, ITSM, automation, voice, logic-app
  * and event-hub receivers).
  * Reason: newest stable. Only list/get operations are constructed; only
- * safelisted receiver metadata is projected (webhook URLs without query or
- * fragment, webhook property names without values), and test-notification
- * and receiver-enable actions are never constructed.
+ * safelisted receiver metadata is projected (see README.md Monitor reads),
+ * and test-notification and receiver-enable actions are never constructed.
  */
 export const ACTION_GROUPS = "2023-01-01";
 
 /**
  * Diagnostic settings, list and get (`GET {resourceUri}/providers/
  * Microsoft.Insights/diagnosticSettings[/{name}]`). The target is any ARM
- * resource, resource group or subscription ID; subscription and management-
- * group level settings use the sibling subscription/management-group APIs
- * and are never constructed.
+ * resource, resource group or subscription ID. The sibling subscription-
+ * diagnostic-settings and management-group APIs are never constructed.
  *
  * Value: 2021-05-01-preview. Newer stable: none (no stable folder carries
  * diagnosticSettings; the resource-level contract is preview-only).
