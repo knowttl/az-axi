@@ -6,6 +6,7 @@ import { decode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   SUB_A,
+  SUB_B,
   monitorActionGroup,
   monitorActionGroups,
   monitorAlertRule,
@@ -27,13 +28,36 @@ describe("built CLI Monitor reads offline", () => {
     } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
-  function run(argv: string[], mode = "normal") {
+  function run(argv: string[] | string, mode = "normal") {
     const stub = `
       const data = ${JSON.stringify({
         monitorAlertRules, monitorActionGroups, monitorDiagnosticSettings,
         monitorMetricDefinitions, monitorMetricValues, subscriptionList,
       })};
       const mode = ${JSON.stringify(mode)};
+      if (mode === 'aggregations') {
+        data.monitorMetricValues.value[0].errorCode = 'Success';
+        data.monitorMetricValues.value[0].timeseries[0].data = [
+          { timeStamp: '2026-10-04T00:00:00Z', maximum: 95 },
+          { timeStamp: '2026-10-04T01:00:00Z', average: 12, maximum: 90, minimum: 0, total: 102, count: 2 },
+        ];
+      }
+      if (mode === 'failed' || mode === 'mixed') {
+        const failure = { name: { value: 'Broken Metric' }, errorCode: 'InvalidSamplingType',
+          errorMessage: 'Maximum is unsupported', timeseries: [] };
+        data.monitorMetricValues.value = mode === 'failed' ? [failure] : [...data.monitorMetricValues.value, failure];
+      }
+      if (mode === 'diagnostic-groups') {
+        data.monitorDiagnosticSettings[0].properties.logs = [{ categoryGroup: 'allLogs', enabled: true }];
+        data.monitorDiagnosticSettings[0].properties.metrics = [{ categoryGroup: 'allMetrics', enabled: true }];
+      }
+      if (mode === 'partner') {
+        data.monitorDiagnosticSettings[0].properties = { marketplacePartnerId: '/providers/Microsoft.Partner/partners/example' };
+      }
+      if (mode === 'two-settings') {
+        data.monitorDiagnosticSettings.push({ ...data.monitorDiagnosticSettings[0], name: 'second',
+          id: data.monitorDiagnosticSettings[0].id.replace('to-hub', 'second') });
+      }
       if (mode === 'secrets') {
         data.monitorAlertRules[0].properties.actions = [{ actionGroupId: data.monitorAlertRules[0].properties.actions[0].actionGroupId,
           webHookProperties: { token: 'never-output-this-value', password: 'never-output-this-value' } }];
@@ -72,13 +96,122 @@ describe("built CLI Monitor reads offline", () => {
       };
     `;
     const preload = `data:text/javascript,${encodeURIComponent(stub)}`;
-    return spawnSync(process.execPath, ["--import", preload, "dist/bin/az-axi.js", ...argv], {
+    const command = typeof argv === "string" ? "sh" : process.execPath;
+    const commandArgs = typeof argv === "string"
+      ? ["-c", `exec "$1" --import "$2" "$3" ${argv}`, "monitor-hint", process.execPath, preload, "dist/bin/az-axi.js"]
+      : ["--import", preload, "dist/bin/az-axi.js", ...argv];
+    return spawnSync(command, commandArgs, {
       encoding: "utf8",
       // Git Bash must pass ARM IDs to Node without converting them to Windows paths.
       env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*", AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
     });
   }
   const group = ["--resource-group", "rg-demo"];
+  const metrics = ["monitor", "metrics", "list", "--resource", monitorResource];
+  const window = ["--start-time", "2026-10-04T00:00:00Z", "--end-time", "2026-10-04T01:00:00Z",
+    "--interval", "PT1H", "--aggregation", "Average,Maximum"];
+
+  it.each([
+    ["diagnostic list", ["monitor", "diagnostic-settings", "list"]],
+    ["diagnostic show", ["monitor", "diagnostic-settings", "show", "--name", "to-hub"]],
+    ["metric definitions", ["monitor", "metrics", "list"]],
+    ["metric values", ["monitor", "metrics", "list", "--metric", "Percentage CPU"]],
+  ])("rejects a resource outside selected subscriptions for %s", (_name, argv) => {
+    const result = run([...argv, "--resource", monitorResource.replace(SUB_A, SUB_B)]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("--resource conflicts with selected subscriptions");
+    expect(result.stderr).toBe("");
+  });
+
+  it("accepts a resource within multiple selected subscriptions", () => {
+    const result = run([...metrics, "--subscription", `${SUB_B},${SUB_A.toUpperCase()}`]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ total: 2 });
+  });
+
+  it("preserves labelled aggregations and points without an average", () => {
+    const result = run([...metrics, "--metric", "Percentage CPU", ...window, "--full"], "aggregations");
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ rows: [{
+      latest: { average: 12, maximum: 90, minimum: 0, total: 102, count: 2 }, points: 2, series: [
+      { time: "2026-10-04T00:00:00Z", maximum: 95 },
+      { time: "2026-10-04T01:00:00Z", average: 12, maximum: 90, minimum: 0, total: 102, count: 2 },
+    ] }] });
+  });
+
+  it.each(["failed", "mixed"])("fails metric queries with %s results", (mode) => {
+    const result = run([...metrics, "--metric", "Percentage CPU,Broken Metric", ...window], mode);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Broken Metric: InvalidSamplingType: Maximum is unsupported");
+    expect(result.stdout).not.toContain("points:");
+  });
+
+  it("preserves diagnostic category groups in list and show", () => {
+    const list = ["monitor", "diagnostic-settings", "list", "--resource", monitorResource];
+    expect(decode(run(list, "diagnostic-groups").stdout)).toMatchObject({ rows: [{
+      logs: "allLogs (1 enabled)", metrics: "allMetrics (1 enabled)",
+    }] });
+    expect(decode(run([...list, "--full"], "diagnostic-groups").stdout)).toMatchObject({ rows: [{
+      logs: [{ categoryGroup: "allLogs", enabled: true }], metrics: [{ categoryGroup: "allMetrics", enabled: true }],
+    }] });
+    const show = run(["monitor", "diagnostic-settings", "show", "--ids", monitorDiagnosticSetting.id,
+      "--fields", "logs,metrics"], "diagnostic-groups");
+    expect(show.status, show.stdout).toBe(0);
+    expect(decode(show.stdout)).toMatchObject({ logs: [{ categoryGroup: "allLogs" }], metrics: [{ categoryGroup: "allMetrics" }] });
+  });
+
+  it("preserves partner destinations in compact, full and selected fields", () => {
+    const list = ["monitor", "diagnostic-settings", "list", "--resource", monitorResource];
+    expect(decode(run(list, "partner").stdout)).toMatchObject({ rows: [{ destinations: "partner" }] });
+    expect(decode(run([...list, "--full"], "partner").stdout)).toMatchObject({ rows: [{
+      destinations: { partner: "/providers/Microsoft.Partner/partners/example" },
+    }] });
+    const show = run(["monitor", "diagnostic-settings", "show", "--ids", monitorDiagnosticSetting.id,
+      "--fields", "partner"], "partner");
+    expect(show.status, show.stdout).toBe(0);
+    expect(decode(show.stdout)).toMatchObject({ partner: "/providers/Microsoft.Partner/partners/example" });
+  });
+
+  it("formats dynamic alert evaluation and failure counts in list and show", () => {
+    expect(run(["monitor", "metrics", "alert", "list"]).stdout).toContain("4 failing of 4 evaluation periods");
+    const show = run(["monitor", "metrics", "alert", "show", "--name", "disk-full", ...group, "--full"]);
+    expect(show.status, show.stdout).toBe(0);
+    expect(decode(show.stdout)).toMatchObject({ criteria: ["Available Memory Bytes Dynamic(Medium) 4 failing of 4 evaluation periods"] });
+  });
+
+  it.each(["normal", "empty"])("executes metric expansion hints with the same %s query", (mode) => {
+    const result = run([...metrics, "--metric", "Percentage CPU", ...window], mode);
+    const output = decode(result.stdout) as { help: string[] };
+    const hint = output.help[0]!.split("`")[1]!.replace(/^az-axi /, "");
+    const expanded = run(hint, mode);
+    expect(expanded.status, expanded.stdout).toBe(0);
+    expect(expanded.stderr).toBe(result.stderr);
+  });
+
+  it("executes a metric definition hint with the supplied value query parameters", () => {
+    const output = decode(run([...metrics, ...window]).stdout) as { help: string[] };
+    const expanded = run(output.help[0]!.split("`")[1]!.replace(/^az-axi /, ""));
+    const original = run([...metrics, "--metric", "Percentage CPU", ...window, "--full"]);
+    expect(expanded.status, expanded.stdout).toBe(0);
+    expect(expanded.stderr).toBe(original.stderr);
+    expect(decode(expanded.stdout)).toEqual(decode(original.stdout));
+  });
+
+  it.each(["two-settings", "empty"])("executes diagnostic expansion hints for %s", (mode) => {
+    const output = decode(run(["monitor", "diagnostic-settings", "list", "--resource", monitorResource,
+      "--limit", "1"], mode).stdout) as { help: string[] };
+    const expanded = run(output.help.at(-1)!.split("`")[1]!.replace(/^az-axi /, ""), mode);
+    expect(expanded.status, expanded.stdout).toBe(0);
+    expect(decode(expanded.stdout)).toMatchObject({ total: mode === "empty" ? 0 : 2 });
+  });
+
+  it("executes diagnostic detail hints with multiple selected subscriptions", () => {
+    const output = decode(run(["monitor", "diagnostic-settings", "list", "--resource", monitorResource,
+      "--subscription", `${SUB_A},${SUB_B}`]).stdout) as { help: string[] };
+    const expanded = run(output.help[0]!.split("`")[1]!.replace(/^az-axi /, ""));
+    expect(expanded.status, expanded.stdout).toBe(0);
+    expect(decode(expanded.stdout)).toMatchObject({ name: "to-hub", id: monitorDiagnosticSetting.id });
+  });
 
   it("lists metric alert rules and shows one by name and ARM ID", () => {
     const rules = run(["monitor", "metrics", "alert", "list", ...group]);

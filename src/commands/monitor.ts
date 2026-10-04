@@ -70,11 +70,22 @@ function scopeLabel(count: number, resource: string): string {
   return `for ${shortenResourceId(resource)} in ${count} subscription${count === 1 ? "" : "s"}`;
 }
 
+async function resourceSubscriptions(profile: ReturnType<typeof profileFromArgs>, resource: string, path: string): Promise<string[]> {
+  const selected = await subscriptions(profile);
+  const subscription = parseSubscriptionId(resource)!;
+  if (!selected.some((id) => id.toLowerCase() === subscription.toLowerCase())) {
+    invalid("--resource conflicts with selected subscriptions", path);
+  }
+  return selected;
+}
+
 /** `Metric criterion: operator threshold`, tolerating dynamic and webtest shapes. */
 function criterionSummary(criterion: AnyObj): string {
   const metric = str(criterion.metricName) || str(criterion.metricNamespace) || str(criterion.componentId);
   const operator = str(criterion.operator) || (str(criterion.alertSensitivity) ? `Dynamic(${criterion.alertSensitivity})` : "");
-  const threshold = criterion.threshold ?? criterion.failingPeriods ?? "";
+  const periods = objOf(criterion.failingPeriods);
+  const threshold = criterion.threshold ?? (criterion.failingPeriods
+    ? `${periods.minFailingPeriodsToAlert} failing of ${periods.numberOfEvaluationPeriods} evaluation periods` : "");
   return [metric, operator, String(threshold)].filter(Boolean).join(" ");
 }
 
@@ -277,7 +288,8 @@ interface DiagnosticSetting extends Record<string, unknown> {
 }
 
 function categorySummary(categories: unknown): string {
-  const enabled = arrOf(categories).filter((entry) => entry.enabled === true).map((entry) => str(entry.category));
+  const enabled = arrOf(categories).filter((entry) => entry.enabled === true)
+    .map((entry) => str(entry.category) || str(entry.categoryGroup));
   return enabled.length ? `${enabled.join(", ")} (${enabled.length} enabled)` : "none enabled";
 }
 
@@ -298,24 +310,25 @@ function settingRow(item: DiagnosticSetting, full: boolean): AnyObj {
   return {
     name: item.name,
     logs: full ? arrOf(props.logs).map((entry) => ({
-      category: str(entry.category), enabled: entry.enabled ?? "",
+      category: str(entry.category), categoryGroup: str(entry.categoryGroup), enabled: entry.enabled ?? "",
       retentionDays: entry.retentionPolicy !== undefined && typeof entry.retentionPolicy === "object"
         ? (entry.retentionPolicy as AnyObj).days ?? "" : "",
     })) : categorySummary(props.logs),
     metrics: full ? arrOf(props.metrics).map((entry) => ({
-      category: str(entry.category), enabled: entry.enabled ?? "",
+      category: str(entry.category), categoryGroup: str(entry.categoryGroup), enabled: entry.enabled ?? "",
       retentionDays: entry.retentionPolicy !== undefined && typeof entry.retentionPolicy === "object"
         ? (entry.retentionPolicy as AnyObj).days ?? "" : "",
     })) : categorySummary(props.metrics),
     destinations: full
       ? { storage: str(props.storageAccountId), workspace: str(props.workspaceId),
-        eventHubRule: str(props.eventHubAuthorizationRuleId), eventHub: str(props.eventHubName) }
+        eventHubRule: str(props.eventHubAuthorizationRuleId), eventHub: str(props.eventHubName),
+        partner: str(props.marketplacePartnerId) }
       : destinationsOf(props),
   };
 }
 
 const SETTING_FIELDS = ["name", "logs", "metrics", "destinations"];
-const SETTING_SHOW_FIELDS = ["name", "id", "logs", "metrics", "storage", "workspace", "eventHub"];
+const SETTING_SHOW_FIELDS = ["name", "id", "logs", "metrics", "storage", "workspace", "eventHub", "partner"];
 
 async function runDiagnosticSettingsList(
   profile: ReturnType<typeof profileFromArgs>,
@@ -332,10 +345,11 @@ async function runDiagnosticSettingsList(
   if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
     invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
   }
-  const subs = await subscriptions(profile);
-  const suffix = ["profile", "config", "tenant", "subscription"]
+  const subs = await resourceSubscriptions(profile, resource, path);
+  const scopeSuffix = ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
+  const suffix = `${scopeSuffix} ${formatFlagValue("resource", resource)}`;
   const items = redact(await requestAll<DiagnosticSetting>(profile,
     { method: "GET", path: `${resource}/providers/Microsoft.Insights/diagnosticSettings`, apiVersion: DIAGNOSTIC_SETTINGS }, 100)).items;
   const context = scopeLabel(subs.length, resource);
@@ -352,7 +366,7 @@ async function runDiagnosticSettingsList(
   const shown = displayed.map((item) => settingRow(item, full));
   const picked = pickFields(shown, fields);
   const help: string[] = [
-    `Run \`az-axi monitor diagnostic-settings show ${formatFlagValue("resource", resource)} --name ${JSON.stringify(items[0]!.name)}${suffix}\` for the first row in detail`,
+    `Run \`az-axi monitor diagnostic-settings show ${formatFlagValue("ids", items[0]!.id)}${scopeSuffix}\` for the first row in detail`,
   ];
   if (shown.length < items.length) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
@@ -401,10 +415,10 @@ async function runDiagnosticSettingsShow(
       invalid("--ids conflicts with selected subscriptions", path);
     }
   } else {
-    const selected = await subscriptions(profile);
+    const scope = resourceScope(resource, "resource", path);
+    const selected = await resourceSubscriptions(profile, scope, path);
     if (selected.length !== 1) invalid(`${path} by name needs exactly one subscription; use --subscription <id>`, path);
     subscription = selected[0]!;
-    const scope = resourceScope(resource, "resource", path);
     getPath = `${scope}/providers/Microsoft.Insights/diagnosticSettings/${governanceSegment(name!, "name", path)}`;
   }
   const item = redact(await request<DiagnosticSetting>(profile,
@@ -419,6 +433,7 @@ async function runDiagnosticSettingsShow(
     storage: str(props.storageAccountId),
     workspace: str(props.workspaceId),
     eventHub: [str(props.eventHubAuthorizationRuleId), str(props.eventHubName)].filter(Boolean).join(" "),
+    partner: str(props.marketplacePartnerId),
   };
   const compact = settingRow(item, false);
   const shortened = !full && JSON.stringify(pickFields([{ ...compact }], fields)) !==
@@ -446,6 +461,8 @@ function metricNameOf(entry: AnyObj): string {
 interface MetricValue extends Record<string, unknown> {
   name?: { value?: string };
   unit?: string;
+  errorCode?: string;
+  errorMessage?: string;
   timeseries?: Array<{ data?: Array<Record<string, unknown>> }>;
 }
 
@@ -458,11 +475,13 @@ function parseInstant(value: string | undefined, flag: string, path: string): nu
   return instant;
 }
 
-function datumValue(datum: Record<string, unknown>): number | "" {
-  for (const key of ["average", "total", "maximum", "minimum", "count"]) {
-    if (typeof datum[key] === "number") return datum[key];
+function datumValues(datum: Record<string, unknown>): Record<string, number> {
+  const values: Record<string, number> = {};
+  for (const aggregation of AGGREGATIONS) {
+    const key = aggregation.toLowerCase();
+    if (typeof datum[key] === "number") values[key] = datum[key];
   }
-  return "";
+  return values;
 }
 
 async function runMetricsList(
@@ -498,10 +517,13 @@ async function runMetricsList(
   if (end - start > MAX_WINDOW_MS) invalid("--start-time to --end-time must span at most 31 days", path);
   const from = new Date(start).toISOString();
   const to = new Date(end).toISOString();
-  const subs = await subscriptions(profile);
+  const subs = await resourceSubscriptions(profile, resource, path);
   const suffix = ["profile", "config", "tenant", "subscription", "resource"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
+  const querySuffix = `${formatFlagValue("start-time", from)} ${formatFlagValue("end-time", to)}` +
+    ["interval", "aggregation"].filter((key) => typeof args.flags[key] === "string")
+      .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 
   if (!metricNames?.length) {
     const definitions = redact(await requestAll<MetricDefinition>(profile,
@@ -528,7 +550,7 @@ async function runMetricsList(
     });
     const picked = pickFields(shown, fields);
     const help = [
-      `Run \`az-axi ${path}${suffix} ${formatFlagValue("metric", metricNameOf(displayed[0]!))} --full\` for values of the first metric`,
+      `Run \`az-axi ${path}${suffix} ${formatFlagValue("metric", metricNameOf(displayed[0]!))} ${querySuffix} --full\` for values of the first metric`,
     ];
     if (shown.length < definitions.length) {
       help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
@@ -553,33 +575,40 @@ async function runMetricsList(
       ...(aggregations?.length ? { aggregation: aggregations.join(",") } : {}),
     },
   })).value ?? [];
+  const failures = values.filter((entry) => entry.errorCode && entry.errorCode !== "Success");
+  if (failures.length) {
+    throw new AxiError(failures.map((entry) =>
+      `${metricNameOf(entry)}: ${entry.errorCode}${entry.errorMessage ? `: ${entry.errorMessage}` : ""}`).join("; "),
+      "API_ERROR", [monitorLeafHelp(path)]);
+  }
+  const valueSuffix = `${suffix} ${formatFlagValue("metric", metricNames.join(","))} ${querySuffix}`;
   if (values.length === 0) {
     return {
       profile: profile.name,
       total: 0,
       count: countLine(0, 0, "metrics"),
       rows: emptyState("metrics", `${scopeLabel(subs.length, resource)} from ${from} to ${to}`),
-      help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`],
+      help: [`Run \`az-axi ${path}${valueSuffix} --full\` to show every fetched row`],
     };
   }
   const rows: AnyObj[] = [];
   for (const entry of values) {
     const name = metricNameOf(entry);
     const points = (entry.timeseries ?? []).flatMap((series) => series.data ?? []);
-    const stamped = points.filter((datum) => typeof datum.timeStamp === "string" && datumValue(datum) !== "");
+    const stamped = points.filter((datum) => typeof datum.timeStamp === "string" && Object.keys(datumValues(datum)).length > 0);
     const latest = stamped[stamped.length - 1];
     const body: AnyObj = {
       metric: name,
       unit: str(entry.unit),
       points: points.length,
-      latest: latest ? datumValue(latest) : "",
+      latest: latest ? datumValues(latest) : "",
       time: latest ? str(latest.timeStamp) : "",
       from,
       to,
     };
     if (full) {
       const shown = stamped.slice(0, limit);
-      body.series = shown.map((datum) => ({ time: str(datum.timeStamp), value: datumValue(datum) }));
+      body.series = shown.map((datum) => ({ time: str(datum.timeStamp), ...datumValues(datum) }));
       if (stamped.length > shown.length) {
         body.seriesNote = `showing ${shown.length} of ${stamped.length} points; narrow the window or interval`;
       }
@@ -591,7 +620,7 @@ async function runMetricsList(
     total: values.length,
     count: countLine(rows.length, values.length, "metrics"),
     rows: pickFields(rows, fields),
-    ...(full ? {} : { help: [`Run \`az-axi ${path}${suffix} --full\` for every returned point`] }),
+    ...(full ? {} : { help: [`Run \`az-axi ${path}${valueSuffix} --full\` for every returned point`] }),
   };
 }
 

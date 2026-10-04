@@ -13,9 +13,9 @@ const DETAIL: Record<string, string> = {
   "monitor metrics alert show": "Show returns the description, severity, enabled state, scopes, evaluation frequency, window size, criteria and action-group targets. Rule create, update, delete and status actions stay out.",
   "monitor action-group list": "Rows default to name, enabled, shortName and receivers (type counts), with byEnabled counts.",
   "monitor action-group show": "Show returns the group short name, enabled state and receivers with safelisted metadata only: webhook URLs without query or fragment, webhook property names without values. Test-notification and receiver-enable actions stay out.",
-  "monitor diagnostic-settings list": "Rows default to name, logs (enabled categories), metrics (enabled categories) and destinations (storage account, workspace, event hub). One target resource only.",
-  "monitor diagnostic-settings show": "Show returns the log and metric categories with enabled flags and retention, plus the storage, workspace and event-hub destinations. Setting create, update and delete stay out.",
-  "monitor metrics list": "Without --metric, rows default to metric, unit and aggregations (supported aggregation types) for the resource. With --metric, rows default to metric, unit, points, latest value and time over the bounded window; --full expands every returned point. Dimension filters and subscription-scope batch queries stay out.",
+  "monitor diagnostic-settings list": "Rows default to name, logs (enabled categories or category groups), metrics (enabled categories or category groups) and destinations (storage account, workspace, event hub, marketplace partner). One target resource only.",
+  "monitor diagnostic-settings show": "Show returns the log and metric categories and category groups with enabled flags and retention, plus the storage, workspace, event-hub and marketplace partner destinations. Setting create, update and delete stay out.",
+  "monitor metrics list": "Without --metric, rows default to metric, unit and aggregations (supported aggregation types) for the resource. With --metric, rows default to metric, unit, points, latest aggregation values and time over the bounded window; --full expands every returned point with named aggregation values. Metric query errors fail the command. Dimension filters and subscription-scope batch queries stay out.",
 };
 
 const FIELDS: Record<string, string> = {
@@ -24,7 +24,7 @@ const FIELDS: Record<string, string> = {
   "monitor action-group list": "--fields: name, enabled, shortName, receivers.",
   "monitor action-group show": "--fields: name, id, shortName, enabled, receivers.",
   "monitor diagnostic-settings list": "--fields: name, logs, metrics, destinations.",
-  "monitor diagnostic-settings show": "--fields: name, id, logs, metrics, storage, workspace, eventHub.",
+  "monitor diagnostic-settings show": "--fields: name, id, logs, metrics, storage, workspace, eventHub, partner.",
   "monitor metrics list": "--fields: metric, unit, aggregations, points, latest, time, from, to.",
 };
 
