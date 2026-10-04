@@ -52,6 +52,57 @@ const tagsGet = () => {
   return json(tagsBody(), 200, { etag: '"tags1"' });
 };
 
+// Synthetic NSG shaped like the 2024-05-01 contract. The custom rule list
+// follows AZ_AXI_TEST_NSG_RULES so previews, name/priority conflicts and the
+// execute-time race stay deterministic; AZ_AXI_TEST_NSG_MISSING=1 simulates a
+// missing NSG, and AZ_AXI_TEST_NSG_RULE_EXISTS=1 makes the rule GET find a
+// rule the preview did not see (creation must then refuse, never overwrite).
+const nsgRules = () => {
+  if (process.env.AZ_AXI_TEST_NSG_RULES !== undefined) return JSON.parse(process.env.AZ_AXI_TEST_NSG_RULES);
+  return [
+    { name: "allow-https", properties: { protocol: "Tcp", access: "Allow", priority: 100, direction: "Inbound",
+      sourcePortRange: "*", destinationPortRange: "443", sourceAddressPrefix: "Internet", destinationAddressPrefix: "*" } },
+    { name: "deny-ssh", properties: { protocol: "*", access: "Deny", priority: 200, direction: "Inbound",
+      sourcePortRange: "*", destinationPortRange: "*", sourceAddressPrefix: "*", destinationAddressPrefix: "*" } },
+  ];
+};
+
+const nsgBody = (nsgName) => ({
+  id: `/subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
+  name: nsgName,
+  type: "Microsoft.Network/networkSecurityGroups",
+  location: "westus",
+  etag: '"nsg1"',
+  properties: { provisioningState: "Succeeded", securityRules: nsgRules() },
+});
+
+const nsgNameOf = (pathname) => decodeURIComponent(pathname.split("/networkSecurityGroups/")[1].split("/")[0]);
+const ruleNameOf = (pathname) => decodeURIComponent(pathname.split("/securityRules/")[1].split("/")[0]);
+
+const nsgGet = (pathname) => {
+  if (process.env.AZ_AXI_TEST_NSG_MISSING === "1" || scenario === "gone") {
+    return json({ error: { code: "ResourceNotFound", message: "no such NSG" } }, 404);
+  }
+  if (pathname.includes("/securityRules/")) {
+    if (process.env.AZ_AXI_TEST_NSG_RULE_EXISTS === "1") {
+      const name = ruleNameOf(pathname);
+      return json({ id: `https://management.azure.com${pathname.split("?")[0]}`, name,
+        type: "Microsoft.Network/networkSecurityGroups/securityRules", etag: '"rule1"',
+        properties: { access: "Deny", priority: 400, direction: "Inbound", protocol: "Tcp" } }, 200, { etag: '"rule1"' });
+    }
+    return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
+  }
+  return json(nsgBody(nsgNameOf(pathname)), 200, { etag: '"nsg1"' });
+};
+
+const nsgRulePut = (url, body) => {
+  const pathname = new URL(url).pathname;
+  const ruleUrl = `https://management.azure.com${pathname}`;
+  return json({ id: ruleUrl, name: ruleNameOf(pathname),
+    type: "Microsoft.Network/networkSecurityGroups/securityRules", etag: '"rule1"',
+    properties: { ...(body?.properties ?? {}), provisioningState: "Succeeded" } }, 201);
+};
+
 const tagsPatch = (body) => {
   if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
   const sent = body?.properties?.tags ?? {};
@@ -85,6 +136,7 @@ globalThis.fetch = async (url, init = {}) => {
     return json({ status: scenario === "failure" ? "Failed" : "Succeeded", error: { code: "SyntheticFailure", message: "test failure" } });
   }
   if (method === "GET") {
+    if (new URL(url).pathname.includes("/networkSecurityGroups/")) return nsgGet(new URL(url).pathname);
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
     if (new URL(url).pathname.endsWith("/tags/default")) return tagsGet();
     if (new URL(url).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
@@ -131,6 +183,7 @@ globalThis.fetch = async (url, init = {}) => {
       "retry-after": scenario === "timeout" ? "1" : "0" });
   }
   if (scenario === "created") return json({}, 201);
+  if (method === "PUT" && new URL(url).pathname.includes("/securityRules/")) return nsgRulePut(url, body);
   if (new URL(url).pathname.includes("/alerts/")) return new Response(null, { status: 204, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test" } });
   if (new URL(url).pathname.includes("/incidents/") && method === "PUT") {
     // A comment PUT against a missing incident surfaces the missing target.

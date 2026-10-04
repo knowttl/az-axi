@@ -49,6 +49,7 @@ export const offlineWritePreviews = [
   { name: "sentinel-incident-comment-create", argv: ["sentinel", "incident", "comment", "create", "--incident-id", "00000000-0000-0000-0000-000000000063", "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--message", "Offline triage note"] },
   // The tag scope subscription must equal the budget suite SUB_A (00000000-0000-0000-0000-000000000020).
   { name: "tag-update", argv: ["tag", "update", "--resource-id", "/subscriptions/00000000-0000-0000-0000-000000000020/resourceGroups/rg-demo", "--operation", "merge", "--tags", "env=prod"] },
+  { name: "nsg-rule-create", argv: ["network", "nsg", "rule", "create", "--nsg-name", "nsg-web", "--resource-group", "rg-demo", "--name", "deny-telnet", "--priority", "400"] },
 ];
 
 // Child transport is exercised with fake az responses in the offline budget suite.

@@ -163,6 +163,18 @@ function touchesProtectedAuthorizationType(s: string[]): boolean {
   return s.some((segment, i) => segment === "microsoft.authorization" && PROTECTED_SET.has(s[i + 1] ?? ""));
 }
 
+/**
+ * NSG security-rule writes can cut live traffic, so they are destructive even
+ * though they only add or change one rule. Matches
+ * `.../providers/Microsoft.Network/networkSecurityGroups/{nsg}/securityRules[/{rule}]`;
+ * sibling collections under the NSG (subnets are not addressable here) and
+ * other Microsoft.Network types stay on their default class.
+ */
+function touchesNsgSecurityRule(s: string[]): boolean {
+  const net = s.indexOf("microsoft.network");
+  return net >= 0 && s[net + 1] === "networksecuritygroups" && s.includes("securityrules", net + 2);
+}
+
 export function classifyRequest({ resource, method, path }: RequestShape): RequestClass {
   const verb = method.toUpperCase();
   if (verb === "GET" || verb === "HEAD") return "read";
@@ -179,7 +191,9 @@ export function classifyRequest({ resource, method, path }: RequestShape): Reque
     return "write";
   }
   if (verb === "DELETE") return "destructive";
-  if ((verb === "PUT" || verb === "PATCH") && touchesProtectedAuthorizationType(s)) return "destructive";
+  if ((verb === "PUT" || verb === "PATCH") && (touchesProtectedAuthorizationType(s) || touchesNsgSecurityRule(s))) {
+    return "destructive";
+  }
   return "write";
 }
 

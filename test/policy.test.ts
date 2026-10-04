@@ -109,6 +109,14 @@ const CLASSIFICATION: Row[] = [
   ),
   ["arm", "PUT", `${STORAGE}/providers/Microsoft.Authorization/locks/lock1`, "destructive"],
   ["arm", "PUT", `${SUB}/providers/microsoft.authorization/ROLEASSIGNMENTS/ra1`, "destructive"],
+  // NSG security-rule writes can cut live traffic, so PUT and PATCH on the
+  // securityRules collection are destructive; neighboring NSG shapes stay writes
+  ["arm", "PUT", `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg-web/securityRules/deny-telnet`, "destructive"],
+  ["arm", "PATCH", `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg-web/securityRules/deny-telnet`, "destructive"],
+  ["arm", "PUT", `${RG}/providers/Microsoft.Network/NETWORKSECURITYGROUPS/nsg-web/SECURITYRULES/deny-telnet`, "destructive"],
+  ["arm", "PUT", `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg-web`, "write"],
+  ["arm", "PUT", `${RG}/providers/Microsoft.Network/networkSecurityGroups/nsg-web/defaultSecurityRules/AllowVnetInBound`, "write"],
+  ["arm", "PUT", `${RG}/providers/Microsoft.Compute/virtualMachines/vm1/securityRules/deny-telnet`, "write"],
   // write: any other PUT, PATCH or POST on arm, and anything unrecognized
   ["arm", "PUT", STORAGE, "write"],
   ["arm", "PATCH", RG, "write"],

@@ -263,6 +263,7 @@ az-axi sentinel data-connector list -g rg-demo --workspace-name logs-demo
 az-axi sentinel data-connector show --name <connector-id> --workspace sentinel
 az-axi network nsg list -g rg-demo
 az-axi network nsg show --name nsg-web -g rg-demo
+az-axi network nsg rule create --nsg-name nsg-web -g rg-demo --name deny-telnet --priority 400 --destination-port-ranges 23 --protocol Tcp -s <subscription>
 az-axi network nic list -g rg-demo
 az-axi network nic show --name nic-demo -g rg-demo
 az-axi network vnet list -g rg-demo
@@ -339,6 +340,7 @@ Type subgroups (`a`, `aaaa`, `caa`, `cname`, `mx`, `ns`, `ptr`, `soa`, `srv`, `t
 Typed show needs `--zone-name`, `--resource-group` and `--name`, or one record-set `--ids` of the selected type alone.
 NSG show returns custom security rules (name, priority, direction, access, protocol, source, destination, ports) plus attached subnets and NICs; VNet show returns the address space, every subnet (prefix, NSG, route table) and every peering (state, remote VNet); NIC show returns every IP configuration plus NSG, virtual machine and MAC address; public-IP show returns the address, allocation, association, FQDN, SKU and zones; private-endpoint show returns the target service, connection state, subnet, NICs and custom DNS configs; zone show returns record counts and name servers; record-set show returns the TTL, FQDN and every routed value.
 NSG list `rules` and show `totalRules` count custom rules only; Azure default security rules are excluded, including with `--full`.
+`network nsg rule create` is the one native NSG write: it adds a single Deny rule to one existing NSG and is classified destructive, so it needs `--confirm <rule-name>` on top of every write gate; see [Writes](#writes).
 Long nested rule, subnet, peering and IP-configuration lists are capped at `--limit` with their totals disclosed; `--full` shows every nested row.
 Joined rule sources, destinations and ports, VNet list prefixes and subnet prefix lists, DNS list targets and individual DNS show values are shortened to 200 characters by default; shortened output includes a selector-preserving `--full` hint.
 List rows default to compact fields (NSGs add the custom rule count, NICs the first IP configuration's private IP and the attached VM, VNets the prefixes and subnet count, public IPs the address and attachment, private endpoints the service and status, zones the record and name-server counts, record sets the type, TTL and joined targets); `--full` shows every fetched row with untruncated values.
@@ -768,6 +770,18 @@ Execution re-reads, returns a no-op without a PATCH or log entry when nothing wo
 The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
 Without `--if-match`, execution uses the fresh re-read ETag when the service returns one; the Tags API documents no ETag guarantee.
 `--execute`, `--timeout`, `--no-wait`, write logging, read-only gates and the Claude approval hook apply as for `api`.
+
+`network nsg rule create` adds one Deny security rule to exactly one existing network security group, using az's `network nsg rule create` flag spellings.
+Select the NSG with `--nsg-name` plus `--resource-group` / `-g`, or with `--ids <nsg-ARM-id>` alone (which still needs `--name` for the new rule).
+`--subscription` / `-s` requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.
+`--name` / `-n` names the new rule and `--priority` takes one integer 100-4096; a name or priority that already exists on the NSG refuses instead of overwriting, and rule updates and deletes stay out of scope.
+`--access` takes Deny alone and defaults to Deny; Allow is refused.
+`--direction` defaults to Inbound and `--protocol` to `*`; the four address/port lists default to `*` (unlike az, whose destination-port default is 80).
+Application security groups are unsupported and rejected as unknown flags.
+The preview reads the NSG (`GET .../networkSecurityGroups/<nsg>?api-version=2024-05-01`) and lists its existing rules plus the exact rule to be added, with the native execute command.
+Execution re-reads, refuses a rule created after the preview instead of overwriting it, and otherwise sends one `PUT .../securityRules/<rule>?api-version=2024-05-01` through the shared pipeline.
+Security rule creation documents no ETag/If-Match protection; an explicit `--if-match` is forwarded but no concurrency guarantee is claimed.
+`--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply as for `api`.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 
@@ -800,7 +814,7 @@ File bodies retain their `--body-file` path; stdin and redacted inline bodies us
 
 Add `--execute` to send the write after all gates pass.
 Destructive execution requires `--confirm <resource-name>`, matching the percent-decoded resource name exactly; for destructive POST actions, use the name preceding the action segment.
-DELETE, recognized disruptive POST actions, and PUT/PATCH on protected Microsoft.Authorization types require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
+DELETE, recognized disruptive POST actions, PUT/PATCH on protected Microsoft.Authorization types, and PUT/PATCH on NSG security rules require this confirmation; [policy.ts](src/lib/policy.ts) owns the lists.
 Execution re-reads the resource, or the parent resource for POST actions, before sending.
 For APIs supporting conditional writes, use `--if-match <etag>` from the reviewed preview for review-to-execute protection.
 Without it, execution uses the fresh GET's ETag when available; generic `api` execution reports that review-to-execute protection was not used.
