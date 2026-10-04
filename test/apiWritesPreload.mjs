@@ -2,6 +2,7 @@
 import { appendFileSync } from "node:fs";
 
 const scenario = process.env.AZ_AXI_TEST_OUTCOME;
+let incidentReads = 0;
 const operationUrl = "https://management.azure.com/operations/test?api-version=1";
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
   status, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test", ...headers },
@@ -54,7 +55,14 @@ globalThis.fetch = async (url, init = {}) => {
         return json({ value: [incidentBody("00000000-0000-0000-0000-000000000063", 3177)] });
       }
       const name = path.split("/incidents/")[1].split("/")[0];
-      return json(incidentBody(name, 3177), 200, { etag: '"fresh"' });
+      const incident = incidentBody(name, 3177);
+      incidentReads += 1;
+      if (scenario === "incident-race") {
+        incident.etag = incidentReads === 1 ? '"E1"' : '"E2"';
+        incident.properties.status = incidentReads === 1 ? "Active" : "Closed";
+      }
+      if (scenario === "review-stale") incident.etag = '"E2"';
+      return json(incident, 200, { etag: incident.etag });
     }
     // Workspace alias resolution lists ARM workspaces and matches the
     // customer ID from the profile alias.
@@ -70,6 +78,9 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (new URL(url).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });
   if (scenario === "precondition") return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
+  if (["incident-race", "review-stale"].includes(scenario) && init.headers?.["If-Match"] !== '"E2"') {
+    return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
+  }
   if (scenario === "network") throw new Error("synthetic offline network failure");
   if (["async", "failure", "timeout", "no-wait", "location"].includes(scenario)) {
     return json({}, 202, { [scenario === "location" ? "location" : "azure-asyncoperation"]: operationUrl,

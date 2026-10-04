@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { decode } from "@toon-format/toon";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -127,9 +128,9 @@ describe("built Sentinel incident update, offline only", () => {
     expect(result.stdout).toContain("--status Closed --classification FalsePositive");
     expect(result.stdout).toContain("--timeout 30 --no-wait --execute");
     const calls = records("requests.jsonl");
-    expect(calls).toHaveLength(2);
+    expect((decode(result.stdout) as { help: string[] }).help[0]).toContain("--if-match '\"fresh\"'");
+    expect(calls).toHaveLength(1);
     expect(calls[0]).toEqual({ method: "GET", url: `https://management.azure.com${INCIDENT_ID}?api-version=2025-09-01` });
-    expect(calls[1]).toEqual(calls[0]);
     expect(records("writes.log")).toEqual([]);
   });
 
@@ -140,7 +141,7 @@ describe("built Sentinel incident update, offline only", () => {
     expect(result.stdout).toContain("status: 200");
     expect(result.stdout).toContain("compare-and-swap");
     const calls = records("requests.jsonl");
-    expect(calls.filter((call) => call.method === "GET")).toHaveLength(2);
+    expect(calls.filter((call) => call.method === "GET")).toHaveLength(1);
     expect(putCall()).toMatchObject({
       method: "PUT",
       url: `https://management.azure.com${INCIDENT_ID}?api-version=2025-09-01`,
@@ -159,6 +160,38 @@ describe("built Sentinel incident update, offline only", () => {
     const result = cli(["--execute"]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(putCall()).toMatchObject({ ifMatch: '"fresh"' });
+  });
+
+  it("previews the merged incident and ETag from one snapshot", () => {
+    const result = cli([], { scenario: "incident-race", status: null, severity: "low", classification: null, reason: null });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("properties.severity,High,Low");
+    expect(result.stdout).not.toContain("properties.status,");
+    expect((decode(result.stdout) as { help: string[] }).help[0]).toContain("--if-match '\"E1\"'");
+    expect(records("requests.jsonl")).toHaveLength(1);
+  });
+
+  it("rejects a change between the merge snapshot and PUT", () => {
+    const result = cli(["--execute"], { scenario: "incident-race", status: null, severity: "low", classification: null, reason: null });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("PRECONDITION_FAILED");
+    expect(putCall()).toMatchObject({ ifMatch: '\"E1\"', body: { properties: { status: "Active", severity: "Low" } } });
+    expect(records("requests.jsonl").filter((call) => call.method === "GET")).toHaveLength(1);
+  });
+
+  it.each([{ flags: [] }, { flags: ["--if-match", '\"older\"'] }])("pins the preview ETag in the execute hint with $flags", ({ flags }) => {
+    const preview = cli(flags, { status: null, severity: "low", classification: null, reason: null });
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    const output = decode(preview.stdout) as { help: string[]; etag: string };
+    expect(output.help[0]).toContain("--if-match '\"fresh\"'");
+    expect(output.help[0]).not.toContain("--if-match '\"older\"'");
+    const result = cli(["--execute", "--if-match", output.etag], {
+      scenario: "review-stale", status: null, severity: "low", classification: null, reason: null,
+      incidentSeverity: "Medium",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("PRECONDITION_FAILED");
+    expect(putCall()).toMatchObject({ ifMatch: '\"fresh\"' });
   });
 
   it.each([
@@ -276,6 +309,15 @@ describe("built Sentinel incident comment create, offline only", () => {
     expect(records("writes.log")).toEqual([expect.objectContaining({ class: "write", method: "PUT",
       url: commentUrl(COMMENT), outcome: "success", httpStatus: 201, requestId: "req-test" })]);
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toMatch(/offline-sentinel-token|"headers"|Offline triage note/);
+  });
+
+  it.each([{ flags: [] }, { flags: ["--if-match", '\"older\"'] }])("pins an existing comment preview ETag with $flags", ({ flags }) => {
+    const result = cli(flags, { route: "comment", commentName: COMMENT, commentMessage: "Previous note" });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    const output = decode(result.stdout) as { help: string[] };
+    expect(output.help[0]).toContain("--if-match '\"fresh\"'");
+    expect(output.help[0]).not.toContain("--if-match '\"older\"'");
+    expect(records("requests.jsonl").filter((call) => call.method === "PUT")).toEqual([]);
   });
 
   it("generates a comment ID when --name is absent", () => {

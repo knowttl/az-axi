@@ -22,6 +22,7 @@ export interface DryRunRequest {
   cls: RequestClass;
   /** Parsed JSON body, or undefined when absent. */
   body: unknown;
+  mergeBody?: (current: unknown) => unknown;
   /** Original JSON text for inline execution hints when safe to display. */
   bodyRaw?: string;
   /** File source, or a placeholder for saving a stdin body before execution. */
@@ -214,20 +215,21 @@ export async function dryRun(request: DryRunRequest): Promise<Record<string, unk
       probed = await getCurrent(request);
     } catch (err) {
       // PUT to a resource that does not exist would create it.
-      if (request.method === "PUT" && err instanceof AxiError && err.code === "NOT_FOUND") {
+      if (request.method === "PUT" && !request.mergeBody && err instanceof AxiError && err.code === "NOT_FOUND") {
         help.push(command({}));
         return { ...base, creates: true, help };
       }
       throw err;
     }
-    const out: Record<string, unknown> = { ...base };
+    const body = request.mergeBody ? request.mergeBody(probed.current) : request.body;
+    const out: Record<string, unknown> = { ...base, ...shownBody(body, request.full ?? false) };
     if (probed.etag) out.etag = probed.etag;
-    if (request.body === undefined) {
+    if (body === undefined) {
       help.push("Pass --body-file <path> or pipe JSON on stdin to preview the field-level change");
       help.push(command({ etag: probed.etag ?? request.ifMatch }));
       return { ...out, help };
     }
-    const diff = diffResource(probed.current, request.body, request.method);
+    const diff = diffResource(probed.current, body, request.method);
     if (diff.noop) {
       help.push("No field would change: executing would do nothing");
       help.push(command({ etag: probed.etag ?? request.ifMatch }));

@@ -922,13 +922,6 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
     name ? { name } : { ids: ids! }, "update");
   const suffix = selectorSuffix(args, subscription, selection.target);
 
-  // GET-merge-PUT, as az does: the PUT replaces the incident, so the reviewed
-  // body carries every current field with the requested overlay applied.
-  const current = await request<Incident>(profile, {
-    method: "GET",
-    path: selection.path,
-    apiVersion: SENTINEL_INCIDENTS,
-  });
   const overlay: IncidentProperties = {};
   if (status) overlay.status = status;
   if (severity) overlay.severity = severity;
@@ -938,7 +931,10 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
     if (classificationReason) overlay.classificationReason = classificationReason;
     if (classificationComment) overlay.classificationComment = classificationComment;
   }
-  const body = { ...current, properties: { ...(current.properties ?? {}), ...overlay } };
+  const mergeBody = (value: unknown) => {
+    const current = value as Incident;
+    return { ...current, properties: { ...(current.properties ?? {}), ...overlay } };
+  };
 
   const shape = { resource: "arm" as const, method: "PUT", path: selection.path };
   const cls = classifyRequest(shape);
@@ -950,7 +946,7 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
     ? [formatFlagValue("workspace", flagText(args, "workspace")!)]
     : [formatFlagValue("resource-group", selection.target!.resourceGroup),
       formatFlagValue("workspace-name", selection.target!.workspaceName)];
-  const command = ["az-axi sentinel incident update", selectors, formatFlagValue("subscription", subscription),
+  const command = (etag: string | undefined) => ["az-axi sentinel incident update", selectors, formatFlagValue("subscription", subscription),
     ...(ids ? [formatFlagValue("ids", ids.trim())]
       : [formatFlagValue("name", name!.trim()), ...workspaceFlags]),
     ...(status === undefined ? [] : [formatFlagValue("status", status)]),
@@ -959,17 +955,18 @@ async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parse
     ...(classification === undefined ? [] : [formatFlagValue("classification", classification)]),
     ...(classificationReason === undefined ? [] : [formatFlagValue("classification-reason", classificationReason)]),
     ...(classificationComment === undefined ? [] : [formatFlagValue("classification-comment", classificationComment)]),
-    ...(ifMatch === undefined ? [] : [formatFlagValue("if-match", ifMatch)]),
+    ...(etag === undefined ? [] : [formatFlagValue("if-match", etag)]),
     ...(flagText(args, "timeout") === undefined ? [] : [formatFlagValue("timeout", flagText(args, "timeout")!)]),
     ...(flagBool(args, "no-wait") ? ["--no-wait"] : []), "--execute"].filter(Boolean).join(" ");
   if (execute) {
     return executeWrite({ profile, method: "PUT", path: buildUrl({ path: selection.path, apiVersion: SENTINEL_INCIDENTS }),
-      cls: "write", body, protection: UPDATE_PROTECTION, ifMatch,
+      cls: "write", body: undefined, mergeBody, protection: UPDATE_PROTECTION, ifMatch,
       selectors, timeoutMs, noWait: flagBool(args, "no-wait") });
   }
   const preview = await dryRun({ profile, resource: "arm", method: "PUT", path: selection.path, cls,
-    body, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
-  return { ...preview, protection: UPDATE_PROTECTION, help: [`\`${command}\``] };
+    body: undefined, mergeBody, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
+  return { ...preview, protection: UPDATE_PROTECTION,
+    help: [`\`${command(typeof preview.etag === "string" ? preview.etag : ifMatch)}\``] };
 }
 
 async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
@@ -1005,12 +1002,12 @@ async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeo
     ? [formatFlagValue("workspace", flagText(args, "workspace")!)]
     : [formatFlagValue("resource-group", selection.target!.resourceGroup),
       formatFlagValue("workspace-name", selection.target!.workspaceName)];
-  const command = ["az-axi sentinel incident comment create", selectors, formatFlagValue("subscription", subscription),
+  const command = (etag: string | undefined) => ["az-axi sentinel incident comment create", selectors, formatFlagValue("subscription", subscription),
     ...(ids ? [formatFlagValue("ids", ids.trim())]
       : [formatFlagValue("incident-id", incidentIdFlag!.trim()), ...workspaceFlags]),
     formatFlagValue("message", message!),
     ...(commentName === undefined ? [] : [formatFlagValue("name", commentId)]),
-    ...(ifMatch === undefined ? [] : [formatFlagValue("if-match", ifMatch)]),
+    ...(etag === undefined ? [] : [formatFlagValue("if-match", etag)]),
     ...(flagText(args, "timeout") === undefined ? [] : [formatFlagValue("timeout", flagText(args, "timeout")!)]),
     ...(flagBool(args, "no-wait") ? ["--no-wait"] : []), "--execute"].filter(Boolean).join(" ");
   if (execute) {
@@ -1020,7 +1017,8 @@ async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeo
   }
   const preview = await dryRun({ profile, resource: "arm", method: "PUT", path, cls,
     body, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
-  return { ...preview, protection: COMMENT_PROTECTION, help: [`\`${command}\``] };
+  return { ...preview, protection: COMMENT_PROTECTION,
+    help: [`\`${command(typeof preview.etag === "string" ? preview.etag : ifMatch)}\``] };
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
