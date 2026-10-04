@@ -8,6 +8,7 @@ vi.mock("../src/lib/client.js", () => ({ sendRequest: vi.fn(), request: vi.fn(),
 
 import { run } from "../src/commands/network.js";
 import { request, requestAll } from "../src/lib/client.js";
+import { networkLeafHelp } from "../src/lib/networkHelp.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
 import { quoteFlagValue } from "../src/lib/shell.js";
@@ -613,5 +614,24 @@ describe("network projection regressions", () => {
     expect(result.help).toEqual([
       `Run \`az-axi network dns record-set a show --zone-name example.com --resource-group rg-demo --name '*' --subscription ${SUB_A} --profile ci --config ${quoteFlagValue(join(dir, "config.json"))} --tenant ${SUB_B}\` for the first row in detail`,
     ]);
+  });
+});
+
+describe("network help text", () => {
+  it("does not promise SKU expansion for public-IP views", () => {
+    for (const path of ["network public-ip list", "network public-ip show"]) {
+      expect(networkLeafHelp(path)).not.toContain("SKU details");
+    }
+    expect(networkLeafHelp("network public-ip show")).toContain("--full expands safe metadata (tags, provisioningState, idleTimeout)");
+    expect(networkLeafHelp("network public-ip show")).toContain("FQDN, SKU and zones");
+  });
+
+  it("shows required selectors in DNS record-set list examples", () => {
+    for (const path of ["network dns record-set list", "network dns record-set txt list"]) {
+      const examples = networkLeafHelp(path).split("\n").find((line) => line.startsWith("Examples:"))!;
+      expect(examples).toContain("--zone-name <zone>");
+      expect(examples).toContain("--resource-group <rg>");
+    }
+    expect(networkLeafHelp("network nsg list")).toContain("Examples: az-axi network nsg list");
   });
 });
