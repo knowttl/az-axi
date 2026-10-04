@@ -129,13 +129,14 @@ describe("built API body inputs, offline only", () => {
     expect(requests()).toEqual([]);
   });
 
-  it("treats empty stdin as absent and accepts all JSON values", () => {
+  it("treats empty stdin as absent", () => {
     expect(cli([], "", "/subscriptions", "GET").status).toBe(0);
-    for (const input of ["null", "false", "0", '"text"', "[]", "{}"]) {
-      const result = cli([], input, "/providers/Microsoft.ResourceGraph/resources", "POST");
-      expect(result.status, result.stdout + result.stderr).toBe(0);
-      expect(requests().at(-1)?.body).toEqual(JSON.parse(input));
-    }
+  });
+
+  it.each(["null", "false", "0", '"text"', "[]", "{}"])("accepts stdin JSON value %s", (input) => {
+    const result = cli([], input, "/providers/Microsoft.ResourceGraph/resources", "POST");
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(requests().at(-1)?.body).toEqual(JSON.parse(input));
   });
 
   describe.each(["inline", "file", "stdin"])("%s JSON strings", (form) => {

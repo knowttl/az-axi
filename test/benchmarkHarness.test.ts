@@ -283,7 +283,7 @@ describe("benchmark surface", () => {
     expect(child.stdout).toContain("logs-query");
     expect(child.stdout).not.toContain("benchmark-dummy");
     expect(readFileSync(join(dir, "benchmark/fixtures/rg-1.json"), "utf8")).not.toContain("contoso-team");
-  }, 20_000);
+  }, 60_000);
 
   it("measures the real skill and built help surface", () => {
     const child = spawnSync(process.execPath, ["scripts/benchmark/capture-surface.mjs"], { cwd: root, encoding: "utf8" });

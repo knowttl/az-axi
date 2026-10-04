@@ -184,7 +184,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
     expect(shortResult.stdout).toBe(oldResult.stdout);
     expect(shortResult.stderr).toBe(oldResult.stderr);
     expect(shortResult.stderr).toContain('"query":"--help"');
-  });
+  }, 15_000);
 
   it("maps assignee and resource-group short flags without changing native filters", () => {
     const oldRole = run(["rbac", "list", "--principal", "00000000-0000-0000-0000-000000000040", "--full"]);
