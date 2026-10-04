@@ -10,6 +10,7 @@ import { run } from "../src/commands/network.js";
 import { request, requestAll } from "../src/lib/client.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
+import { quoteFlagValue } from "../src/lib/shell.js";
 import {
   SUB_A, SUB_B, discoveryGroup,
   networkDnsRecordSetDetail, networkDnsRecordSets, networkDnsZone, networkDnsZones,
@@ -610,7 +611,7 @@ describe("network projection regressions", () => {
     const result = await run(["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo",
       "--profile", "ci", "--config", join(dir, "config.json"), "--tenant", SUB_B]);
     expect(result.help).toEqual([
-      `Run \`az-axi network dns record-set a show --zone-name example.com --resource-group rg-demo --name '*' --subscription ${SUB_A} --profile ci --config ${join(dir, "config.json")} --tenant ${SUB_B}\` for the first row in detail`,
+      `Run \`az-axi network dns record-set a show --zone-name example.com --resource-group rg-demo --name '*' --subscription ${SUB_A} --profile ci --config ${quoteFlagValue(join(dir, "config.json"))} --tenant ${SUB_B}\` for the first row in detail`,
     ]);
   });
 });
