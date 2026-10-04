@@ -129,7 +129,7 @@ function recordValues(type: string, properties: AnyObj): string[] {
   switch (type) {
     case "A": return arrOf(properties.ARecords).map((record) => str(record.ipv4Address)).filter(Boolean);
     case "AAAA": return arrOf(properties.AAAARecords).map((record) => str(record.ipv6Address)).filter(Boolean);
-    case "CAA": return arrOf(properties.CAARecords)
+    case "CAA": return arrOf(properties.caaRecords)
       .map((record) => `${num(record.flags) || str(record.flags)} ${str(record.tag)} "${str(record.value)}"`.trim()).filter((value) => value !== '""');
     case "CNAME": {
       const target = str(objOf(properties.CNAMERecord).cname);

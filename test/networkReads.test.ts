@@ -369,7 +369,7 @@ describe("network projection regressions", () => {
   it.each([
     { type: "a", properties: { ARecords: [{ ipv4Address: "203.0.113.10" }] }, values: ["203.0.113.10"] },
     { type: "aaaa", properties: { AAAARecords: [{ ipv6Address: "2001:db8::1" }] }, values: ["2001:db8::1"] },
-    { type: "caa", properties: { CAARecords: [{ flags: 0, tag: "issue", value: "example.com" }] }, values: ['0 issue "example.com"'] },
+    { type: "caa", properties: { caaRecords: [{ flags: 0, tag: "issue", value: "example.com" }] }, values: ['0 issue "example.com"'] },
     { type: "cname", properties: { CNAMERecord: { cname: "example.com." } }, values: ["example.com."] },
     { type: "mx", properties: { MXRecords: [{ preference: 10, exchange: "mail.example.com." }] }, values: ["10 mail.example.com."] },
     { type: "ns", properties: { NSRecords: [{ nsdname: "ns.example.com." }] }, values: ["ns.example.com."] },
@@ -386,9 +386,13 @@ describe("network projection regressions", () => {
     const list = routeArgv(["network", "dns", "record-set", type, "list", "--zone-name", "example.com", "-g", "rg-demo"]);
     await expect(run(list.argv.slice(1))).resolves.toMatchObject({ rows: [{ type: type.toUpperCase(), target: values.join(", ") }] });
     expect(listCalls()[0]).toMatchObject({ path: `${networkDnsZone.id}/${type.toUpperCase()}` });
+    await expect(run(["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo"]))
+      .resolves.toMatchObject({ rows: [{ type: type.toUpperCase(), target: values.join(", ") }] });
     const show = routeArgv(["network", "dns", "record-set", type, "show", "--zone-name", "example.com", "-g", "rg-demo", "-n", "record"]);
     await expect(run(show.argv.slice(1))).resolves.toMatchObject({ records: values });
     expect(requestMock.mock.calls[0]![1]).toMatchObject({ path: record.id });
+    await expect(run(["dns", "record-set", type, "show", "--ids", record.id]))
+      .resolves.toMatchObject({ records: values });
     await expect(run(["dns", "record-set", type, "show", "--ids", record.id, "--full"]))
       .resolves.toMatchObject({ records: values });
     await expect(run(["dns", "record-set", type, "show", "--ids", `${networkDnsZone.id}/BOGUS/record`]))
