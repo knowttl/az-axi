@@ -55,7 +55,7 @@ function limitValue(args: ParsedArgs, path: string): number {
 /** One ARM ID under /subscriptions/<guid>, the shared target shape for
  * resource-scoped Monitor reads (diagnostic settings, metrics). */
 function resourceScope(value: string | undefined, flag: string, path: string): string {
-  if (!value || /[?#%\\]/.test(value)) {
+  if (!value || /[\u0000-\u001f\u007f?#%\\]/.test(value)) {
     invalid(`--${flag} must be one ARM resource, resource-group or subscription ID`, path);
   }
   const id = value.trim();
@@ -347,16 +347,20 @@ async function runDiagnosticSettingsList(
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
   const suffix = `${scopeSuffix} ${formatFlagValue("resource", resource)}`;
-  const items = redact(await requestAll<DiagnosticSetting>(profile,
-    { method: "GET", path: `${resource}/providers/Microsoft.Insights/diagnosticSettings`, apiVersion: DIAGNOSTIC_SETTINGS }, 100)).items;
+  const fetched = redact(await requestAll<DiagnosticSetting>(profile,
+    { method: "GET", path: `${resource}/providers/Microsoft.Insights/diagnosticSettings`, apiVersion: DIAGNOSTIC_SETTINGS }, 100));
+  const items = fetched.items;
+  const total = fetched.nextLink ? `${items.length}+` : items.length;
+  const pagingHelp = fetched.nextLink
+    ? ["More pages exist; paging stopped early. Counts are lower bounds. Narrow the target resource."] : [];
   const context = scopeLabel(subs.length, resource);
   if (items.length === 0) {
     return {
       profile: profile.name,
-      total: 0,
-      count: countLine(0, 0, "diagnostic settings"),
-      rows: emptyState("diagnostic settings", context),
-      help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`],
+      total,
+      count: fetched.nextLink ? `0 of ${total} diagnostic settings` : countLine(0, 0, "diagnostic settings"),
+      rows: emptyState("diagnostic settings", fetched.nextLink ? `${context} in fetched pages; listing is incomplete` : context),
+      help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`, ...pagingHelp],
     };
   }
   const displayed = full ? items : items.slice(0, limit);
@@ -368,10 +372,11 @@ async function runDiagnosticSettingsList(
   if (shown.length < items.length) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
   }
+  help.push(...pagingHelp);
   return {
     profile: profile.name,
-    total: items.length,
-    count: countLine(shown.length, items.length, "diagnostic settings"),
+    total,
+    count: fetched.nextLink ? `${shown.length} of ${total} diagnostic settings` : countLine(shown.length, items.length, "diagnostic settings"),
     rows: picked,
     help,
   };
@@ -528,16 +533,20 @@ async function runMetricsList(
       .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 
   if (!metricNames?.length) {
-    const definitions = redact(await requestAll<MetricDefinition>(profile,
-      { method: "GET", path: `${resource}/providers/Microsoft.Insights/metricDefinitions`, apiVersion: MONITOR_METRICS }, 100)).items;
+    const fetched = redact(await requestAll<MetricDefinition>(profile,
+      { method: "GET", path: `${resource}/providers/Microsoft.Insights/metricDefinitions`, apiVersion: MONITOR_METRICS }, 100));
+    const definitions = fetched.items;
+    const total = fetched.nextLink ? `${definitions.length}+` : definitions.length;
+    const pagingHelp = fetched.nextLink
+      ? ["More pages exist; paging stopped early. Counts are lower bounds. Narrow the target resource."] : [];
     const context = scopeLabel(subs.length, resource);
     if (definitions.length === 0) {
       return {
         profile: profile.name,
-        total: 0,
-        count: countLine(0, 0, "metric definitions"),
-        rows: emptyState("metric definitions", context),
-        help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`],
+        total,
+        count: fetched.nextLink ? `0 of ${total} metric definitions` : countLine(0, 0, "metric definitions"),
+        rows: emptyState("metric definitions", fetched.nextLink ? `${context} in fetched pages; listing is incomplete` : context),
+        help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`, ...pagingHelp],
       };
     }
     const displayed = full ? definitions : definitions.slice(0, limit);
@@ -557,10 +566,11 @@ async function runMetricsList(
     if (shown.length < definitions.length) {
       help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
     }
+    help.push(...pagingHelp);
     return {
       profile: profile.name,
-      total: definitions.length,
-      count: countLine(shown.length, definitions.length, "metric definitions"),
+      total,
+      count: fetched.nextLink ? `${shown.length} of ${total} metric definitions` : countLine(shown.length, definitions.length, "metric definitions"),
       rows: picked,
       help,
     };

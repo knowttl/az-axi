@@ -91,6 +91,9 @@ describe("built CLI Monitor reads offline", () => {
         }
         if (options.method !== 'GET') throw new Error('non-GET request');
         const items = itemsFor(path);
+        if (items && (mode === 'paged' || mode === 'paged-empty')) {
+          return Response.json({ value: mode === 'paged-empty' ? [] : items, nextLink: url });
+        }
         if (items) return Response.json({value: items});
         const all = [...data.monitorAlertRules, ...data.monitorActionGroups, ...data.monitorDiagnosticSettings];
         const found = all.find((item) => item.id.toLowerCase() === path.toLowerCase());
@@ -113,6 +116,47 @@ describe("built CLI Monitor reads offline", () => {
   const metrics = ["monitor", "metrics", "list", "--resource", monitorResource];
   const window = ["--start-time", "2026-10-04T00:00:00Z", "--end-time", "2026-10-04T01:00:00Z",
     "--interval", "PT1H", "--aggregation", "Average,Maximum"];
+
+  it.each([
+    ["diagnostic list", ["monitor", "diagnostic-settings", "list", "--resource", monitorResource]],
+    ["diagnostic show", ["monitor", "diagnostic-settings", "show", "--name", "to-hub", "--resource", monitorResource]],
+    ["diagnostic ID", ["monitor", "diagnostic-settings", "show", "--ids", monitorDiagnosticSetting.id]],
+    ["metric definitions", metrics],
+    ["metric values", ["monitor", "metrics", "list", "--metric", "Percentage CPU", "--resource", monitorResource]],
+    ["alert ID", ["monitor", "metrics", "alert", "show", "--ids", monitorAlertRule.id]],
+    ["action-group ID", ["monitor", "action-group", "show", "--ids", monitorActionGroup.id]],
+  ].flatMap(([name, argv]) => ["\t", "\n", "\r"].map((control) => ({ name, argv: argv as string[], control }))))(
+    "rejects URL-stripped controls before transport for $name with $control", ({ argv, control }) => {
+      const escaped = argv.at(-1)!.replace(`/subscriptions/${SUB_A}`, `/subscriptions/${SUB_A}/.${control}./${SUB_B}`);
+      const result = run([...argv.slice(0, -1), escaped]);
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("must be one ARM");
+      expect(result.stderr).toBe("");
+    },
+  );
+
+  it.each([
+    { noun: "metric definitions", argv: metrics, mode: "paged", total: "200+", shown: 1 },
+    { noun: "metric definitions", argv: [...metrics, "--full"], mode: "paged", total: "200+", shown: 200 },
+    { noun: "metric definitions", argv: metrics, mode: "paged-empty", total: "0+", shown: 0 },
+    { noun: "metric definitions", argv: [...metrics, "--full"], mode: "paged-empty", total: "0+", shown: 0 },
+    { noun: "diagnostic settings", argv: ["monitor", "diagnostic-settings", "list", "--resource", monitorResource], mode: "paged", total: "100+", shown: 1 },
+    { noun: "diagnostic settings", argv: ["monitor", "diagnostic-settings", "list", "--resource", monitorResource, "--full"], mode: "paged", total: "100+", shown: 100 },
+    { noun: "diagnostic settings", argv: ["monitor", "diagnostic-settings", "list", "--resource", monitorResource], mode: "paged-empty", total: "0+", shown: 0 },
+    { noun: "diagnostic settings", argv: ["monitor", "diagnostic-settings", "list", "--resource", monitorResource, "--full"], mode: "paged-empty", total: "0+", shown: 0 },
+  ])("discloses capped paging for $noun with $mode and $shown displayed", ({ noun, argv, mode, total, shown }) => {
+    const result = run([...argv, "--limit", "1"], mode);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ total, count: `${shown} of ${total} ${noun}`,
+      help: expect.arrayContaining(["More pages exist; paging stopped early. Counts are lower bounds. Narrow the target resource."]),
+    });
+    expect(result.stderr.match(/"method":"GET"/g)).toHaveLength(100);
+  });
+
+  it("discloses that capped empty metric pages are incomplete", () => {
+    const result = run(metrics, "paged-empty");
+    expect(decode(result.stdout)).toMatchObject({ rows: expect.stringContaining("in fetched pages; listing is incomplete") });
+  });
 
   it.each([
     ["diagnostic list", ["monitor", "diagnostic-settings", "list", "--resource"]],
