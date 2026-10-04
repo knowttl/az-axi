@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symli
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { decode } from "@toon-format/toon";
 import { scrub } from "../scripts/benchmark/scrub.mjs";
 import { countTokens } from "../scripts/benchmark/tokens.mjs";
 import { scenarios } from "../benchmark/scenarios.mjs";
@@ -170,7 +171,9 @@ describe("benchmark surface", () => {
       if (omitted.includes(scenario.name)) continue;
       let responses;
       if (scenario.name === "account-list") {
-        responses = [subscriptions()];
+        responses = [response("GET", { value: [{ subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId }],
+          nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=contoso-page",
+        }), response("GET", { value: [{ subscriptionId: principal, displayName: "other-sub", state: "Enabled", tenantId }] })];
       } else if (scenario.name === "account-show") {
         responses = [response("GET", { subscriptionId: sub, displayName: "contoso-sub", state: "Enabled", tenantId })];
       } else if (scenario.name === "workspace-list") {
@@ -213,8 +216,26 @@ describe("benchmark surface", () => {
       }
       writeFileSync(join(dir, `benchmark/fixtures/${scenario.name}.json`), JSON.stringify({ responses }));
     }
-    const child = spawnSync(process.execPath, ["scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
+    const bootstrap = join(dir, "bootstrap.mjs");
+    const accountOutput = join(dir, "account-output.toon");
+    writeFileSync(bootstrap, [
+      'import childProcess from "node:child_process";',
+      'import { syncBuiltinESMExports } from "node:module";',
+      'import { writeFileSync } from "node:fs";',
+      'const spawnSync = childProcess.spawnSync;',
+      'childProcess.spawnSync = (command, argv, options) => {',
+      '  const child = spawnSync(command, argv, options);',
+      `  if (argv.includes("account") && argv.includes("list")) writeFileSync(${JSON.stringify(accountOutput)}, child.stdout);`,
+      '  return child;',
+      '};',
+      'syncBuiltinESMExports();',
+    ].join("\n"));
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
+    expect(decode(readFileSync(accountOutput, "utf8"))).toMatchObject({
+      total: 1, count: "1 of 1 subscriptions",
+      subscriptions: [{ id: scrub(sub), name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }],
+    });
     expect(child.stdout).toContain(rows);
     for (const note of notes) expect(child.stderr).toContain(note);
     expect(child.stdout).toContain("rbac-privileged");

@@ -26,8 +26,11 @@ try {
     workspaces: { benchmark: "00000000-0000-0000-0000-000000000010" },
   } } }), { mode: 0o600 });
   const rows = replayScenarios.map((scenario, index) => {
+    const subscription = (scenario.name === "account-list"
+      ? captures[index].responses.flatMap((response) => response.body?.value ?? [])[0]?.displayName
+      : undefined) ?? "00000000-0000-0000-0000-000000000001";
     const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
-      ...scenario.argv, "--profile", "benchmark", "--subscription", "00000000-0000-0000-0000-000000000001"], {
+      ...scenario.argv, "--profile", "benchmark", "--subscription", subscription], {
       cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
       env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config, AZ_AXI_PROFILE: "benchmark",
         AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_READ_ONLY: "1", AZ_AXI_BENCH_MODE: "replay",
