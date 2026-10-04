@@ -30,9 +30,9 @@ export async function executeWrite(options: {
   timeoutMs: number;
   noWait: boolean;
   /**
-   * A missing probe target means empty current state, so proceed to send.
+   * A missing probe target means empty current state for no-op detection or sending.
    * Opt-in only: native tag updates PATCH a tags wrapper that does not exist
-   * until the first merge creates it. Other methods keep fail-fast NOT_FOUND.
+   * until the first merge creates it. Other PATCH callers keep fail-fast NOT_FOUND.
    */
   allowMissing?: boolean;
   /** Expected resource fields after a POST action, used only for no-op detection. */

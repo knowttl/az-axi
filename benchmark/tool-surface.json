@@ -6,7 +6,7 @@
     "total": 4293
   },
   "help": {
-    "topLevel": 681,
+    "topLevel": 680,
     "home": 244,
     "doctor": 231,
     "config": 171,
@@ -15,7 +15,7 @@
     "monitor": 315,
     "group": 178,
     "resource": 327,
-    "tag": 386,
+    "tag": 403,
     "rg": 186,
     "rbac": 208,
     "activity": 172,
@@ -31,5 +31,5 @@
     "keyvault": 359,
     "acr": 342
   },
-  "helpTotal": 8659
+  "helpTotal": 8675
 }
