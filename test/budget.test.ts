@@ -22,6 +22,7 @@ vi.mock("../src/lib/client.js", async (importOriginal) => ({
   requestAll: vi.fn(),
   request: vi.fn(),
   requestStorageMetadata: vi.fn(),
+  requestKeyVaultMetadata: vi.fn(),
 }));
 vi.mock("../src/lib/auth.js", () => ({ runAz: vi.fn(), identityOf: vi.fn(), resolveCredential: vi.fn() }));
 vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn() }));
@@ -35,6 +36,7 @@ import { run as runMonitor } from "../src/commands/monitor.js";
 import { run as runGroup } from "../src/commands/group.js";
 import { run as runResource } from "../src/commands/resource.js";
 import { run as runStorage } from "../src/commands/storage.js";
+import { run as runKeyvault } from "../src/commands/keyvault.js";
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runActivity } from "../src/commands/activity.js";
@@ -55,10 +57,11 @@ import {
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
-import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads } from "../benchmark/scenarios.mjs";
+import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads, offlineKeyvaultReads } from "../benchmark/scenarios.mjs";
 import {
   SUB_A,
   storageMetadataRows,
+  keyvaultMetadataRows,
   TENANT,
   azResourceGroup,
   discoveryGroup,
@@ -128,6 +131,9 @@ const CEILINGS: Record<string, number> = {
   "storage container show": 59,
   "storage blob list": 110,
   "storage blob show": 68,
+  "keyvault secret list": 100,
+  "keyvault key list": 95,
+  "keyvault certificate list": 95,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -192,6 +198,13 @@ describe("token budgets", () => {
     vi.mocked(requestStorageMetadata).mockResolvedValue({ rows: [storageMetadataRows[kind]] });
     const { argv: routed } = routeArgv(argv);
     await expectUnderBudget(argv.slice(0, 3).join(" "), await runStorage(routed.slice(1)));
+  });
+  it.each(offlineKeyvaultReads)("$name stays under its metadata ceiling", async ({ argv }) => {
+    const { requestKeyVaultMetadata } = await import("../src/lib/client.js");
+    const kind = argv[1] as "secret" | "key" | "certificate";
+    vi.mocked(requestKeyVaultMetadata).mockResolvedValue({ rows: [keyvaultMetadataRows[kind]], truncated: false });
+    const { argv: routed } = routeArgv(argv);
+    await expectUnderBudget(argv.slice(0, 3).join(" "), await runKeyvault(routed.slice(1)));
   });
   it("security alert update preview stays under its ceiling", async () => {
     writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {

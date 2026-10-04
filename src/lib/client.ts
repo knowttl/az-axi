@@ -12,6 +12,8 @@ import { packageInfo } from "./version.js";
 
 export type { Resource } from "./config.js";
 export { requestStorageMetadata } from "./storageMetadata.js";
+export { requestKeyVaultMetadata } from "./keyvaultMetadata.js";
+export type { KeyVaultKind, KeyVaultPage, KeyVaultRead } from "./keyvaultMetadata.js";
 
 export interface RequestOptions extends GateOptions {
   method?: string;

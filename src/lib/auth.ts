@@ -17,6 +17,7 @@ const RESOURCE_URL: Record<CredentialResource, string> = {
   logs: "https://api.loganalytics.io",
   graph: "https://graph.microsoft.com",
   storage: "https://storage.azure.com/",
+  vault: "https://vault.azure.net/",
 };
 
 const AZ_RESOURCE_ARGS: Record<CredentialResource, string[]> = {
@@ -24,6 +25,7 @@ const AZ_RESOURCE_ARGS: Record<CredentialResource, string[]> = {
   logs: ["--resource", RESOURCE_URL.logs],
   graph: ["--resource-type", "ms-graph"],
   storage: ["--resource", RESOURCE_URL.storage],
+  vault: ["--resource", RESOURCE_URL.vault],
 };
 
 export interface Credential {
@@ -82,13 +84,19 @@ async function azCredential(profile: ResolvedProfile, resource: CredentialResour
   try {
     const azArgs = ["account", "get-access-token", ...AZ_RESOURCE_ARGS[resource], "--output", "json"];
     if (profile.tenant) azArgs.push("--tenant", profile.tenant);
-    stdout = await runAz(azArgs, signal, resource === "storage");
+    stdout = await runAz(azArgs, signal, resource === "storage" || resource === "vault");
   } catch (err) {
     signal?.throwIfAborted();
     if (resource === "storage") {
       throw new AxiError("could not acquire an Entra storage token", "AUTH_REQUIRED", [
         "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_STORAGE_TOKEN",
         "Storage key and SAS fallback is disabled",
+      ]);
+    }
+    if (resource === "vault") {
+      throw new AxiError("could not acquire an Entra key vault token", "AUTH_REQUIRED", [
+        "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_VAULT_TOKEN",
+        "No key or certificate fallback exists; only Entra bearer auth is supported",
       ]);
     }
     throw azError(err instanceof Error ? err.message : String(err), profile, resource);
@@ -180,7 +188,7 @@ export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
  * `.cmd`/`.bat` shims correctly on Windows while still passing arguments
  * through as an argv array (not a shell command string), so there's no
  * shell-injection risk from argument values (e.g. `--tenant`).
- * The only place az-axi spawns `az`. Reviewed passthrough reads and storage
+ * The only place az-axi spawns `az`. Reviewed passthrough reads and storage or vault
  * token acquisition additionally close stdin, strip ambient overrides, disable
  * extension install and enforce a 30-second deadline and a combined 1 MiB byte ceiling.
  * On Windows, cancellation requests tree termination with `taskkill` and
