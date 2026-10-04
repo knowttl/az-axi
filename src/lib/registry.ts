@@ -3,6 +3,7 @@ import { redact } from "./redact.js";
 import type { RequestClass } from "./policy.js";
 import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
 import { AZ_HELP } from "./azHelp.js";
+import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 import { KEYVAULT_HELP, keyvaultLeafHelp } from "./keyvaultHelp.js";
 
@@ -78,6 +79,9 @@ export const COMMAND_LEAVES = [
   { path: "keyvault secret list", effect: "read", capability: "native", flags: { "vault-name": "value", "expiring-within": "value" } },
   { path: "keyvault key list", effect: "read", capability: "native", flags: { "vault-name": "value", "expiring-within": "value" } },
   { path: "keyvault certificate list", effect: "read", capability: "native", flags: { "vault-name": "value", "expiring-within": "value" } },
+  { path: "acr repository list", effect: "read", capability: "native", flags: { name: "value", marker: "literal" } },
+  { path: "acr repository show-tags", effect: "read", capability: "native", flags: { name: "value", repository: "value", orderby: "value", marker: "literal" } },
+  { path: "acr manifest show-metadata", effect: "read", capability: "native", flags: { registry: "value", name: "literal" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -129,6 +133,7 @@ const LOADERS = {
   az: () => import("../commands/az.js"),
   storage: () => import("../commands/storage.js"),
   keyvault: () => import("../commands/keyvault.js"),
+  acr: () => import("../commands/acr.js"),
 } satisfies Record<CommandName, () => Promise<CommandModule>>;
 
 let activeEffect: Effect | undefined;
@@ -188,12 +193,14 @@ const HELP_OVERVIEWS = {
   az: "az-axi az group show -n <name> --subscription <uuid>  # reviewed Azure CLI read",
   storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",
   keyvault: "az-axi keyvault secret|key|certificate list  # Entra-only vault property listings",
+  acr: "az-axi acr repository list|show-tags        # Entra-only registry catalog and tags",
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
 export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
   if (path.startsWith("storage ")) return storageLeafHelp(path);
   if (path.startsWith("keyvault ")) return keyvaultLeafHelp(path);
+  if (path.startsWith("acr ")) return acrLeafHelp(path);
   if (leaf.capability === "passthrough") return AZ_HELP;
   const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
   const canonical = path === leaf.path && leaf.handlerPath !== undefined;
@@ -282,6 +289,7 @@ const HELP_FOOTER = [
 const HELP_TEXT = {
   storage: STORAGE_HELP,
   keyvault: KEYVAULT_HELP,
+  acr: ACR_HELP,
   account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
   monitor: ["az-axi monitor log-analytics workspace list|show", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"]].join("\n"),
   az: AZ_HELP,

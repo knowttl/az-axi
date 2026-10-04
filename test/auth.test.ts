@@ -95,7 +95,6 @@ describe("az mode", () => {
     expect(render(error)).not.toContain("credential-value");
     expect(spawnMock).toHaveBeenCalledTimes(1);
   });
-
   it("vault requests only the Entra audience with isolated extensions", async () => {
     vi.stubEnv("AZURE_EXTENSION_DEV_SOURCES", "/hostile");
     fakeAz({ stdout: tokenJson() });
@@ -103,6 +102,19 @@ describe("az mode", () => {
     expect(result.header).toBe(`Bearer ${TOKEN}`);
     expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(spawnMock.mock.calls[0]![1]).toEqual(["account", "get-access-token", "--resource", "https://vault.azure.net/", "--output", "json", "--tenant", "tenant-example"]);
+    const vaultOptions = spawnMock.mock.calls[0]![2];
+    expect(vaultOptions.stdio).toEqual(["ignore", "pipe", "pipe"]);
+    expect(vaultOptions.env.AZURE_EXTENSION_DEV_SOURCES).toBe("");
+    expect(vaultOptions.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL).toBe("no");
+  });
+
+  it("registry requests only the Entra audience with the hardened reviewed-read spawn", async () => {
+    vi.stubEnv("AZURE_EXTENSION_DEV_SOURCES", "/hostile");
+    fakeAz({ stdout: tokenJson() });
+    const result = await resolveCredential(profile({ tenant: "tenant-example" }), "registry");
+    expect(result.header).toBe(`Bearer ${TOKEN}`);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock.mock.calls[0]![1]).toEqual(["account", "get-access-token", "--resource", "https://containerregistry.azure.net", "--output", "json", "--tenant", "tenant-example"]);
     const options = spawnMock.mock.calls[0]![2];
     expect(options.stdio).toEqual(["ignore", "pipe", "pipe"]);
     expect(options.env.AZURE_EXTENSION_DEV_SOURCES).toBe("");
@@ -114,6 +126,16 @@ describe("az mode", () => {
     const error = await failure(resolveCredential(profile(), "vault"));
     expect(error.code).toBe("AUTH_REQUIRED");
     expect(render(error)).toContain("AZ_AXI_VAULT_TOKEN");
+    expect(render(error)).not.toContain(TOKEN);
+    expect(render(error)).not.toContain("credential-value");
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("registry authentication failure names the registry token and never uses passwords", async () => {
+    fakeAz({ code: 1, stderr: `credential-value ${TOKEN}` });
+    const error = await failure(resolveCredential(profile(), "registry"));
+    expect(error.code).toBe("AUTH_REQUIRED");
+    expect(render(error)).toContain("AZ_AXI_REGISTRY_TOKEN");
     expect(render(error)).not.toContain(TOKEN);
     expect(render(error)).not.toContain("credential-value");
     expect(spawnMock).toHaveBeenCalledTimes(1);
@@ -520,6 +542,18 @@ describe("token mode", () => {
     clearCredentialCache();
     vi.stubEnv("AZ_AXI_VAULT_TOKEN", "");
     await expect(resolveCredential(profile({ auth: "token" }), "vault")).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+  it("registry uses its own token without an ARM token or password fallback", async () => {
+    vi.stubEnv("AZ_AXI_REGISTRY_TOKEN", "registry-token");
+    vi.stubEnv("AZ_AXI_ARM_TOKEN", "arm-token");
+    expect((await resolveCredential(profile({ auth: "token" }), "registry")).header).toBe("Bearer registry-token");
+    clearCredentialCache();
+    vi.stubEnv("CUSTOM_REGISTRY_TOKEN", "custom-registry-token");
+    expect((await resolveCredential(profile({ auth: "token", tokenEnv: { registry: "CUSTOM_REGISTRY_TOKEN" } }), "registry")).header).toBe("Bearer custom-registry-token");
+    clearCredentialCache();
+    vi.stubEnv("AZ_AXI_REGISTRY_TOKEN", "");
+    await expect(resolveCredential(profile({ auth: "token" }), "registry")).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
     expect(spawnMock).not.toHaveBeenCalled();
   });
   it("reads the env var named for the resource", async () => {

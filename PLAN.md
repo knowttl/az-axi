@@ -894,6 +894,22 @@ Reference: [List Containers](https://learn.microsoft.com/rest/api/storageservice
 This slice introduced collection-only metadata reads rather than value-returning single-object reads.
 See [Key Vault metadata reads](README.md#key-vault-metadata-reads) for the authoritative command, authentication, output and paging contracts.
 
+### 6.16 ACR repository/tag/manifest metadata reads
+
+Native `acr repository list|show-tags` and `acr manifest show-metadata` follow az's group/subgroup/verb grammar and are read-only and additive.
+`client.ts` exposes a dedicated registry metadata operation with no arbitrary method, URL, body or query-map input.
+It exchanges the Entra token (audience `https://containerregistry.azure.net/`) at the registry's own `oauth2/exchange` endpoint for a refresh token, then at `oauth2/token` for a pull-scoped access token (`registry:catalog:*` for the catalog, `repository:<name>:pull` for tags and manifests).
+It constructs only catalog GETs (`/acr/v1/_catalog`), tag GETs (`/acr/v1/<repository>/_tags`) and one exact manifest GET (`/v2/<repository>/manifests/<tag-or-digest>`) against the pinned `<registry>.azurecr.io` login server.
+Bearer auth for az profiles uses bounded `az account get-access-token --resource https://containerregistry.azure.net` acquisition with a sanitized child environment and extensions disabled, while token profiles use `AZ_AXI_REGISTRY_TOKEN` or `tokenEnv.registry`.
+No `docker login`, admin-user password, credential export, image pull, blob download or local output file is available.
+Native ARM envelopes and the raw API host map are unchanged.
+Redirects are refused, token and data responses have a 30-second deadline and a 1 MiB bound.
+Lists fetch one page (default 50, maximum 1000) with Link-header marker continuation and disclose unknown totals through nextMarker.
+Named tags resolve through one exact manifest GET, never by scanning tag lists.
+Safe output fields are name for repositories; name/digest/createdTime/lastUpdateTime for tags; digest/mediaType/schemaVersion plus config and layer descriptors for manifests.
+`--full` never broadens that schema and `--fields` rejects other fields.
+Reference: [Get Repositories](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-repositories?view=rest-registry-dataplane-2021-07-01), [Get Tags](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-tags?view=rest-registry-dataplane-2021-07-01), [Get Manifest](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-manifest?view=rest-registry-dataplane-2021-07-01), [Exchange AAD Token for ACR Refresh](https://learn.microsoft.com/en-us/rest/api/registry-dataplane/authentication/exchange-aad-access-token-for-acr-refresh-token?view=rest-registry-dataplane-2021-07-01) (api-version 2021-07-01).
+
 ## 7. Invariants
 
 These are non-negotiable. The agent must not weaken them; if one blocks progress, stop and ask the owner.
@@ -1405,6 +1421,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `sub list` | `az account list --query "length(@)"` |
 | `storage container/blob list/show` | Owner only: compare safe properties with the same Azure CLI operation using explicit `--auth-mode login`; worker tests use synthetic XML/headers and offline transports only |
 | `keyvault secret/key/certificate list` | Owner only: compare safe properties with `az keyvault secret|key|certificate list --vault-name <vault>`; worker tests use synthetic JSON and offline transports only |
+| `acr repository list/show-tags`, `acr manifest show-metadata` | Owner only: compare catalog, tag and manifest metadata with the same Azure CLI operation using Entra auth; worker tests use synthetic JSON/headers and offline transports only |
 | `account list/show` | Owner only: compare live ARM subscriptions under the same profile identity and selected scope; do not compare to an unrelated cached az account default |
 | `monitor log-analytics workspace list/show` | Owner only: `az monitor log-analytics workspace list -s <id>` and `show -g <group> -n <name> -s <id>` with identical scope |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
@@ -1477,6 +1494,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Resource locks | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources |
 | Storage metadata GET lists and HEAD properties (2023-11-03) | https://learn.microsoft.com/rest/api/storageservices/list-containers2 and https://learn.microsoft.com/rest/api/storageservices/list-blobs and https://learn.microsoft.com/rest/api/storageservices/get-container-properties and https://learn.microsoft.com/rest/api/storageservices/get-blob-properties |
 | Key Vault property listings (7.4) | https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets?view=rest-keyvault-secrets-7.4 and https://learn.microsoft.com/en-us/rest/api/keyvault/keys/get-keys?view=rest-keyvault-keys-7.4 and https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificates?view=rest-keyvault-certificates-7.4 |
+| Registry catalog, tags, manifest and token exchange (2021-07-01) | https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-repositories?view=rest-registry-dataplane-2021-07-01 and https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-tags?view=rest-registry-dataplane-2021-07-01 and https://learn.microsoft.com/en-us/rest/api/registry-dataplane/container-registry/get-manifest?view=rest-registry-dataplane-2021-07-01 and https://learn.microsoft.com/en-us/rest/api/registry-dataplane/authentication/exchange-aad-access-token-for-acr-refresh-token?view=rest-registry-dataplane-2021-07-01 |
 
 ### 15.3 Resource Graph
 

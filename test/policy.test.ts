@@ -190,6 +190,7 @@ describe("command effect registry", () => {
       az: "read",
       storage: "read",
       keyvault: "read",
+      acr: "read",
     });
   });
 

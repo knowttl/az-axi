@@ -14,6 +14,7 @@ export type { Resource } from "./config.js";
 export { requestStorageMetadata } from "./storageMetadata.js";
 export { requestKeyVaultMetadata } from "./keyvaultMetadata.js";
 export type { KeyVaultKind, KeyVaultPage, KeyVaultRead } from "./keyvaultMetadata.js";
+export { requestAcrMetadata } from "./acrMetadata.js";
 
 export interface RequestOptions extends GateOptions {
   method?: string;
