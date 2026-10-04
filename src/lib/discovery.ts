@@ -7,6 +7,7 @@ import type { ResolvedProfile } from "./config.js";
 import { emptyState, pickFields } from "./format.js";
 import { commandFlags } from "./registry.js";
 import { SECRET_ACTIONS } from "./policy.js";
+import { formatFlagValue } from "./shell.js";
 
 interface ArmItem extends Record<string, unknown> {
   id: string;
@@ -177,10 +178,10 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
   const noun = kind === "workspace" ? "workspaces" : kind === "group" ? "resource groups" : "resources";
   const detailSelectors = kind === "workspace" ? ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
-    .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("") : "";
+    .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("") : "";
   const selectors = ["profile", "config", "tenant", "subscription", "resource-group", "name", "resource-type"]
     .filter((key) => typeof args.flags[key] === "string")
-    .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
+    .map((key) => kind === "workspace" ? ` ${formatFlagValue(key, args.flags[key] as string)}` : ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
   return {
     profile: profile.name,
     total: incomplete ? `${items.length}+` : items.length,

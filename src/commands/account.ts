@@ -6,6 +6,7 @@ import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { subscriptions } from "../lib/discovery.js";
 import { emptyState, pickFields } from "../lib/format.js";
 import { commandMeta } from "../lib/registry.js";
+import { formatFlagValue } from "../lib/shell.js";
 
 export const meta = commandMeta("account");
 interface Subscription extends Record<string, unknown> {
@@ -48,10 +49,10 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const suffix = page.nextLink ? "+" : "";
   const identitySelectors = ["profile", "config", "tenant"]
     .filter((key) => typeof args.flags[key] === "string")
-    .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
+    .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
   const selectors = ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
-    .map((key) => ` --${key} ${JSON.stringify(args.flags[key])}`).join("");
+    .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
   return { profile: profile.name, total: page.nextLink ? `${items.length}+` : items.length,
     count: `${shown.length} of ${items.length}${suffix} subscriptions`,
     subscriptions: shown.length ? pickFields(shown.map((item) => metadata(item, full || !!fields)), fields) : emptyState("subscriptions", page.nextLink ? "in fetched pages; listing is incomplete" : "in selected scope"),

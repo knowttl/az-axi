@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { quoteFlagValue } from "../src/lib/shell.js";
 import { discoveryAccount, discoveryWorkspace, SUB_A, SUB_B, subscriptionList, TENANT, WORKSPACE } from "./samples.js";
 
 const workspace = ["monitor", "log-analytics", "workspace"];
@@ -14,7 +15,7 @@ describe("built CLI workspace and account reads offline", () => {
     writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
-  function run(argv: string[], mode = "normal") {
+  function run(argv: string[] | string, mode = "normal") {
     const stub = `
       const data = ${JSON.stringify({ discoveryAccount, discoveryWorkspace, subscriptionList })};
       const mode = ${JSON.stringify(mode)};
@@ -28,7 +29,8 @@ describe("built CLI workspace and account reads offline", () => {
           const rows = mode === 'ambiguous' ? data.subscriptionList.map(s => ({...s,displayName:'Sandbox'})) : data.subscriptionList;
           body = {value: mode === 'empty' ? [] : rows};
         } else if (path.startsWith('/subscriptions/') && path.split('/').length === 3) body = data.discoveryAccount;
-        else if (path.endsWith('/workspaces')) body = {value: mode === 'empty' ? [] : [data.discoveryWorkspace]};
+        else if (path.endsWith('/workspaces')) body = {value: mode === 'empty' ? [] : [{...data.discoveryWorkspace,
+          id: mode === 'scoped' ? data.discoveryWorkspace.id.replace(data.discoveryAccount.subscriptionId, path.split('/')[2]) : data.discoveryWorkspace.id}]};
         else if (path.endsWith('/workspaces/logs-demo')) body = data.discoveryWorkspace;
         else throw new Error('unexpected offline path: ' + path);
         if (mode === 'hostile' && path.includes('/workspaces')) {
@@ -44,8 +46,10 @@ describe("built CLI workspace and account reads offline", () => {
         return Response.json(body);
       };
     `;
-    return spawnSync(process.execPath, ["--import", `data:text/javascript,${encodeURIComponent(stub)}`, "dist/bin/az-axi.js", ...argv], {
-      encoding: "utf8", env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
+    const preload = `data:text/javascript,${encodeURIComponent(stub)}`;
+    return spawnSync(typeof argv === "string" ? "sh" : process.execPath, typeof argv === "string" ? ["-s"] : ["--import", preload, "dist/bin/az-axi.js", ...argv], {
+      encoding: "utf8", input: typeof argv === "string" ? `cli() { ${quoteFlagValue(process.execPath)} --import ${quoteFlagValue(preload)} dist/bin/az-axi.js "$@"; }; ${argv.replace(/^az-axi /, "cli ")}` : undefined,
+      env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci", AZ_AXI_TENANT: "", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_ARM_TOKEN: "offline-token", AZ_AXI_READ_ONLY: "1", AZ_AXI_USAGE_LOG: "0" },
     });
   }
   it.each([{ path: ["account"] }, { path: workspace }])("lists $path across pages, resolves names, and reports empty results", ({ path }) => {
@@ -63,7 +67,7 @@ describe("built CLI workspace and account reads offline", () => {
   });
   it.each([
     { path: ["account"], target: "--subscription <id>", scope: "", details: ["--subscription", SUB_A], suffix: "for live details" },
-    { path: workspace, target: "--ids <ARM-id>", scope: ` --subscription ${JSON.stringify(SUB_A)}`, details: ["--ids", discoveryWorkspace.id, "--subscription", SUB_A], suffix: "for details" },
+    { path: workspace, target: "--ids <ARM-id>", scope: ` --subscription ${SUB_A}`, details: ["--ids", discoveryWorkspace.id, "--subscription", SUB_A], suffix: "for details" },
   ])("preserves explicit identity and scope in $path detail hints", ({ path, target, scope, details, suffix }) => {
     const config = join(dir, "profiles with spaces.json");
     writeFileSync(config, JSON.stringify({ defaultProfile: "ci", profiles: {
@@ -73,13 +77,31 @@ describe("built CLI workspace and account reads offline", () => {
     const list = run([...path, "list", ...identity, "--subscription", SUB_A]);
     expect(list.status, list.stdout).toBe(0);
     expect(decode(list.stdout)).toMatchObject({ profile: "prod", total: 1,
-      help: [`Run \`az-axi ${path.join(" ")} show ${target} --profile "prod" --config ${JSON.stringify(config)} --tenant ${JSON.stringify(TENANT)}${scope}\` ${suffix}`],
+      help: [`Run \`az-axi ${path.join(" ")} show ${target} --profile prod --config '${config}' --tenant ${TENANT}${scope}\` ${suffix}`],
     });
     const show = run([...path, "show", ...details, ...identity]);
     expect(show.status, show.stdout).toBe(0);
     expect(decode(show.stdout)).toMatchObject({ profile: "prod" });
     expect(show.stdout).toContain(SUB_A);
     expect(show.stderr).toContain(`/subscriptions/${SUB_A}`);
+  });
+  it.each([
+    { path: ["account"], hint: 0, mode: "normal", subscriptions: [SUB_A], filters: [], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "-prod", account: { id: SUB_A } } },
+    { path: workspace, hint: 0, mode: "normal", subscriptions: [SUB_A], filters: [], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "-prod", workspace: { id: discoveryWorkspace.id } } },
+    { path: ["account"], hint: 1, mode: "normal", subscriptions: [SUB_A, SUB_B], filters: [], requestPath: "/subscriptions?", expected: { profile: "-prod", total: 2 } },
+    { path: workspace, hint: 1, mode: "scoped", subscriptions: [SUB_A, SUB_B], filters: ["--resource-group", "rg-demo", "--name", "logs-demo"], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "-prod", total: 2 } },
+  ])("executes $path hint $hint through a shell with literal dollar paths and leading-dash profiles", ({ path, hint, mode, subscriptions, filters, requestPath, expected }) => {
+    const config = join(dir, "profiles $prod's.json");
+    writeFileSync(config, JSON.stringify({ profiles: { "-prod": { auth: "token", subscriptions: [SUB_B] } } }));
+    const list = run([...path, "list", "--config", config, "--profile=-prod", "--tenant", TENANT, "--subscription", ...subscriptions, ...filters, "--limit", "1"], mode);
+    expect(list.status, list.stdout).toBe(0);
+    const output = decode(list.stdout) as { help: string[] };
+    const command = output.help[hint]!.split("`")[1]!.replace("<id>", SUB_A).replace("<ARM-id>", discoveryWorkspace.id);
+    const followed = run(command, mode);
+    expect(followed.status, followed.stdout + followed.stderr).toBe(0);
+    expect(decode(followed.stdout)).toMatchObject(expected);
+    expect(followed.stdout).toContain(SUB_A);
+    expect(followed.stderr).toContain(requestPath);
   });
   it("shows account full metadata and requested fields", () => {
     const result = run(["account", "show", "-s", "Sandbox", "--full"]);
