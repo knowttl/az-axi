@@ -495,6 +495,16 @@ The example values above are the synthetic identifiers mandated in Section 7.3. 
 
 ## 6. Command specifications
 
+### Native ARM discovery
+
+`group list/show` and `resource list/show` use ARM GETs with compact IDs/counts, full metadata, field selection and explicit paging-cap disclosure.
+Subscription names resolve read-only and reject ambiguous or incomplete subscription discovery.
+Resource name lookup constructs the exact ARM ID from resource group, namespace, type and name pairs in one selected subscription.
+Resource detail uses the newest stable provider version unless overridden.
+Credential-bearing child resources and actions are refused before retrieval.
+Management-group scope is unsupported; select subscriptions explicitly.
+Reference: https://learn.microsoft.com/en-us/rest/api/resources/resource-groups/list?view=rest-resources-2021-04-01 and https://learn.microsoft.com/en-us/rest/api/resources/resources/list?view=rest-resources-2021-04-01; specification/resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/resources.json.
+
 Conventions for every command:
 
 - Default output is a list with 3 to 5 fields per row. `--fields a,b,c` overrides. `--full` disables truncation (default cell truncation is 200 characters; long text blocks use upstream's 1,200).
@@ -1355,6 +1365,8 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `doctor` (identity) | `az account show --query "{name:user.name,type:user.type,tenant:tenantId}"` |
 | `sub list` | `az account list --query "length(@)"` |
 | `az group show -n <name> --subscription <uuid>` | Owner only: compare id/name/location/state with `az group show -n <name> --subscription <uuid>` on the same trusted pinned runtime and account; worker verification uses only a fake executable |
+| `group list/show` | `az group list` and `az group show -n <group> -s <subscription>` with identical subscription scope |
+| `resource list/show` | `az resource list -g <group>` and `az resource show --ids <ARM-id>` with identical subscription and API version |
 | `rg query "<kql>"` | Same query in the portal's Resource Graph Explorer, or `az graph query -q "<kql>"` (resource-graph extension) |
 | `rbac list --privileged` | `az role assignment list --all --query "[?roleDefinitionName=='Owner'] \| length(@)"` and the same for the other privileged roles |
 | `activity list --since 24h --status Failed` | `az monitor activity-log list --offset 24h --status Failed --query "length(@)"` |
@@ -1415,6 +1427,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Throttling and request limits | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling |
 | Asynchronous operations | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/async-operations |
 | Subscriptions - List | https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/list |
+| Resource groups, resources and providers - List/Get | https://learn.microsoft.com/en-us/rest/api/resources/resource-groups/list and https://learn.microsoft.com/en-us/rest/api/resources/resources/get-by-id |
 | Deployments - What If | https://learn.microsoft.com/en-us/rest/api/resources/deployments/what-if |
 | Resource locks | https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/lock-resources |
 

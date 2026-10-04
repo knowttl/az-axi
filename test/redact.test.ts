@@ -55,7 +55,9 @@ describe("redact", () => {
     });
   });
 
-  it.each(["password", "adminPassword", "clientSecret", "accessToken", "connectionString", "sas", "credential", "storageKey", "primaryKeys"])(
+  it.each(["password", "adminPassword", "clientSecret", "accessToken", "connectionString", "sas", "credential", "storageKey", "primaryKeys",
+    "authorization", "AUTHORIZATION", "x-api-key", "api-key", "apikey", "ocp-apim-subscription-key", "x-functions-key",
+    "custom-key", "custom-token", "custom-secret", "X_API_KEY", "Connection_String", "ADMIN_PASSWORD"])(
     "redacts a string under the key %s",
     (key) => {
       expect(redact({ [key]: "v" })).toEqual({ [key]: REDACTED });

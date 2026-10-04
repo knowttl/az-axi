@@ -25,6 +25,36 @@ export const azResourceGroup = {
   id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, name: "rg-demo", location: "westeurope",
   properties: { provisioningState: "Succeeded" }, tags: { owner: "ops" },
 };
+// source: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/examples/ListResourceGroups.json
+export const discoveryGroup = {
+  id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo`, name: "rg-demo", location: "westus",
+  properties: { provisioningState: "Succeeded" }, tags: { env: "test" },
+};
+// source: resources/resource-manager/Microsoft.Resources/resources/stable/2021-04-01/examples/ListResources.json
+export const discoveryResource = {
+  id: `${discoveryGroup.id}/providers/Microsoft.Compute/virtualMachines/vm1`,
+  name: "vm1", type: "Microsoft.Compute/virtualMachines", location: "westus", tags: { env: "test" },
+  properties: { provisioningState: "Succeeded" },
+};
+
+export const discoveryWorkflow = {
+  id: `${discoveryGroup.id}/providers/Microsoft.Logic/workflows/http-demo`,
+  name: "http-demo", type: "Microsoft.Logic/workflows", location: "westus",
+  properties: { definition: { actions: { http: { type: "Http", inputs: {
+    headers: {
+      authorization: "opaque-header-value", "x-api-key": "opaque-header-value",
+      "api-key": "opaque-header-value", apikey: "opaque-header-value",
+      "ocp-apim-subscription-key": "opaque-header-value", "x-functions-key": "opaque-header-value",
+      "custom-key": "opaque-header-value", "custom-token": "opaque-header-value",
+      "custom-secret": "opaque-header-value", password: "opaque-header-value",
+      connectionstring: "opaque-header-value", X_API_KEY: "opaque-header-value",
+      "Connection_String": "opaque-header-value", Accept: "application/json",
+    },
+    authentication: { type: "Raw", value: "Basic dXNlcjpwYXNz" },
+  } }, certificate: { type: "Http", inputs: {
+    authentication: { type: "ClientCertificate", pfx: "opaque-pfx-value" },
+  } } } } },
+};
 
 // source: resources/resource-manager/Microsoft.Resources/subscriptions/stable/2022-12-01/examples/GetSubscriptions.json
 export const subscriptionList = [

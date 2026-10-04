@@ -20,6 +20,7 @@ vi.mock("../src/lib/client.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../src/lib/client.js")>(),
   sendRequest: vi.fn(),
   requestAll: vi.fn(),
+  request: vi.fn(),
 }));
 vi.mock("../src/lib/auth.js", () => ({ runAz: vi.fn(), identityOf: vi.fn(), resolveCredential: vi.fn() }));
 vi.mock("../src/lib/stdin.js", () => ({ readStdinIfPiped: vi.fn() }));
@@ -28,6 +29,8 @@ import { run as runHome } from "../src/commands/home.js";
 import { run as runDoctor } from "../src/commands/doctor.js";
 import { run as runConfig } from "../src/commands/config.js";
 import { run as runSub } from "../src/commands/sub.js";
+import { run as runGroup } from "../src/commands/group.js";
+import { run as runResource } from "../src/commands/resource.js";
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runActivity } from "../src/commands/activity.js";
@@ -38,7 +41,7 @@ import { run as runApi } from "../src/commands/api.js";
 import { run as runSecurity } from "../src/commands/security.js";
 import { run as runPassthrough } from "../src/commands/az.js";
 import { identityOf, resolveCredential, runAz } from "../src/lib/auth.js";
-import { requestAll, sendRequest } from "../src/lib/client.js";
+import { request, requestAll, sendRequest } from "../src/lib/client.js";
 import { collapseHomeDirectory } from "../src/lib/paths.js";
 import {
   DEFENDER_ACTIVE_ALERT_COUNTS,
@@ -53,6 +56,8 @@ import {
   SUB_A,
   TENANT,
   azResourceGroup,
+  discoveryGroup,
+  discoveryResource,
   WORKSPACE,
   activityEvents,
   apiListResponse,
@@ -91,6 +96,10 @@ const CEILINGS: Record<string, number> = {
   doctor: 132,
   "config list": 146,
   "sub list": 136,
+  "group list": 111,
+  "group show": 69,
+  "resource list": 122,
+  "resource show": 84,
   "rg query": 204,
   "rbac list": 150,
   "activity list": 201,
@@ -141,6 +150,7 @@ beforeEach(() => {
   clearSubscriptionCache();
   sendMock.mockReset();
   allMock.mockReset();
+  vi.mocked(request).mockReset();
   identityMock.mockReset();
   credentialMock.mockReset();
   runAzMock.mockReset();
@@ -177,6 +187,16 @@ describe("token budgets", () => {
       .mockResolvedValueOnce(JSON.stringify({ id: SUB_A, tenantId: TENANT, environmentName: "AzureCloud", state: "Enabled", user: { name: "ada@contoso.com", type: "user" } }))
       .mockResolvedValueOnce(JSON.stringify(azResourceGroup));
     await expectUnderBudget("az group show", await runPassthrough([...offlinePassthroughReads[0]!.argv.slice(1), "--subscription", SUB_A]));
+  });
+  it.each([
+    { key: "group list", run: runGroup, sample: discoveryGroup, argv: ["list"] },
+    { key: "group show", run: runGroup, sample: discoveryGroup, argv: ["show", "--name", "rg-demo"] },
+    { key: "resource list", run: runResource, sample: discoveryResource, argv: ["list"] },
+    { key: "resource show", run: runResource, sample: discoveryResource, argv: ["show", "--ids", discoveryResource.id, "--api-version", "2025-01-01"] },
+  ])("$key stays under its ceiling", async ({ key, run, sample, argv }) => {
+    allMock.mockResolvedValue({ items: [sample] } as never);
+    vi.mocked(request).mockResolvedValue(sample);
+    await expectUnderBudget(key, await run([...argv, "--subscription", SUB_A]));
   });
   it("home stays under its ceiling", async () => {
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {

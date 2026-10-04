@@ -244,6 +244,32 @@ Use `az-axi monitor log-analytics query --help` for workspace IDs, query input h
 
 ## Use
 
+```sh
+az-axi group list
+az-axi group show -n rg-demo -s <subscription>
+az-axi resource list -g rg-demo
+az-axi resource show --ids <ARM-id> --full
+```
+
+Discovery uses live ARM GETs.
+Lists and name-based shows use subscription flags, environment or profile scope, otherwise all accessible subscriptions.
+`resource show --ids` uses the ID's subscription when no subscription scope is configured; otherwise that subscription must be included in the selected scope.
+Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
+Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
+`--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
+Group views default to name, id, location and state; `--fields state` selects the group's provisioning state even with `--full`.
+`resource list --resource-group` scopes the list; `--name` and `--resource-type` filter exact, case-insensitive matches.
+Generic `resource show` returns only the ARM envelope: id, name, type, kind, location, tags, sku, identity type and provisioningState.
+Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
+Provider `properties` and nested field paths are rejected by `--fields`; no show view returns the raw properties blob.
+Use typed commands for provider details, or the raw `az-axi api` path with its existing redaction.
+Paging stops at 100 pages per subscription and marks incomplete counts as lower bounds.
+Show by name requires one subscription; resource show also requires `--resource-group` and `--resource-type`, or exactly one `--ids` instead.
+Resource show selects the newest stable provider API version unless `--api-version` is supplied.
+Credential-bearing child resources and actions are refused before retrieval.
+Management-group discovery is unsupported; select subscriptions explicitly.
+Existing command scope, defaults and aliases are unchanged.
+
 One example per inspection command; see [Profiles](#profiles) for `config init` and `config path` examples.
 Every command also accepts `--help` with its full reference.
 
@@ -291,8 +317,8 @@ All legacy paths remain available.
 Command paths must be complete and contiguous; put command flags after the full leaf path.
 Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
 `--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
-`rg query` continues to mean Resource Graph; resource groups use `group` when supported.
-Account/resource discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
+`rg query` continues to mean Resource Graph; use `group list/show` for resource groups and `resource list/show` for ARM resources, as described [above](#use).
+Account discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
 For the native alert status write and its legacy alias, see [Writes](#writes).
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
 

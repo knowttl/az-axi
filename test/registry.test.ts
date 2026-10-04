@@ -24,6 +24,7 @@ describe("exact leaf contracts", () => {
   it("records canonical query leaves while retaining legacy aliases", () => {
     expect(COMMAND_LEAVES.map((leaf) => leaf.path)).toEqual([
       "home", "doctor", "config init", "config list", "config path", "sub list",
+      "group list", "group show", "resource list", "resource show",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
       "security alert update", "defender assessments", "defender score", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
     ]);
@@ -77,7 +78,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => name !== "az" && name !== "security")
+      .filter(([name]) => name !== "az" && name !== "security" && name !== "group" && name !== "resource")
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

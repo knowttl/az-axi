@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encode } from "@toon-format/toon";
@@ -8,7 +8,14 @@ import { countTokens } from "./tokens.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 if (process.argv.length !== 2) throw new Error("Usage: pnpm bench (see BENCHMARK.md)");
-const files = scenarios.map((scenario) => new URL(`../../benchmark/fixtures/${scenario.name}.json`, import.meta.url));
+const replayScenarios = scenarios.filter((scenario) => {
+  if (scenario.ownerTarget && !existsSync(new URL(`../../benchmark/fixtures/${scenario.name}.json`, import.meta.url))) {
+    process.stderr.write(`Skipped ${scenario.name}: optional capture is absent\n`);
+    return false;
+  }
+  return true;
+});
+const files = replayScenarios.map((scenario) => new URL(`../../benchmark/fixtures/${scenario.name}.json`, import.meta.url));
 // Read every capture before creating scratch files or starting a CLI.
 const captures = files.map((file) => JSON.parse(readFileSync(file, "utf8")));
 const scratch = mkdtempSync(join(root, "benchmark/fixtures/replay-"));
@@ -18,7 +25,7 @@ try {
     auth: "token", subscriptions: ["00000000-0000-0000-0000-000000000001"],
     workspaces: { benchmark: "00000000-0000-0000-0000-000000000010" },
   } } }), { mode: 0o600 });
-  const rows = scenarios.map((scenario, index) => {
+  const rows = replayScenarios.map((scenario, index) => {
     const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
       ...scenario.argv, "--profile", "benchmark", "--subscription", "00000000-0000-0000-0000-000000000001"], {
       cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
