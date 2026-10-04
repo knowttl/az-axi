@@ -696,7 +696,8 @@ See [Writes](#writes) for the read-only policy.
 | `PRECONDITION_FAILED` | 1 | HTTP 412: ETag mismatch; re-run the dry run before retrying |
 | `OPERATION_FAILED` | 1 | Long-running operation reported Failed or Canceled |
 | `OPERATION_TIMEOUT` | 1 | Polling budget expired; use the suggested `op status` command |
-| `CONFLICT` | 1 | HTTP 409 from ARM |
+| `CONFLICT` | 1 | HTTP 409 from ARM, an NSG rule found at the pre-write check, or a post-write rule mismatch; see [Writes](#writes) |
+| `VERIFY_FAILED` | 1 | NSG rule PUT was sent, but the immediate post-write read failed; see [Writes](#writes) |
 | `TLS_ERROR` | 1 | Certificate trust failure; see TLS-inspecting proxies in Configure |
 | `RATE_LIMITED` | 1 | HTTP 429 or throttled; the hint carries the retry delay |
 | `NETWORK_ERROR` | 1 | The request could not be sent |
