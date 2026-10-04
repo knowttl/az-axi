@@ -211,11 +211,8 @@ describe("benchmark surface", () => {
         const workspaceList = response("GET", { value: [{
           id: `/subscriptions/${sub}/resourceGroups/contoso-team/providers/Microsoft.OperationalInsights/workspaces/contoso-ws`,
           name: "contoso-ws",
-          properties: { customerId: "contoso-customer" },
+          properties: { customerId: "00000000-0000-0000-0000-000000000020" },
         }] });
-        // The replay matches the workspace by customer ID against the
-        // benchmark profile alias, so the synthetic GUID must survive scrubbing.
-        workspaceList.body.value[0].properties.customerId = "00000000-0000-0000-0000-000000000010";
         responses = [
           workspaceList,
           response("GET", { value: [{
@@ -240,8 +237,11 @@ describe("benchmark surface", () => {
     }
     const accountCapture = join(dir, "benchmark/fixtures/account-list.json");
     const persistedAccount = readFileSync(accountCapture, "utf8");
+    const sentinelCapture = join(dir, "benchmark/fixtures/sentinel-incidents.json");
+    const persistedSentinel = readFileSync(sentinelCapture, "utf8");
     const bootstrap = join(dir, "bootstrap.mjs");
     const accountOutput = join(dir, "account-output.toon");
+    const sentinelOutput = join(dir, "sentinel-output.toon");
     writeFileSync(bootstrap, [
       'import childProcess from "node:child_process";',
       'import { syncBuiltinESMExports } from "node:module";',
@@ -250,6 +250,7 @@ describe("benchmark surface", () => {
       'childProcess.spawnSync = (command, argv, options) => {',
       '  const child = spawnSync(command, argv, options);',
       `  if (argv.includes("account") && argv.includes("list")) writeFileSync(${JSON.stringify(accountOutput)}, child.stdout);`,
+      `  if (argv.includes("sentinel")) writeFileSync(${JSON.stringify(sentinelOutput)}, child.stdout);`,
       '  return child;',
       '};',
       'syncBuiltinESMExports();',
@@ -262,6 +263,12 @@ describe("benchmark surface", () => {
     });
     expect(output.subscriptions).toEqual([{ id: sub, name: scrub("contoso-sub"), state: "Enabled", tenantId: scrub(tenantId) }]);
     expect(readFileSync(accountCapture, "utf8")).toBe(persistedAccount);
+    expect(decode(readFileSync(sentinelOutput, "utf8"))).toMatchObject({
+      total: 1,
+      rows: [{ number: 7, title: scrub("contoso-title"), severity: "High", status: "Active", time: expect.stringMatching(/^2026-10-02(?: 12:34)?$/) }],
+    });
+    expect(readFileSync(sentinelCapture, "utf8")).toBe(persistedSentinel);
+    expect(persistedSentinel).not.toContain("00000000-0000-0000-0000-000000000020");
     expect(JSON.parse(persistedAccount).responses[0].body.value[0].subscriptionId).toBe(scrub(capturedSub));
     expect(persistedAccount).not.toContain(capturedSub);
     expect(child.stdout).toContain(rows);

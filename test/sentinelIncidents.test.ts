@@ -23,7 +23,7 @@ let dir: string;
 const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_TENANT"];
 let saved: Record<string, string | undefined>;
 
-function mockTransport(options: { incidents?: unknown[]; nextLink?: string; workspaces?: unknown[] } = {}) {
+function mockTransport(options: { incidents?: unknown[]; nextLink?: string; workspaces?: unknown[]; workspaceNextLink?: string } = {}) {
   const incidents = options.incidents ?? sentinelIncidents;
   allMock.mockImplementation(async (_profile: unknown, requestOptions: Record<string, unknown>) => {
     const path = String(requestOptions["path"] ?? "");
@@ -33,7 +33,10 @@ function mockTransport(options: { incidents?: unknown[]; nextLink?: string; work
         { subscriptionId: SUB_B, displayName: "Lab" },
       ] };
     }
-    if (/\/workspaces$/i.test(path)) return { items: options.workspaces ?? [discoveryWorkspace] };
+    if (/\/workspaces$/i.test(path)) return {
+      items: options.workspaces ?? [discoveryWorkspace],
+      ...(options.workspaceNextLink ? { nextLink: options.workspaceNextLink } : {}),
+    };
     if (/\/incidents$/i.test(path)) {
       return { items: incidents, ...(options.nextLink ? { nextLink: options.nextLink } : {}) };
     }
@@ -120,6 +123,27 @@ describe("sentinel incident list", () => {
     expect(requested.some((path) => path.endsWith("/providers/Microsoft.OperationalInsights/workspaces"))).toBe(true);
   });
 
+  it.each(["assignedTo", "email", "userPrincipalName"])("matches the owner's %s independently", async (identity) => {
+    mockTransport({ incidents: [{ ...INCIDENT_A, properties: {
+      ...INCIDENT_A.properties,
+      owner: { assignedTo: "Display name", email: "other@contoso.com", userPrincipalName: "other-upn@contoso.com", [identity]: "Hunter@contoso.com" },
+    } }] });
+    await expect(run(["incident", "list", ...SELECTORS, "--owner", "hunter@contoso.com"]))
+      .resolves.toMatchObject({ total: 1 });
+  });
+
+  it.each([
+    ["list", "sentinel", []],
+    ["list", WORKSPACE, [discoveryWorkspace]],
+    ["show", "sentinel", []],
+    ["show", WORKSPACE, [discoveryWorkspace]],
+  ])("refuses incomplete workspace resolution for %s with %s", async (verb, workspace, workspaces) => {
+    useProfile("ci", { auth: "token", subscriptions: [SUB_A], workspaces: { sentinel: WORKSPACE } });
+    mockTransport({ workspaces, workspaceNextLink: "https://management.azure.com/next" });
+    await expect(run(["incident", verb, "--workspace", workspace, ...(verb === "show" ? ["--name", INCIDENT_A.name!] : [])]))
+      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("100 pages") });
+  });
+
   it("reports an explicit empty state with widening hints", async () => {
     mockTransport({ incidents: [] });
     const result = await run(["incident", "list", ...SELECTORS]);
@@ -138,6 +162,13 @@ describe("sentinel incident list", () => {
     expect(result.help).toEqual(expect.arrayContaining([expect.stringContaining("lower bounds")]));
   });
 
+  it.each([{ incidents: [] }, { incidents: [INCIDENT_B] }])("discloses incomplete searches when no fetched incidents match: $incidents", async ({ incidents }) => {
+    mockTransport({ incidents, nextLink: "https://management.azure.com/next" });
+    const result = await run(["incident", "list", ...SELECTORS, "--status", "Active"]);
+    expect(result).toMatchObject({ total: "0+", rows: expect.stringContaining("search is incomplete") });
+    expect(result.help).toEqual(expect.arrayContaining([expect.stringContaining("lower bounds")]));
+  });
+
   it("needs exactly one subscription for a single-workspace list", async () => {
     await expect(run(["incident", "list", "--resource-group", "rg-demo", "--workspace-name", "logs-demo"]))
       .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("exactly one subscription") });
@@ -147,7 +178,9 @@ describe("sentinel incident list", () => {
     const full = await run(["incident", "list", ...SELECTORS, "--full"]);
     expect(full.rows).toHaveLength(2);
     expect((full.rows as Array<Record<string, unknown>>)[0]).toMatchObject(
-      { number: 3177, id: expect.stringContaining("/incidents/"), owner: "Casey Hunter", created: "2026-09-30T13:15:30Z" });
+      { number: 3177, id: INCIDENT_A.id, owner: "Casey Hunter", created: "2026-09-30T13:15:30Z" });
+    const byId = await run(["incident", "show", "--ids", String((full.rows as Array<Record<string, unknown>>)[0]!.id)]);
+    expect(byId).toMatchObject({ number: 3177, id: INCIDENT_A.id });
     const fields = await run(["incident", "list", ...SELECTORS, "--fields", "number,owner"]);
     expect(fields.rows).toEqual([{ number: 3177, owner: "Casey Hunter" }, { number: 3176, owner: "" }]);
   });
@@ -228,6 +261,14 @@ describe("sentinel incident show", () => {
       code: "NOT_FOUND",
       message: expect.stringContaining("incident number 9999"),
     });
+  });
+
+  it.each(["name", "incident-id"])("reports incomplete number searches through --%s", async (flag) => {
+    mockTransport({ nextLink: "https://management.azure.com/next" });
+    await expect(run(["incident", "show", `--${flag}`, "9999", ...SELECTORS]))
+      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("10 pages") });
+    await expect(run(["incident", "show", `--${flag}`, "3177", ...SELECTORS]))
+      .resolves.toMatchObject({ number: 3177 });
   });
 
   it("expands long descriptions only with --full", async () => {

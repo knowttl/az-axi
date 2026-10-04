@@ -7,7 +7,7 @@ import type { ResolvedProfile } from "../lib/config.js";
 import { subscriptions } from "../lib/discovery.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
-import { parseSubscriptionId, shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
+import { parseSubscriptionId, subscriptionNameMap } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
 
@@ -197,6 +197,13 @@ async function resolveWorkspace(
   const page = await requestAll<WorkspaceItem>(profile,
     { method: "GET", path: `/subscriptions/${subscription}/providers/Microsoft.OperationalInsights/workspaces`, apiVersion: LOG_ANALYTICS_WORKSPACES }, 100);
   const matches = page.items.filter((item) => item.properties?.customerId?.toLowerCase() === guid.toLowerCase());
+  if (page.nextLink && matches.length < 2) {
+    throw new AxiError(
+      `workspace search is incomplete; paging stopped at 100 pages in subscription ${subscription}`,
+      "INCOMPLETE_SEARCH",
+      ["Use --workspace-name and --resource-group to select the workspace directly"],
+    );
+  }
   if (matches.length !== 1) {
     throw new AxiError(
       matches.length === 0
@@ -260,7 +267,8 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     const properties = incident.properties ?? {};
     if (statuses?.length && !statuses.includes((properties.status ?? "").toLowerCase())) return false;
     if (severities?.length && !severities.includes((properties.severity ?? "").toLowerCase())) return false;
-    if (owner && !ownerText(properties.owner).toLowerCase().includes(owner)) return false;
+    if (owner && ![properties.owner?.assignedTo, properties.owner?.email, properties.owner?.userPrincipalName]
+      .some((identity) => identity?.toLowerCase().includes(owner))) return false;
     if (sinceMs !== undefined && eventTime(properties.createdTimeUtc) < sinceMs) return false;
     return true;
   });
@@ -271,12 +279,13 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     return {
       profile: profile.name,
       workspace: target.workspaceName,
-      total: 0,
+      total: page.nextLink ? "0+" : 0,
       count: countLine(0, 0, "incidents"),
-      rows: emptyState("incidents", scopeHint),
+      rows: emptyState("incidents", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
         `Widen the window: \`az-axi sentinel incident list${suffix} --since 30d\``,
         `Drop a filter: \`az-axi sentinel incident list${suffix}\``,
+        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --status, --severity, --owner or --since."] : []),
       ],
     };
   }
@@ -290,13 +299,9 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     byStatus[status] = (byStatus[status] ?? 0) + 1;
   }
 
-  const names = full ? undefined : await subscriptionNameMap(profile);
+  if (!full) await subscriptionNameMap(profile);
   const base = full || fields ? fullRow : compactRow;
-  const shown = (full ? collected : collected.slice(0, limit)).map((incident) => {
-    const row = base(incident);
-    if (full && !fields) row.id = shortenResourceId(String(row.id), names);
-    return row;
-  });
+  const shown = (full ? collected : collected.slice(0, limit)).map(base);
   const picked = pickFields(shown, fields);
 
   const first = collected[0]!;
@@ -334,6 +339,12 @@ async function listForNumber(
     .filter((incident) => incident.properties?.incidentNumber === incidentNumber)
     .sort((a, b) => eventTime(b.properties?.createdTimeUtc) - eventTime(a.properties?.createdTimeUtc))[0];
   if (!match) {
+    if (page.nextLink) {
+      throw new AxiError(`incident number ${incidentNumber} was not found in fetched pages; search is incomplete after 10 pages`, "INCOMPLETE_SEARCH", [
+        "Use --name <incident-guid> or --ids <incident-ARM-id> to select the incident directly",
+        `Run \`${listHint}\` to list fetched incident numbers`,
+      ]);
+    }
     throw new AxiError(`not found: incident number ${incidentNumber} ${target.label}`, "NOT_FOUND", [
       `Run \`${listHint}\` to list incident numbers`,
     ]);

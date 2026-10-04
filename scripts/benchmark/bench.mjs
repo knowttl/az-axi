@@ -22,20 +22,28 @@ const scratch = mkdtempSync(join(root, "benchmark/fixtures/replay-"));
 try {
   const config = join(scratch, "config.json");
   const subscription = "00000000-0000-0000-0000-000000000001";
+  const workspace = "00000000-0000-0000-0000-000000000010";
   writeFileSync(config, JSON.stringify({ defaultProfile: "benchmark", profiles: { benchmark: {
     auth: "token", subscriptions: [subscription],
-    workspaces: { benchmark: "00000000-0000-0000-0000-000000000010" },
+    workspaces: { benchmark: workspace },
   } } }), { mode: 0o600 });
   const rows = replayScenarios.map((scenario, index) => {
     let replayFile = fileURLToPath(files[index]);
-    if (scenario.name === "account-list") {
+    if (scenario.name === "account-list" || scenario.name === "sentinel-incidents") {
       const capture = structuredClone(captures[index]);
-      const accounts = capture.responses.flatMap((response) => response.body?.value ?? []);
-      const selectedId = accounts[0]?.subscriptionId;
-      for (const account of accounts) {
-        if (account.subscriptionId !== selectedId) continue;
-        account.subscriptionId = subscription;
-        if (account.id === `/subscriptions/${selectedId}`) account.id = `/subscriptions/${subscription}`;
+      const items = capture.responses.flatMap((response) => response.body?.value ?? []);
+      if (scenario.name === "account-list") {
+        const selectedId = items[0]?.subscriptionId;
+        for (const account of items) {
+          if (account.subscriptionId !== selectedId) continue;
+          account.subscriptionId = subscription;
+          if (account.id === `/subscriptions/${selectedId}`) account.id = `/subscriptions/${subscription}`;
+        }
+      } else {
+        const selectedId = items[0]?.properties?.customerId;
+        for (const item of items) {
+          if (selectedId && item.properties?.customerId === selectedId) item.properties.customerId = workspace;
+        }
       }
       replayFile = join(scratch, `${scenario.name}.json`);
       writeFileSync(replayFile, JSON.stringify(capture));
