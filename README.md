@@ -414,7 +414,7 @@ See Microsoft's [Get Secrets](https://learn.microsoft.com/en-us/rest/api/keyvaul
 ### ACR metadata reads
 
 `acr repository list|show-tags` and `acr manifest show-metadata` follow az's group/subgroup/verb grammar with native registry data-plane reads using Entra-based token exchange only.
-The Entra token (audience `https://containerregistry.azure.net/`) is exchanged at the registry's own `oauth2/exchange` endpoint for a refresh token, then at `oauth2/token` for a pull-scoped access token (`registry:catalog:*` for the catalog, `repository:<name>:pull` for tags and manifests).
+The Entra token (audience `https://containerregistry.azure.net`) is exchanged at the registry's own `oauth2/exchange` endpoint for a refresh token, then at `oauth2/token` for a pull-scoped access token (`registry:catalog:*` for the catalog, `repository:<name>:pull` for tags and manifests).
 No `docker login`, admin-user password, credential export (`listCredentials`, `regenerateCredential`), image pull, blob download or local output file is supported.
 `--username`, `--password`, `--suffix`, `--image`, `--file`, `--detail` and `--execute` are refused before any transport, as are delete/untag/update paths.
 Only internal `az account get-access-token --resource https://containerregistry.azure.net` token acquisition runs for az-auth profiles, with a bounded, sanitized child environment and extensions disabled.
