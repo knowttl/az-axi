@@ -97,9 +97,9 @@ describe("sentinel incident list", () => {
       expect.stringContaining(`az-axi sentinel incident show --name ${INCIDENT_A.name}`),
     ]);
     const requested = allMock.mock.calls.map((call) => String((call[1] as { path?: string }).path));
-    expect(requested).toContain(
+    expect(requested).toEqual([
       `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents`,
-    );
+    ]);
     for (const path of requested) expect(path).not.toContain("?");
   });
 

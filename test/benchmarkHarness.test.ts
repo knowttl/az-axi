@@ -220,7 +220,6 @@ describe("benchmark surface", () => {
             name: "contoso-incident",
             properties: { incidentNumber: 7, title: "contoso-title", severity: "High", status: "Active", createdTimeUtc: "2026-10-02T12:34:56Z" },
           }] }),
-          subscriptions(),
         ];
       } else if (scenario.name === "monitor-activity") {
         responses = [response("GET", { value: [] })];

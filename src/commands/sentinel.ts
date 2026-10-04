@@ -7,7 +7,7 @@ import type { ResolvedProfile } from "../lib/config.js";
 import { subscriptions } from "../lib/discovery.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
-import { parseSubscriptionId, subscriptionNameMap } from "../lib/scope.js";
+import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
 
@@ -299,7 +299,6 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     byStatus[status] = (byStatus[status] ?? 0) + 1;
   }
 
-  if (!full) await subscriptionNameMap(profile);
   const base = full || fields ? fullRow : compactRow;
   const shown = (full ? collected : collected.slice(0, limit)).map(base);
   const picked = pickFields(shown, fields);
