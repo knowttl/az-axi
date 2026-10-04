@@ -49,24 +49,30 @@ describe("acr read commands", () => {
     ["team/my--image:latest", "team/my--image", "latest"],
     [`team/my__image@${acrDigest}`, "team/my__image", acrDigest],
     ["hello-world:release.azurecr.io", "hello-world", "release.azurecr.io"],
+    ["team.azurecr.io-tools:latest", "team.azurecr.io-tools", "latest"],
+    [`team.azurecr.io-tools@${acrDigest}`, "team.azurecr.io-tools", acrDigest],
+    ["team/image.azurecr.io:latest", "team/image.azurecr.io", "latest"],
+    [`team/image.azurecr.io@${acrDigest}`, "team/image.azurecr.io", acrDigest],
+    ["team.azurecr.io:latest", "team.azurecr.io", "latest"],
+    [`team.azurecr.io@${acrDigest}`, "team.azurecr.io", acrDigest],
   ])("parses valid artifact %s", async (artifact, repository, reference) => {
     read.mockResolvedValue({ rows: [acrMetadataRows.manifest] });
     expect(await run(routeArgv(["acr", "manifest", "show-metadata", "--registry", "myregistry", "--name", artifact]).argv.slice(1)))
       .toMatchObject({ repository, reference, manifest: acrMetadataRows.manifest });
     expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ repository, reference }));
   });
-  it("preserves explicit identity and config when following tags to a manifest", async () => {
+  it.each(["hello-world", "team.azurecr.io-tools", "team/image.azurecr.io"])("preserves explicit identity and config when following tags for %s to a manifest", async (repository) => {
     const config = join(dir, "selected config.json");
     writeFileSync(config, JSON.stringify({ profiles: { selected: { auth: "token" } } }));
     read.mockResolvedValue({ rows: [acrMetadataRows.tag] });
-    const result = await run(["repository", "show-tags", "--name", "myregistry", "--repository", "hello-world",
+    const result = await run(["repository", "show-tags", "--name", "myregistry", "--repository", repository,
       "--profile", "selected", "--tenant", "selected-tenant", "--config", config]);
     const command = (result.help as string[])[0]!.split("`")[1]!.replace("<tag>", "latest");
     const argv = execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
     read.mockResolvedValue({ rows: [acrMetadataRows.manifest] });
     await run(routeArgv(argv).argv.slice(1));
     expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: "selected", tenant: "selected-tenant", configPath: config }),
-      expect.objectContaining({ op: "manifest-show", repository: "hello-world", reference: "latest" }));
+      expect.objectContaining({ op: "manifest-show", repository, reference: "latest" }));
   });
   it("reports an explicit empty page", async () => {
     read.mockResolvedValue({ rows: [] });
@@ -120,6 +126,7 @@ describe("acr read commands", () => {
   });
   it.each([
     "hello-world", "hello-world:", ":latest", "myregistry.azurecr.io/hello-world:latest", "https://example.com/hello-world:latest",
+    `myregistry.azurecr.io/hello-world@${acrDigest}`, `https://example.com/hello-world@${acrDigest}`,
   ])("rejects malformed or qualified artifacts %j", async (artifact) => {
     await expect(run(["manifest", "show-metadata", "--registry", "myregistry", "--name", artifact])).rejects.toBeDefined();
     expect(read).not.toHaveBeenCalled();

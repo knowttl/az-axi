@@ -142,7 +142,7 @@ describe("acr metadata transport", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-  it.each(["team/my--image", "team/my__image", "team---name/my__image", "team.name/my_image"])(
+  it.each(["team/my--image", "team/my__image", "team---name/my__image", "team.name/my_image", "team.azurecr.io-tools", "team/image.azurecr.io", "team.azurecr.io"])(
     "reads tags for repository %s with valid separators", async (repository) => {
       tokenFlow();
       fetchMock.mockResolvedValueOnce(json(acrTags));
@@ -156,6 +156,9 @@ describe("acr metadata transport", () => {
   it.each([
     ["team/my--image", "latest"], ["team/my__image", acrDigest],
     ["team---name/my__image", "release.azurecr.io"], ["team.name/my_image", "latest"],
+    ["team.azurecr.io-tools", "latest"], ["team.azurecr.io-tools", acrDigest],
+    ["team/image.azurecr.io", "latest"], ["team/image.azurecr.io", acrDigest],
+    ["team.azurecr.io", "latest"], ["team.azurecr.io", acrDigest],
   ])("reads manifest metadata for %s at %s", async (repository, reference) => {
     tokenFlow();
     fetchMock.mockResolvedValueOnce(json(acrManifest, { "Docker-Content-Digest": acrDigest }));

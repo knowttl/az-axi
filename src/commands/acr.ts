@@ -54,7 +54,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     if (!artifactRepo || !reference) {
       throw new AxiError("--name must be repository:tag or repository@digest", "VALIDATION_ERROR", [acrLeafHelp(path)]);
     }
-    if (artifactRepo.includes("://") || artifactRepo.includes(".azurecr.io")) {
+    if (artifactRepo.includes("://") || /^[^/]+\.azurecr\.io\//i.test(artifactRepo)) {
       throw new AxiError("--name takes repository:tag or repository@digest, not a login-server-qualified ID", "VALIDATION_ERROR", [acrLeafHelp(path)]);
     }
   }
