@@ -583,3 +583,133 @@ export const configListProfiles = {
     ci: { auth: "token" },
   },
 };
+
+// source: network/resource-manager/Microsoft.Network/stable/2024-05-01/examples/
+// NetworkSecurityGroupList.json, NetworkInterfaceList.json, VirtualNetworkList.json,
+// PublicIPAddressList.json and PrivateEndpointList.json (response shape
+// `{ value: T[] }`, identifiers replaced).
+const networkId = (collection: string, name: string) =>
+  `${discoveryGroup.id}/providers/Microsoft.Network/${collection}/${name}`;
+export const networkNsg = {
+  id: networkId("networkSecurityGroups", "nsg-web"), name: "nsg-web",
+  type: "Microsoft.Network/networkSecurityGroups", location: "westus", tags: { env: "test" },
+  properties: {
+    provisioningState: "Succeeded",
+    securityRules: [
+      { name: "allow-https", id: `${networkId("networkSecurityGroups", "nsg-web")}/securityRules/allow-https`,
+        properties: { description: "Allow HTTPS from the internet", protocol: "Tcp", sourcePortRange: "*",
+          destinationPortRange: "443", sourceAddressPrefix: "Internet", destinationAddressPrefix: "*",
+          access: "Allow", priority: 100, direction: "Inbound" } },
+      { name: "deny-ssh-any", id: `${networkId("networkSecurityGroups", "nsg-web")}/securityRules/deny-ssh-any`,
+        properties: { protocol: "*", sourcePortRange: "*", destinationPortRanges: ["22", "3389"],
+          sourceAddressPrefixes: ["0.0.0.0/0"], destinationAddressPrefix: "*",
+          access: "Deny", priority: 200, direction: "Inbound" } },
+      { name: "allow-sql-app", id: `${networkId("networkSecurityGroups", "nsg-web")}/securityRules/allow-sql-app`,
+        properties: { protocol: "Tcp", sourcePortRange: "*", destinationPortRange: "1433",
+          sourceApplicationSecurityGroups: [{ id: networkId("applicationSecurityGroups", "asg-app") }],
+          destinationAddressPrefix: "10.0.1.0/24", access: "Allow", priority: 300, direction: "Inbound" } },
+    ],
+    defaultSecurityRules: [{ name: "AllowVnetInBound", properties: { access: "Allow", priority: 65000, direction: "Inbound" } }],
+    subnets: [{ id: `${networkId("virtualNetworks", "vnet-demo")}/subnets/default` }],
+    networkInterfaces: [{ id: networkId("networkInterfaces", "nic-demo") }],
+  },
+};
+export const networkNsgs = [networkNsg, {
+  id: networkId("networkSecurityGroups", "nsg-empty"), name: "nsg-empty",
+  type: "Microsoft.Network/networkSecurityGroups", location: "westeurope",
+  properties: { provisioningState: "Succeeded", securityRules: [], subnets: [], networkInterfaces: [] },
+}];
+export const networkNic = {
+  id: networkId("networkInterfaces", "nic-demo"), name: "nic-demo",
+  type: "Microsoft.Network/networkInterfaces", location: "westus",
+  properties: {
+    provisioningState: "Succeeded", macAddress: "00-11-22-33-44-55", enableIPForwarding: false,
+    virtualMachine: { id: `${discoveryGroup.id}/providers/Microsoft.Compute/virtualMachines/vm1` },
+    networkSecurityGroup: { id: networkId("networkSecurityGroups", "nsg-web") },
+    dnsSettings: { internalDnsNameLabel: "nic-demo" },
+    ipConfigurations: [
+      { name: "ipconfig1", properties: { privateIPAddress: "10.0.1.4", privateIPAllocationMethod: "Dynamic",
+        subnet: { id: `${networkId("virtualNetworks", "vnet-demo")}/subnets/default` },
+        publicIPAddress: { id: networkId("publicIPAddresses", "pip-demo") } } },
+    ],
+  },
+};
+export const networkNics = [networkNic];
+export const networkVnet = {
+  id: networkId("virtualNetworks", "vnet-demo"), name: "vnet-demo",
+  type: "Microsoft.Network/virtualNetworks", location: "westus",
+  properties: {
+    provisioningState: "Succeeded",
+    addressSpace: { addressPrefixes: ["10.0.0.0/16"] },
+    dhcpOptions: { dnsServers: ["10.0.0.10"] },
+    subnets: [
+      { name: "default", id: `${networkId("virtualNetworks", "vnet-demo")}/subnets/default`,
+        properties: { addressPrefix: "10.0.1.0/24",
+          networkSecurityGroup: { id: networkId("networkSecurityGroups", "nsg-web") } } },
+      { name: "data", id: `${networkId("virtualNetworks", "vnet-demo")}/subnets/data`,
+        properties: { addressPrefixes: ["10.0.2.0/24"],
+          routeTable: { id: networkId("routeTables", "rt-demo") } } },
+    ],
+    virtualNetworkPeerings: [
+      { name: "hub-peer", properties: { peeringState: "Connected",
+        remoteVirtualNetwork: { id: networkId("virtualNetworks", "vnet-hub") } } },
+    ],
+  },
+};
+export const networkVnets = [networkVnet];
+export const networkPublicIp = {
+  id: networkId("publicIPAddresses", "pip-demo"), name: "pip-demo",
+  type: "Microsoft.Network/publicIPAddresses", location: "westus",
+  sku: { name: "Standard", tier: "Regional" }, zones: ["1"],
+  properties: {
+    provisioningState: "Succeeded", publicIPAllocationMethod: "Static", publicIPAddressVersion: "IPv4",
+    ipAddress: "203.0.113.10", idleTimeoutInMinutes: 4,
+    dnsSettings: { domainNameLabel: "pip-demo", fqdn: "pip-demo.westus.cloudapp.azure.com" },
+    ipConfiguration: { id: `${networkId("networkInterfaces", "nic-demo")}/ipConfigurations/ipconfig1` },
+  },
+};
+export const networkPublicIps = [networkPublicIp, {
+  id: networkId("publicIPAddresses", "pip-free"), name: "pip-free",
+  type: "Microsoft.Network/publicIPAddresses", location: "westeurope",
+  sku: { name: "Basic" },
+  properties: { provisioningState: "Succeeded", publicIPAllocationMethod: "Dynamic" },
+}];
+export const networkPrivateEndpoint = {
+  id: networkId("privateEndpoints", "pe-storage"), name: "pe-storage",
+  type: "Microsoft.Network/privateEndpoints", location: "westus",
+  properties: {
+    provisioningState: "Succeeded",
+    subnet: { id: `${networkId("virtualNetworks", "vnet-demo")}/subnets/data` },
+    networkInterfaces: [{ id: networkId("networkInterfaces", "pe-storage.nic.demo") }],
+    privateLinkServiceConnections: [
+      { name: "pe-storage", properties: {
+        privateLinkServiceId: `${discoveryGroup.id}/providers/Microsoft.Storage/storageAccounts/stexample`,
+        groupIds: ["blob"],
+        privateLinkServiceConnectionState: { status: "Approved", description: "Auto-approved", actionsRequired: "None" } } },
+    ],
+    customDnsConfigs: [{ fqdn: "stexample.blob.core.windows.net", ipAddresses: ["10.0.2.4"] }],
+  },
+};
+export const networkPrivateEndpoints = [networkPrivateEndpoint];
+
+// source: network/resource-manager/Microsoft.Network/stable/2018-05-01/examples/
+// ZoneListByResourceGroup.json, ZoneGet.json, ListByDnsZone.json and GetARecordset.json
+// (response shapes `{ value: T[] }`, identifiers replaced).
+export const networkDnsZone = {
+  id: `${discoveryGroup.id}/providers/Microsoft.Network/dnszones/example.com`, name: "example.com",
+  type: "Microsoft.Network/dnszones", location: "global", tags: { env: "test" },
+  properties: { maxNumberOfRecordSets: 10000, numberOfRecordSets: 3,
+    nameServers: ["ns1.example.com.", "ns2.example.com."] },
+};
+export const networkDnsZones = [networkDnsZone];
+const dnsRecordSetId = (zone: string, type: string, name: string) =>
+  `${discoveryGroup.id}/providers/Microsoft.Network/dnszones/${zone}/${type}/${name}`;
+export const networkDnsRecordSets = [
+  { id: dnsRecordSetId("example.com", "A", "www"), name: "www", type: "Microsoft.Network/dnszones/A",
+    properties: { TTL: 3600, fqdn: "www.example.com.", ARecords: [{ ipv4Address: "203.0.113.10" }], metadata: { env: "prod" } } },
+  { id: dnsRecordSetId("example.com", "CNAME", "shop"), name: "shop", type: "Microsoft.Network/dnszones/CNAME",
+    properties: { TTL: 300, fqdn: "shop.example.com.", CNAMERecord: { cname: "shop.contoso.com." } } },
+  { id: dnsRecordSetId("example.com", "TXT", "@"), name: "@", type: "Microsoft.Network/dnszones/TXT",
+    properties: { TTL: 3600, fqdn: "example.com.", TXTRecords: [{ value: ["v=spf1 include:contoso.com ~all"] }] } },
+];
+export const networkDnsRecordSetDetail = networkDnsRecordSets[0];

@@ -330,3 +330,55 @@ export const GRAPH_GET_BY_IDS = "v1.0";
  * constructed by az-axi.
  */
 export const KEYVAULT_DATA_PLANE = "7.4";
+
+/**
+ * Microsoft.Network management-plane reads for NSGs, NICs, VNets, public IP
+ * addresses and private endpoints (`GET .../providers/Microsoft.Network/
+ * {networkSecurityGroups|networkInterfaces|virtualNetworks|publicIPAddresses|
+ * privateEndpoints}[/{name}]`).
+ *
+ * Value: 2024-05-01. Newer stable: none pinned; fall back to 2023-09-01 if the
+ * live service rejects this version.
+ * Spec: network/resource-manager/Microsoft.Network/stable/2024-05-01/
+ * (networkSecurityGroup.json, networkInterface.json, virtualNetwork.json,
+ * publicIpAddress.json, privateEndpoint.json).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/virtualnetwork/network-security-groups/list?view=rest-virtualnetwork-2024-05-01
+ * and https://learn.microsoft.com/en-us/rest/api/virtualnetwork/virtual-networks/list?view=rest-virtualnetwork-2024-05-01
+ * Verified: 2026-10-04 from the stable REST reference family (second check:
+ * the `az network nsg|nic|vnet|public-ip|private-endpoint list|show` leaves map
+ * to these same ARM list/get operations). Owner live check:
+ * `az provider show --namespace Microsoft.Network` must list 2024-05-01.
+ * Reason: stable management-plane version covering all five collections with
+ * `{ value: T[] }` plus `nextLink` list responses. NSG rules and VNet subnets
+ * arrive nested in the same GET, so no extra calls exist. Effective security
+ * rules, effective routes and Network Watcher diagnostics are separate
+ * operations and are never constructed by the network reads.
+ */
+export const NETWORK = "2024-05-01";
+
+/**
+ * Microsoft.Network public DNS reads: zones (`GET .../providers/
+ * Microsoft.Network/dnszones[/{zoneName}]`) and record sets
+ * (`GET .../dnszones/{zoneName}/recordsets`,
+ * `GET .../dnszones/{zoneName}/{recordType}/{relativeRecordSetName}`).
+ *
+ * Value: 2018-05-01. Newer stable: none (2018-05-01 is the newest stable
+ * folder for dnszones and record sets).
+ * Spec: network/resource-manager/Microsoft.Network/stable/2018-05-01/
+ * (dnszone.json, recordset.json).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/dns/dns-zones/list-by-resource-group?view=rest-dns-2018-05-01
+ * and https://learn.microsoft.com/en-us/rest/api/dns/record-sets/list-by-dns-zone?view=rest-dns-2018-05-01
+ * and https://learn.microsoft.com/en-us/rest/api/dns/record-sets/get?view=rest-dns-2018-05-01
+ * Verified: 2026-10-04 from the stable REST reference family (second check:
+ * the `az network dns zone list|show` leaves map to the zone list/get, and
+ * Terraform's `azurerm_dns_{a,aaaa,cname,mx,ns,ptr,soa,srv,txt,caa}_record`
+ * resource IDs corroborate the `/{recordType}/{relativeName}` get shape).
+ * Owner live check: `az network dns zone list -g <group>` and
+ * `az network dns record-set list -g <group> -z <zone>` against a disposable
+ * test zone must return the same record sets.
+ * Reason: long-standing stable DNS version. Zone responses carry
+ * `numberOfRecordSets` and `nameServers`; record-set responses carry only
+ * routing records (no credentials). DNSSEC signing keys, private DNS zones
+ * and zonefile downloads are separate operations and are never constructed.
+ */
+export const NETWORK_DNS = "2018-05-01";

@@ -40,6 +40,7 @@ import { run as runResource } from "../src/commands/resource.js";
 import { run as runStorage } from "../src/commands/storage.js";
 import { run as runKeyvault } from "../src/commands/keyvault.js";
 import { run as runAcr } from "../src/commands/acr.js";
+import { run as runNetwork } from "../src/commands/network.js";
 import { run as runRg } from "../src/commands/rg.js";
 import { run as runRbac } from "../src/commands/rbac.js";
 import { run as runActivity } from "../src/commands/activity.js";
@@ -74,6 +75,13 @@ import {
   sentinelDataConnectorDetail,
   sentinelDataConnectors,
   acrMetadataRows,
+  networkDnsRecordSets,
+  networkDnsZone,
+  networkNic,
+  networkNsg,
+  networkPrivateEndpoint,
+  networkPublicIp,
+  networkVnet,
   storageMetadataRows,
   keyvaultMetadataRows,
   TENANT,
@@ -163,6 +171,20 @@ const CEILINGS: Record<string, number> = {
   "acr repository list": 56,
   "acr repository show-tags": 172,
   "acr manifest show-metadata": 269,
+  "network nsg list": 161,
+  "network nsg show": 236,
+  "network nic list": 170,
+  "network nic show": 176,
+  "network vnet list": 177,
+  "network vnet show": 208,
+  "network public-ip list": 174,
+  "network public-ip show": 149,
+  "network private-endpoint list": 162,
+  "network private-endpoint show": 160,
+  "network dns zone list": 154,
+  "network dns zone show": 126,
+  "network dns record-set list": 144,
+  "network dns record-set show": 117,
 };
 
 function tokensOf(result: Record<string, unknown>): number {
@@ -267,6 +289,20 @@ describe("token budgets", () => {
     { key: "group show", run: runGroup, sample: discoveryGroup, argv: ["show", "--name", "rg-demo"] },
     { key: "resource list", run: runResource, sample: discoveryResource, argv: ["list"] },
     { key: "resource show", run: runResource, sample: discoveryResource, argv: ["show", "--ids", discoveryResource.id, "--api-version", "2025-01-01"] },
+    { key: "network nsg list", run: runNetwork, sample: networkNsg, argv: ["nsg", "list"] },
+    { key: "network nsg show", run: runNetwork, sample: networkNsg, argv: ["nsg", "show", "--name", "nsg-web", "--resource-group", "rg-demo"] },
+    { key: "network nic list", run: runNetwork, sample: networkNic, argv: ["nic", "list"] },
+    { key: "network nic show", run: runNetwork, sample: networkNic, argv: ["nic", "show", "--name", "nic-demo", "--resource-group", "rg-demo"] },
+    { key: "network vnet list", run: runNetwork, sample: networkVnet, argv: ["vnet", "list"] },
+    { key: "network vnet show", run: runNetwork, sample: networkVnet, argv: ["vnet", "show", "--name", "vnet-demo", "--resource-group", "rg-demo"] },
+    { key: "network public-ip list", run: runNetwork, sample: networkPublicIp, argv: ["public-ip", "list"] },
+    { key: "network public-ip show", run: runNetwork, sample: networkPublicIp, argv: ["public-ip", "show", "--name", "pip-demo", "--resource-group", "rg-demo"] },
+    { key: "network private-endpoint list", run: runNetwork, sample: networkPrivateEndpoint, argv: ["private-endpoint", "list"] },
+    { key: "network private-endpoint show", run: runNetwork, sample: networkPrivateEndpoint, argv: ["private-endpoint", "show", "--name", "pe-storage", "--resource-group", "rg-demo"] },
+    { key: "network dns zone list", run: runNetwork, sample: networkDnsZone, argv: ["dns", "zone", "list"] },
+    { key: "network dns zone show", run: runNetwork, sample: networkDnsZone, argv: ["dns", "zone", "show", "--name", "example.com", "--resource-group", "rg-demo"] },
+    { key: "network dns record-set list", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo"] },
+    { key: "network dns record-set show", run: runNetwork, sample: networkDnsRecordSets[0], argv: ["dns", "record-set", "show", "--zone-name", "example.com", "--resource-group", "rg-demo", "--name", "www", "--record-type", "A"] },
   ])("$key stays under its ceiling", async ({ key, run, sample, argv }) => {
     allMock.mockResolvedValue({ items: [sample] } as never);
     vi.mocked(request).mockResolvedValue(sample);

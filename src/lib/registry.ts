@@ -4,6 +4,7 @@ import type { RequestClass } from "./policy.js";
 import { GLOBAL_FLAG_SCHEMA, type FlagSchema } from "./args.js";
 import { AZ_HELP } from "./azHelp.js";
 import { ACR_HELP, acrLeafHelp } from "./acrHelp.js";
+import { NETWORK_HELP, networkLeafHelp } from "./networkHelp.js";
 import { STORAGE_HELP, storageLeafHelp } from "./storageHelp.js";
 import { KEYVAULT_HELP, keyvaultLeafHelp } from "./keyvaultHelp.js";
 
@@ -89,6 +90,20 @@ export const COMMAND_LEAVES = [
   { path: "acr repository list", effect: "read", capability: "native", flags: { name: "value", marker: "literal" } },
   { path: "acr repository show-tags", effect: "read", capability: "native", flags: { name: "value", repository: "value", orderby: "value", marker: "literal" } },
   { path: "acr manifest show-metadata", effect: "read", capability: "native", flags: { registry: "value", name: "literal" } },
+  { path: "network nsg list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "network nsg show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network nic list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "network nic show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network vnet list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "network vnet show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network public-ip list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "network public-ip show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network private-endpoint list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "network private-endpoint show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network dns zone list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value" } },
+  { path: "network dns zone show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", name: "value" } },
+  { path: "network dns record-set list", effect: "read", capability: "native", flags: { "resource-group": "value", "zone-name": "value", "record-type": "value", name: "value" } },
+  { path: "network dns record-set show", effect: "read", capability: "native", flags: { ids: "value", "resource-group": "value", "zone-name": "value", name: "value", "record-type": "value" } },
 ] as const satisfies readonly CommandLeaf[];
 
 type GroupOf<Path extends string> = Path extends `${infer Group} ${string}` ? Group : Path;
@@ -142,6 +157,7 @@ const LOADERS = {
   storage: () => import("../commands/storage.js"),
   keyvault: () => import("../commands/keyvault.js"),
   acr: () => import("../commands/acr.js"),
+  network: () => import("../commands/network.js"),
 } satisfies Record<CommandName, () => Promise<CommandModule>>;
 
 let activeEffect: Effect | undefined;
@@ -203,6 +219,7 @@ const HELP_OVERVIEWS = {
   storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",
   keyvault: "az-axi keyvault secret|key|certificate list  # Entra-only vault property listings",
   acr: "az-axi acr repository list|show-tags        # Entra-only registry catalog and tags",
+  network: "az-axi network nsg|nic|vnet|public-ip|private-endpoint list|show  # NSG rules, NICs, VNets/subnets, public IPs, private endpoints\naz-axi network dns zone|record-set list|show  # public DNS zones and record sets",
 } satisfies Record<CommandName, string>;
 
 /** Exact leaf help retains the legacy reference and names the selected route. */
@@ -210,6 +227,7 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
   if (path.startsWith("storage ")) return storageLeafHelp(path);
   if (path.startsWith("keyvault ")) return keyvaultLeafHelp(path);
   if (path.startsWith("acr ")) return acrLeafHelp(path);
+  if (path.startsWith("network ")) return networkLeafHelp(path);
   if (leaf.capability === "passthrough") return AZ_HELP;
   const group = (leaf.handlerPath ?? leaf.path).split(" ")[0] as CommandName;
   const canonical = path === leaf.path && leaf.handlerPath !== undefined;
@@ -318,6 +336,7 @@ const HELP_TEXT = {
   storage: STORAGE_HELP,
   keyvault: KEYVAULT_HELP,
   acr: ACR_HELP,
+  network: NETWORK_HELP,
   account: ["az-axi account list|show", LEAF_HELP["account list"], LEAF_HELP["account show"]].join("\n"),
   monitor: ["az-axi monitor log-analytics workspace list|show", LEAF_HELP["monitor log-analytics workspace list"], LEAF_HELP["monitor log-analytics workspace show"]].join("\n"),
   az: AZ_HELP,
