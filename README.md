@@ -302,7 +302,6 @@ az-axi storage container show --account-name stexample --name example
 az-axi storage blob list --account-name stexample --container-name example
 az-axi storage blob show --account-name stexample --container-name example --name folder/example.txt
 az-axi keyvault secret list --vault-name kvexample     # secret properties and expiry using Entra auth
-az-axi keyvault secret show --vault-name kvexample --name example-secret
 az-axi keyvault key list --vault-name kvexample
 az-axi keyvault certificate list --vault-name kvexample --expiring-within 30d
 az-axi op status '<operation-url>' --profile work       # read the current result of a pending operation
@@ -336,19 +335,18 @@ See Microsoft's [List Containers](https://learn.microsoft.com/rest/api/storagese
 
 ### Key Vault metadata reads
 
-`keyvault secret|key|certificate list|show` use native public Azure Key Vault REST property listings (api-version 7.4) with forced Entra bearer authentication.
+`keyvault secret|key|certificate list` use native public Azure Key Vault REST property listings (api-version 7.4) with forced Entra bearer authentication.
 Only the collection endpoints are ever called: `GET /secrets`, `/keys` and `/certificates` on `{vault}.vault.azure.net`, plus service continuations validated back to the same vault and collection.
-Single-object endpoints (`/{collection}/{name}[/{version}]`), which return secret values or key material, are never constructed: `show` filters the property list client-side by `--name`, even though the verb reads like value retrieval.
+Single-object endpoints (`/{collection}/{name}[/{version}]`), which return secret values or key material, are never constructed.
 Secret download, key export and backup, certificate download with private key, deleted-object, purge, recover, set and rotation operations have no command path and are refused as unknown paths before transport.
 Only internal `az account get-access-token --resource https://vault.azure.net/` token acquisition runs for az-auth profiles, with a bounded, sanitized child environment and extensions disabled.
 Token profiles require `$AZ_AXI_VAULT_TOKEN`, or a custom environment variable named by `tokenEnv.vault` in the profile; they never use ambient az login or ARM tokens as a fallback.
 
 `--vault-name` explicitly selects the vault; subscription and management-group selectors do not filter this data plane.
-Show requires `--name` (`-n`); vault and object names retain strict service-name validation.
+Vault names retain strict service-name validation.
 Lists page through the service continuation to `--limit` (default 50, integer 1-1000); a trailing `+` on the count means more pages remain.
 `--expiring-within 30d` (also `Nh` or `Nm`) keeps only items expiring soon, filtered client-side from the listed `expiresOn` properties.
 Lists default to name, enabled and expiresOn; `--fields` or `--full` expands to the safe schema (notBefore, created, updated, contentType for secrets, thumbprint for certificates, managed).
-Show returns every safe property for the named object, or a `NOT_FOUND` error naming the list command.
 Tags, secret values, key material and certificate bytes are excluded, including from errors.
 Redirects and arbitrary endpoints are refused; requests have a 30-second deadline and list bodies have a 1 MiB bound.
 Entra access needs Key Vault data-plane list permission for the collection; a denied read fails without trying other authentication.

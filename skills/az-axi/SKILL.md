@@ -62,11 +62,8 @@ The offline test suite checks this list against the registry.
 | `az-axi storage blob list` | native | read |
 | `az-axi storage blob show` | native | read |
 | `az-axi keyvault secret list` | native | read |
-| `az-axi keyvault secret show` | native | read |
 | `az-axi keyvault key list` | native | read |
-| `az-axi keyvault key show` | native | read |
 | `az-axi keyvault certificate list` | native | read |
-| `az-axi keyvault certificate show` | native | read |
 <!-- command-registry:end -->
 
 See [README.md#use](../../README.md#use) for az-shaped aliases, their native scope and defaults, exact command paths, short flags, list and boolean parsing, and literal positional input.

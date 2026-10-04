@@ -36,16 +36,13 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const [kind, verb] = args.positionals;
   const path = `keyvault ${kind} ${verb}`;
   if ((kind !== "secret" && kind !== "key" && kind !== "certificate") ||
-      (verb !== "list" && verb !== "show") || args.positionals.length !== 2) {
-    throw new AxiError("expected keyvault secret|key|certificate list|show", "VALIDATION_ERROR", ["Run `az-axi keyvault --help`"]);
+      verb !== "list" || args.positionals.length !== 2) {
+    throw new AxiError("expected keyvault secret|key|certificate list", "VALIDATION_ERROR", ["Run `az-axi keyvault --help`"]);
   }
-  const list = verb === "list";
   assertKnownFlags(args, commandFlags(path), path, keyvaultLeafHelp(path));
   const help = keyvaultLeafHelp(path);
   const vault = flagText(args, "vault-name");
   if (!vault) throw new AxiError("--vault-name is required", "VALIDATION_ERROR", [help]);
-  const name = list ? undefined : flagText(args, "name");
-  if (!list && !name) throw new AxiError("--name is required", "VALIDATION_ERROR", [help]);
   const limit = flagNumber(args, "limit") ?? 50;
   if (args.flags.limit === true || !Number.isInteger(limit) || limit < 1 || limit > 1000) {
     throw new AxiError("--limit must be an integer from 1 to 1000", "VALIDATION_ERROR", ["Example: --limit 50"]);
@@ -58,17 +55,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const expiring = flagText(args, "expiring-within");
   const expiringWithinMs = expiring === undefined ? undefined : expiryWindowMs(expiring, help);
   const page = await requestKeyVaultMetadata(profileFromArgs(args), {
-    kind: kind as KeyVaultKind, verb: verb as "list" | "show", vault, name, limit, expiringWithinMs,
+    kind: kind as KeyVaultKind, vault, limit, expiringWithinMs,
   });
-  if (!list) {
-    const row = pickFields(page.rows, fields)[0];
-    if (!row) {
-      throw new AxiError(`${kind} '${name}' not found in vault '${vault}'`, "NOT_FOUND", [
-        `Run \`az-axi keyvault ${kind} list ${formatFlagValue("vault-name", vault)}\` to see property listings`,
-      ]);
-    }
-    return { vault, [kind as string]: row };
-  }
   const noun = NOUNS[kind as KeyVaultKind];
   const scope = expiring ? ` expiring within ${expiring.trim()}` : "";
   // Minimal default list schema (AXI): full safe properties via --fields or --full.
@@ -88,6 +76,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
         ? "Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"
         : limit === 1000 ? "Listing incomplete at the maximum --limit of 1000"
         : `Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""} --limit ${Math.min(limit * 2, 1000)}\` for more rows`] }
-      : page.rows.length ? { help: [`Run \`az-axi keyvault ${kind} show ${target}${selectors} --name <name>\` for one object's properties`] } : {}),
+      : page.rows.length && !flagBool(args, "full") && !fields
+        ? { help: [`Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""} --limit ${limit} --full\` for all safe properties`] } : {}),
   };
 }

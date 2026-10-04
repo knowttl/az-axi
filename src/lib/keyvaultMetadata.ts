@@ -8,9 +8,7 @@ export type KeyVaultKind = "secret" | "key" | "certificate";
 
 export interface KeyVaultRead {
   kind: KeyVaultKind;
-  verb: "list" | "show";
   vault: string;
-  name?: string;
   limit: number;
   /** Include only items expiring within this many milliseconds. Absent means no expiry filter. */
   expiringWithinMs?: number;
@@ -43,23 +41,17 @@ const fail = (message: string): never => {
  * Property-listing reads only. The only URLs ever constructed are the collection
  * list endpoints (`/{secrets,keys,certificates}?api-version=...`) plus service
  * nextLink continuations validated back to the same vault and collection path.
- * Single-object endpoints (`/{collection}/{name}[/{version}]`) return secret values
- * or key material, so `show` filters the property list client-side instead:
- * no caller-supplied name ever enters a request URL.
  */
 export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: KeyVaultRead): Promise<KeyVaultPage> {
   if (!/^[A-Za-z][A-Za-z0-9-]{1,22}[A-Za-z0-9]$/.test(read.vault) || read.vault.includes("--")) {
     fail("--vault-name must be a public Azure key vault name");
   }
   const collection = COLLECTIONS[read.kind];
-  if (!collection || read.verb !== "list" && read.verb !== "show") fail("unsupported key vault operation");
+  if (!collection) fail("unsupported key vault operation");
   if (!Number.isInteger(read.limit) || read.limit < 1 || read.limit > 1000) fail("--limit must be an integer from 1 to 1000");
   if (read.expiringWithinMs !== undefined &&
       (!Number.isFinite(read.expiringWithinMs) || read.expiringWithinMs <= 0)) {
     fail("--expiring-within must be a positive duration like 30d");
-  }
-  if (read.verb === "show" && (!read.name || !/^[0-9A-Za-z-]{1,127}$/.test(read.name))) {
-    fail("--name requires a key vault object name (letters, digits and hyphens, up to 127 characters)");
   }
   const host = `${read.vault.toLowerCase()}.vault.azure.net`;
   assertEffectAllows("read");
@@ -89,13 +81,10 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
     const items = Array.isArray((body as { value?: unknown }).value) ? (body as { value: unknown[] }).value : failBody();
     for (const item of items) {
       const row = toRow(read.kind, item);
-      if (read.verb === "show" && row.name !== read.name) continue;
       if (read.expiringWithinMs !== undefined && !expiresWithin(row, read.expiringWithinMs, Date.now())) continue;
       if (rows.length < read.limit) rows.push(row);
       else truncated = true;
-      if (read.verb === "show") break;
     }
-    if (read.verb === "show" && rows.length) return { rows, truncated: false };
     url = nextPage(host, collection, body);
   }
   if (url) truncated = true;

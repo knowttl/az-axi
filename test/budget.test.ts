@@ -124,11 +124,8 @@ const CEILINGS: Record<string, number> = {
   "storage blob list": 110,
   "storage blob show": 68,
   "keyvault secret list": 100,
-  "keyvault secret show": 112,
   "keyvault key list": 95,
-  "keyvault key show": 89,
   "keyvault certificate list": 95,
-  "keyvault certificate show": 82,
 };
 
 function tokensOf(result: Record<string, unknown>): number {

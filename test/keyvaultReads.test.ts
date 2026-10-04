@@ -19,23 +19,24 @@ beforeEach(() => {
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); vi.unstubAllEnvs(); });
 describe("key vault read commands", () => {
   it("lists compact safe properties and a scoped next step", async () => {
-    expect(await run(args)).toMatchObject({ vault: "kvexample", count: "1 secrets", secrets: [{ name: "example-secret", expiresOn: "2026-11-03T00:00:00.000Z" }], help: [expect.stringContaining("keyvault secret show --vault-name kvexample")] });
-    expect(read).toHaveBeenCalledWith(expect.objectContaining({ auth: "token" }), expect.objectContaining({ kind: "secret", verb: "list", vault: "kvexample", limit: 50 }));
+    expect(await run(args)).toMatchObject({ vault: "kvexample", count: "1 secrets", secrets: [{ name: "example-secret", expiresOn: "2026-11-03T00:00:00.000Z" }], help: [expect.stringContaining("keyvault secret list --vault-name kvexample --limit 50 --full")] });
+    expect(read).toHaveBeenCalledWith(expect.objectContaining({ auth: "token" }), expect.objectContaining({ kind: "secret", vault: "kvexample", limit: 50 }));
   });
   it("lists a minimal default schema and expands it only with --fields or --full", async () => {
     read.mockResolvedValue({ rows: [{ name: "example-secret", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z", created: "2026-10-04T00:00:00.000Z", contentType: "text/plain" }], truncated: false });
     expect((await run(args)).secrets).toEqual([{ name: "example-secret", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z" }]);
     expect((await run([...args, "--full"])).secrets).toEqual([{ name: "example-secret", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z", created: "2026-10-04T00:00:00.000Z", contentType: "text/plain" }]);
   });
-  it.each(["secret", "key", "certificate"] as const)("%s show selects fields and full preserves the safe schema", async (kind) => {
+  it.each([
+    ["secret", "secrets"], ["key", "keys"], ["certificate", "certificates"],
+  ] as const)("%s list selects safe fields in %s", async (kind, noun) => {
     read.mockResolvedValue({ rows: [{ name: "example", enabled: true, expiresOn: "" }], truncated: false });
-    expect(await run([kind, "show", "--vault-name", "kvexample", "--name", "example", "--fields", "name,enabled", "--full"]))
-      .toEqual({ vault: "kvexample", [kind]: { name: "example", enabled: true } });
+    expect(await run([kind, "list", "--vault-name", "kvexample", "--fields", "name,enabled", "--full"]))
+      .toEqual({ vault: "kvexample", count: `1 ${noun}`, [noun]: [{ name: "example", enabled: true }] });
   });
-  it("reports an explicit empty page and a missing object", async () => {
+  it("reports an explicit empty page", async () => {
     read.mockResolvedValue({ rows: [], truncated: false });
     expect(await run(args)).toMatchObject({ count: "0 secrets", secrets: "0 secrets found in kvexample" });
-    await expect(run(["secret", "show", "--vault-name", "kvexample", "--name", "missing"])).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
   it("does not claim a total when the service has more pages", async () => {
     read.mockResolvedValue({ rows: [], truncated: true });
@@ -76,28 +77,30 @@ describe("key vault read commands", () => {
     ["--fields", "key"], ["--execute"], ["--expiring-within", "30d", "--name", "x"],
     ["--limit", "0"], ["--limit", "1001"], ["--limit", "1.5"], ["--limit"],
   ])("rejects %j before transport", async (...flags) => {
-    const target = flags.includes("--name") ? ["secret", "show", "--vault-name", "kvexample"] : args;
-    await expect(run([...target, ...flags])).rejects.toBeDefined();
+    await expect(run([...args, ...flags])).rejects.toBeDefined();
     expect(read).not.toHaveBeenCalled();
   });
-  it("rejects --expiring-within on show through routing", () => {
-    expect(() => routeArgv(["keyvault", "secret", "show", "--vault-name", "kvexample", "--name", "x", "--expiring-within", "30d"]))
-      .toThrow(expect.objectContaining({ code: "UNKNOWN_FLAG" }));
+  it.each(["secret", "key", "certificate"] as const)("%s show is rejected before transport", async (kind) => {
+    const argv = [kind, "show", "--vault-name", "kvexample", "--name", "EXAMPLE"];
+    expect(() => routeArgv(["keyvault", ...argv]))
+      .toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
+    await expect(run(argv)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(read).not.toHaveBeenCalled();
   });
   it.each([
-    ["secret", "list"], ["secret", "show", "--vault-name", "kvexample"],
-    ["key", "show"], ["certificate", "download"], ["secret", "set"], ["secret", "backup"],
+    ["secret", "list"], ["key", "list"], ["certificate", "download"], ["secret", "set"], ["secret", "backup"],
     ["secret", "restore"], ["secret", "purge"], ["secret", "delete"], ["key", "export"],
   ])("rejects incomplete or value and mutation paths %j", async (...argv) => {
     await expect(run(argv)).rejects.toBeDefined();
     expect(read).not.toHaveBeenCalled();
   });
-  it("accepts -n for show and keeps dash-prefixed names intact for transport validation", async () => {
-    await run(routeArgv(["keyvault", "secret", "show", "--vault-name", "kvexample", "-n", "example"]).argv.slice(1));
-    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "example" }));
-    read.mockClear();
-    await run(routeArgv(["keyvault", "secret", "show", "--vault-name", "kvexample", "--name=-x"]).argv.slice(1));
-    expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "-x" }));
+  it.each(["secret", "key", "certificate"] as const)("%s metadata hint runs as a list with the original scope", async (kind) => {
+    const result = await run([kind, "list", "--vault-name", "kvexample", "--profile", "ci", "--limit", "30", "--expiring-within", "30d"]);
+    const [hint] = result.help as string[];
+    const argv = hint!.split("`")[1]!.split(" ").slice(1);
+    await run(routeArgv(argv).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: "ci" }), {
+      kind, vault: "kvexample", limit: 30, expiringWithinMs: 30 * 86_400_000,
+    });
   });
 });
