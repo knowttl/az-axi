@@ -363,3 +363,137 @@ describe("network reads stay read-only and validate before transport", () => {
       .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("network projection regressions", () => {
+  it("projects manually approved endpoint connections in list and show", async () => {
+    const endpoint = { ...networkPrivateEndpoint, properties: { ...networkPrivateEndpoint.properties,
+      privateLinkServiceConnections: [],
+      manualPrivateLinkServiceConnections: networkPrivateEndpoint.properties.privateLinkServiceConnections,
+    } };
+    allMock.mockResolvedValueOnce({ items: [endpoint] });
+    requestMock.mockResolvedValue(endpoint as never);
+    await expect(run(["private-endpoint", "list"]))
+      .resolves.toMatchObject({ rows: [{ service: "stexample", status: "Approved" }] });
+    await expect(run(["private-endpoint", "show", "--ids", endpoint.id]))
+      .resolves.toMatchObject({ service: "stexample", status: "Approved", statusDescription: "Auto-approved" });
+    await expect(run(["private-endpoint", "show", "--ids", endpoint.id, "--full"]))
+      .resolves.toMatchObject({ service: "stexample", status: "Approved", groupIds: "blob" });
+  });
+
+  it.each(["A", "AAAA", "CNAME"])("preserves %s alias targets in list and show", async (type) => {
+    const record = { name: "alias", id: `${networkDnsZone.id}/${type}/alias`,
+      properties: { TTL: 300, targetResource: { id: networkPublicIp.id } } };
+    allMock.mockResolvedValueOnce({ items: [record] });
+    requestMock.mockResolvedValue(record as never);
+    await expect(run(["dns", "record-set", "list", "--resource-group", "rg-demo", "--zone-name", "example.com"]))
+      .resolves.toMatchObject({ rows: [{ type, target: networkPublicIp.id }] });
+    await expect(run(["dns", "record-set", "show", "--ids", record.id]))
+      .resolves.toMatchObject({ records: [networkPublicIp.id] });
+    await expect(run(["dns", "record-set", "show", "--ids", record.id, "--full"]))
+      .resolves.toMatchObject({ records: [networkPublicIp.id] });
+  });
+
+  it("concatenates TXT chunks while preserving separate records", async () => {
+    const record = { name: "@", id: `${networkDnsZone.id}/TXT/@`, properties: {
+      TXTRecords: [{ value: ["v=spf1 ", "include:example.com ~all"] }, { value: ["second", " record"] }],
+    } };
+    allMock.mockResolvedValueOnce({ items: [record] });
+    requestMock.mockResolvedValue(record as never);
+    await expect(run(["dns", "record-set", "list", "--resource-group", "rg-demo", "--zone-name", "example.com"]))
+      .resolves.toMatchObject({ rows: [{ target: "v=spf1 include:example.com ~all, second record" }] });
+    await expect(run(["dns", "record-set", "show", "--ids", record.id]))
+      .resolves.toMatchObject({ records: ["v=spf1 include:example.com ~all", "second record"] });
+    await expect(run(["dns", "record-set", "show", "--ids", record.id, "--full"]))
+      .resolves.toMatchObject({ records: ["v=spf1 include:example.com ~all", "second record"] });
+  });
+
+  it("recognizes record types when the resource group is named dnszones", async () => {
+    const record = { ...networkDnsRecordSets[0]!,
+      id: `/subscriptions/${SUB_A}/resourceGroups/dnszones/providers/Microsoft.Network/dnszones/example.com/A/www` };
+    allMock.mockResolvedValue({ items: [record] });
+    requestMock.mockResolvedValue(record as never);
+    await expect(run(["dns", "record-set", "list", "--resource-group", "dnszones", "--zone-name", "example.com"]))
+      .resolves.toMatchObject({ byType: { A: 1 }, rows: [{ type: "A", target: "203.0.113.10" }] });
+    await expect(run(["dns", "record-set", "list", "--resource-group", "dnszones", "--zone-name", "example.com", "--record-type", "A"]))
+      .resolves.toMatchObject({ total: 1 });
+    await expect(run(["dns", "record-set", "show", "--ids", record.id]))
+      .resolves.toMatchObject({ type: "A", records: ["203.0.113.10"] });
+  });
+
+  it("keeps collection-like resource names in subnet attachments", async () => {
+    const item = { ...networkNsg, properties: { ...networkNsg.properties,
+      subnets: [{ id: `${discoveryGroup.id}/providers/Microsoft.Network/virtualNetworks/subnets/subnets/default` }],
+    } };
+    requestMock.mockResolvedValueOnce(item as never);
+    await expect(run(["nsg", "show", "--ids", item.id]))
+      .resolves.toMatchObject({ subnets: ["subnets/default"] });
+  });
+
+  it("keeps load-balancer names in public-IP associations", async () => {
+    const item = { ...networkPublicIp, properties: { ...networkPublicIp.properties,
+      ipConfiguration: { id: `${discoveryGroup.id}/providers/Microsoft.Network/loadBalancers/lb1/frontendIPConfigurations/front1` },
+    } };
+    allMock.mockResolvedValueOnce({ items: [item] });
+    requestMock.mockResolvedValueOnce(item as never);
+    await expect(run(["public-ip", "list"]))
+      .resolves.toMatchObject({ rows: [{ associated: "lb1/front1" }] });
+    await expect(run(["public-ip", "show", "--ids", item.id]))
+      .resolves.toMatchObject({ associated: "lb1/front1" });
+  });
+
+  it.each([
+    { words: ["nsg"], item: networkNsg, fields: "tags,provisioningState", expected: { tags: { env: "test" }, provisioningState: "Succeeded" } },
+    { words: ["nic"], item: networkNic, fields: "tags,provisioningState,enableIPForwarding,dnsLabel", expected: { tags: {}, provisioningState: "Succeeded", enableIPForwarding: false, dnsLabel: "nic-demo" } },
+    { words: ["vnet"], item: networkVnet, fields: "tags,provisioningState,dnsServers", expected: { tags: {}, provisioningState: "Succeeded", dnsServers: ["10.0.0.10"] } },
+    { words: ["public-ip"], item: networkPublicIp, fields: "tags,provisioningState,idleTimeout", expected: { tags: {}, provisioningState: "Succeeded", idleTimeout: "4" } },
+    { words: ["private-endpoint"], item: networkPrivateEndpoint, fields: "tags,provisioningState,groupIds", expected: { tags: {}, provisioningState: "Succeeded", groupIds: "blob" } },
+    { words: ["dns", "zone"], item: networkDnsZone, fields: "tags", expected: { tags: { env: "test" } } },
+    { words: ["dns", "record-set"], item: networkDnsRecordSets[0]!, fields: "metadata", expected: { metadata: { env: "prod" } } },
+  ])("selects safe metadata without full for $words", async ({ words, item, fields, expected }) => {
+    await expect(run([...words, "show", "--ids", item.id, "--fields", fields]))
+      .resolves.toEqual({ profile: "ci", ...expected });
+  });
+
+  it.each([
+    { words: ["nic"], id: networkNic.id, field: "privateIp" },
+    { words: ["vnet"], id: networkVnet.id, field: "prefixes" },
+    { words: ["dns", "record-set"], id: networkDnsRecordSets[0]!.id, field: "target" },
+  ])("rejects list-only field $field before transport", async ({ words, id, field }) => {
+    await expect(run([...words, "show", "--ids", id, "--fields", field]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["nsg", "list"],
+    ["nsg", "show", "--name", "nsg-web", "--resource-group", "rg-demo"],
+    ["nsg", "show", "--ids", networkNsg.id],
+  ])("rejects management-group scope for %j", async (...argv) => {
+    await expect(run([...argv, "--management-group", "unrelated"]))
+      .rejects.toMatchObject({ code: "VALIDATION_ERROR", message: expect.stringContaining("management-group") });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { words: ["nsg"], item: networkNsg },
+    { words: ["nic"], item: { ...networkNic, properties: { ...networkNic.properties,
+      ipConfigurations: [...networkNic.properties.ipConfigurations, ...networkNic.properties.ipConfigurations] } } },
+    { words: ["vnet"], item: networkVnet },
+  ])("preserves IDs in capped $words show hints", async ({ words, item }) => {
+    requestMock.mockResolvedValueOnce(item as never);
+    const result = await run([...words, "show", "--ids", item.id, "--limit", "1"]);
+    expect(result.help).toEqual([`Run \`az-axi network ${words.join(" ")} show --ids ${item.id} --full\` for every nested row`]);
+  });
+
+  it("quotes wildcard selectors and preserves explicit identity in detail hints", async () => {
+    const record = { ...networkDnsRecordSets[0]!, name: "*", id: `${networkDnsZone.id}/A/*` };
+    allMock.mockResolvedValueOnce({ items: [record] });
+    const result = await run(["dns", "record-set", "list", "--zone-name", "example.com", "--resource-group", "rg-demo",
+      "--profile", "ci", "--config", join(dir, "config.json"), "--tenant", SUB_B]);
+    expect(result.help).toEqual([
+      `Run \`az-axi network dns record-set show --zone-name example.com --resource-group rg-demo --name '*' --record-type A --subscription ${SUB_A} --profile ci --config ${join(dir, "config.json")} --tenant ${SUB_B}\` for the first row in detail`,
+    ]);
+  });
+});

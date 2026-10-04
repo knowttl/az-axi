@@ -46,9 +46,9 @@ function segment(value: string, flag: string, path: string): string {
  * `vnet1/sub1` and `.../networkInterfaces/nic1/ipConfigurations/ip1` to
  * `nic1/ip1`. */
 function tail(id: string, depth = 1): string {
-  const skip = new Set(["subnets", "ipconfigurations"]);
-  const parts = id.split("/").filter(Boolean).filter((part) => !skip.has(part.toLowerCase()));
-  return parts.slice(-depth).join("/") || id;
+  const parts = id.split("/").filter(Boolean);
+  const names = parts.filter((_, index) => (parts.length - index) % 2 === 1);
+  return names.slice(-depth).join("/") || id;
 }
 
 function propsOf(item: ArmItem): AnyObj {
@@ -127,6 +127,8 @@ function ruleView(rule: AnyObj, full: boolean): RuleView {
 
 /** Routed values for one DNS record type, in az display order. */
 function recordValues(type: string, properties: AnyObj): string[] {
+  const alias = str(objOf(properties.targetResource).id);
+  if (alias && ["A", "AAAA", "CNAME"].includes(type)) return [alias];
   switch (type) {
     case "A": return arrOf(properties.ARecords).map((record) => str(record.ipv4Address)).filter(Boolean);
     case "AAAA": return arrOf(properties.AAAARecords).map((record) => str(record.ipv6Address)).filter(Boolean);
@@ -147,16 +149,18 @@ function recordValues(type: string, properties: AnyObj): string[] {
     }
     case "SRV": return arrOf(properties.SRVRecords)
       .map((record) => `${num(record.priority)} ${num(record.weight)} ${num(record.port)} ${str(record.target)}`.trim()).filter(Boolean);
-    case "TXT": return arrOf(properties.TXTRecords).flatMap((record) => strArr(record.value));
+    case "TXT": return arrOf(properties.TXTRecords).map((record) => strArr(record.value).join(""));
     default: return [];
   }
 }
 
 /** The record type from a record-set ARM ID (`.../dnszones/{zone}/{TYPE}/{name}`). */
 function recordTypeOf(id: string): string {
-  const parts = id.split("/").filter(Boolean);
-  const zoneIndex = parts.findIndex((part) => part.toLowerCase() === "dnszones");
-  return (parts[zoneIndex + 2] ?? "").toUpperCase();
+  return (/^\/subscriptions\/[^/]+\/resourceGroups\/[^/]+\/providers\/Microsoft\.Network\/dnszones\/[^/]+\/([^/]+)\/[^/]+$/i.exec(id)?.[1] ?? "").toUpperCase();
+}
+
+function endpointConnections(properties: AnyObj): AnyObj[] {
+  return [...arrOf(properties.privateLinkServiceConnections), ...arrOf(properties.manualPrivateLinkServiceConnections)];
 }
 
 interface Collection {
@@ -169,7 +173,7 @@ interface Collection {
   listPath(subscription: string, group: string | undefined, zone: string | undefined, recordType: string | undefined, path: string): string;
   compact(item: ArmItem, full: boolean): AnyObj;
   fields: string[];
-  detail(item: ArmItem, full: boolean, limit: number): { body: AnyObj; capped: boolean };
+  detail(item: ArmItem, full: boolean, limit: number, includeMetadata?: boolean): { body: AnyObj; capped: boolean };
 }
 
 function basePath(subscription: string, group: string | undefined, arm: string): string {
@@ -186,7 +190,7 @@ const COLLECTIONS: Collection[] = [
       rules: arrOf(propsOf(item).securityRules).length,
     }),
     fields: ["name", "id", "location", "rules"],
-    detail: (item, full, limit) => {
+    detail: (item, full, limit, includeMetadata = full) => {
       const properties = propsOf(item);
       const rules = arrOf(properties.securityRules).map((rule) => ruleView(rule, full));
       const shown = full ? rules : rules.slice(0, limit);
@@ -196,7 +200,7 @@ const COLLECTIONS: Collection[] = [
           rules: shown, totalRules: rules.length,
           subnets: arrOf(properties.subnets).map((subnet) => tail(str(subnet.id), 2)),
           nics: arrOf(properties.networkInterfaces).map((nic) => tail(str(nic.id))),
-          ...(full ? { tags: item.tags ?? {}, provisioningState: str(properties.provisioningState) } : {}),
+          ...(includeMetadata ? { tags: item.tags ?? {}, provisioningState: str(properties.provisioningState) } : {}),
         },
         capped: shown.length < rules.length,
       };
@@ -216,7 +220,7 @@ const COLLECTIONS: Collection[] = [
       };
     },
     fields: ["name", "id", "location", "privateIp", "vm"],
-    detail: (item, full, limit) => {
+    detail: (item, full, limit, includeMetadata = full) => {
       const properties = propsOf(item);
       const configs = arrOf(properties.ipConfigurations).map((config) => {
         const configProps = objOf(config.properties);
@@ -236,7 +240,7 @@ const COLLECTIONS: Collection[] = [
           nsg: tail(str(objOf(properties.networkSecurityGroup).id)),
           vm: tail(str(objOf(properties.virtualMachine).id)),
           ipConfigs: shown, totalIpConfigs: configs.length,
-          ...(full ? {
+          ...(includeMetadata ? {
             tags: item.tags ?? {}, provisioningState: str(properties.provisioningState),
             enableIPForwarding: properties.enableIPForwarding ?? "",
             dnsLabel: str(objOf(properties.dnsSettings).internalDnsNameLabel),
@@ -256,7 +260,7 @@ const COLLECTIONS: Collection[] = [
       subnets: arrOf(propsOf(item).subnets).length,
     }),
     fields: ["name", "id", "location", "prefixes", "subnets"],
-    detail: (item, full, limit) => {
+    detail: (item, full, limit, includeMetadata = full) => {
       const properties = propsOf(item);
       const subnets = arrOf(properties.subnets).map((subnet) => {
         const subnetProps = objOf(subnet.properties);
@@ -281,7 +285,7 @@ const COLLECTIONS: Collection[] = [
           addressSpace: strArr(objOf(properties.addressSpace).addressPrefixes),
           subnets: shownSubnets, totalSubnets: subnets.length,
           peerings: shownPeerings, totalPeerings: peerings.length,
-          ...(full ? {
+          ...(includeMetadata ? {
             tags: item.tags ?? {}, provisioningState: str(properties.provisioningState),
             dnsServers: strArr(objOf(properties.dhcpOptions).dnsServers),
           } : {}),
@@ -300,7 +304,7 @@ const COLLECTIONS: Collection[] = [
       associated: tail(str(objOf(propsOf(item).ipConfiguration).id), 2),
     }),
     fields: ["name", "id", "location", "address", "associated"],
-    detail: (item, full) => {
+    detail: (item, full, _limit, includeMetadata = full) => {
       const properties = propsOf(item);
       return {
         body: {
@@ -312,7 +316,7 @@ const COLLECTIONS: Collection[] = [
           fqdn: str(objOf(properties.dnsSettings).fqdn),
           sku: str(objOf(item.sku).name),
           zones: Array.isArray(item.zones) ? item.zones.map(String) : [],
-          ...(full ? {
+          ...(includeMetadata ? {
             tags: item.tags ?? {}, provisioningState: str(properties.provisioningState),
             idleTimeout: num(properties.idleTimeoutInMinutes) || str(properties.idleTimeoutInMinutes),
           } : {}),
@@ -326,7 +330,7 @@ const COLLECTIONS: Collection[] = [
     idTail: /^\/subscriptions\/[^/]+\/resourceGroups\/[^/]+\/providers\/Microsoft\.Network\/privateEndpoints\/[^/]+$/i,
     listPath: (subscription, group) => basePath(subscription, group, "privateEndpoints"),
     compact: (item) => {
-      const first = objOf(arrOf(propsOf(item).privateLinkServiceConnections)[0]?.properties);
+      const first = objOf(endpointConnections(propsOf(item))[0]?.properties);
       const state = objOf(first.privateLinkServiceConnectionState);
       return {
         name: item.name, id: item.id, location: item.location ?? "",
@@ -335,9 +339,9 @@ const COLLECTIONS: Collection[] = [
       };
     },
     fields: ["name", "id", "location", "service", "status"],
-    detail: (item, full) => {
+    detail: (item, full, _limit, includeMetadata = full) => {
       const properties = propsOf(item);
-      const connections = arrOf(properties.privateLinkServiceConnections);
+      const connections = endpointConnections(properties);
       const first = objOf(connections[0]?.properties);
       const state = objOf(first.privateLinkServiceConnectionState);
       return {
@@ -352,7 +356,7 @@ const COLLECTIONS: Collection[] = [
             fqdn: str(config.fqdn),
             ips: strArr(config.ipAddresses).join(", "),
           })),
-          ...(full ? {
+          ...(includeMetadata ? {
             tags: item.tags ?? {}, provisioningState: str(properties.provisioningState),
             groupIds: strArr(first.groupIds).join(", "),
           } : {}),
@@ -371,7 +375,7 @@ const COLLECTIONS: Collection[] = [
       nameServers: strArr(propsOf(item).nameServers).length,
     }),
     fields: ["name", "id", "records", "nameServers"],
-    detail: (item, full) => {
+    detail: (item, full, _limit, includeMetadata = full) => {
       const properties = propsOf(item);
       return {
         body: {
@@ -379,7 +383,7 @@ const COLLECTIONS: Collection[] = [
           records: num(properties.numberOfRecordSets) || str(properties.numberOfRecordSets),
           maxRecords: num(properties.maxNumberOfRecordSets) || str(properties.maxNumberOfRecordSets),
           nameServers: strArr(properties.nameServers),
-          ...(full ? { tags: item.tags ?? {} } : {}),
+          ...(includeMetadata ? { tags: item.tags ?? {} } : {}),
         },
         capped: false,
       };
@@ -399,7 +403,7 @@ const COLLECTIONS: Collection[] = [
       };
     },
     fields: ["name", "type", "ttl", "target"],
-    detail: (item, full) => {
+    detail: (item, full, _limit, includeMetadata = full) => {
       const properties = propsOf(item);
       const type = recordTypeOf(item.id);
       const values = recordValues(type, properties);
@@ -409,7 +413,7 @@ const COLLECTIONS: Collection[] = [
           ttl: num(properties.TTL) || str(properties.TTL),
           fqdn: str(properties.fqdn),
           records: full ? values : values.map((value) => truncate(value, CELL_TRUNCATE).text),
-          ...(full ? { metadata: objOf(properties.metadata) } : {}),
+          ...(includeMetadata ? { metadata: objOf(properties.metadata) } : {}),
         },
         capped: false,
       };
@@ -436,8 +440,8 @@ function limitValue(args: ReturnType<typeof parseArgs>, path: string): number {
   return limit;
 }
 
-function selectorSuffix(args: ReturnType<typeof parseArgs>): string {
-  return ["profile", "config", "tenant", "subscription", "resource-group", "zone-name", "record-type", "name"]
+function selectorSuffix(args: ReturnType<typeof parseArgs>, keys = ["profile", "config", "tenant", "subscription", "resource-group", "zone-name", "record-type", "name", "ids"]): string {
+  return keys
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 }
@@ -476,10 +480,6 @@ async function runList(
       ? recordTypeFlag.toUpperCase()
       : invalid(`--record-type must be ${RECORD_TYPES.join("|")}, got '${recordTypeFlag}'`, path)
     : undefined;
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
-    invalid("management-group scope is unsupported for network reads; select subscriptions explicitly", path);
-  }
-
   const subs = await subscriptions(profile);
   const suffix = selectorSuffix(args);
   const collected: ArmItem[] = [];
@@ -533,10 +533,10 @@ async function runList(
   const firstSub = parseSubscriptionId(first.id) ?? subs[0]!;
   const firstGroup = /\/resourceGroups\/([^/]+)/i.exec(first.id)?.[1];
   const firstSelector = collection.words.join(" ") === "dns record-set"
-    ? `--zone-name ${zoneFlag} --resource-group ${groupFlag} --name ${first.name} --record-type ${recordTypeOf(first.id)}`
-    : `--name ${first.name}${firstGroup ? ` --resource-group ${firstGroup}` : ""}`;
+    ? `${formatFlagValue("zone-name", zoneFlag!)} ${formatFlagValue("resource-group", groupFlag!)} ${formatFlagValue("name", first.name)} ${formatFlagValue("record-type", recordTypeOf(first.id))}`
+    : `${formatFlagValue("name", first.name)}${firstGroup ? ` ${formatFlagValue("resource-group", firstGroup)}` : ""}`;
   const help: string[] = [
-    `Run \`az-axi network ${collection.words.join(" ")} show ${firstSelector} --subscription ${firstSub}\` for the first row in detail`,
+    `Run \`az-axi network ${collection.words.join(" ")} show ${firstSelector} ${formatFlagValue("subscription", firstSub)}${selectorSuffix(args, ["profile", "config", "tenant"])}\` for the first row in detail`,
   ];
   if (shown.length < collected.length) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
@@ -564,6 +564,10 @@ async function runShow(
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   const limit = limitValue(args, path);
+  const showFields = Object.keys(collection.detail({ id: "", name: "" }, true, limit).body);
+  if (fields?.some((field) => !showFields.includes(field))) {
+    invalid(`${path} --fields supports only: ${showFields.join(", ")}`, path);
+  }
   const isRecordSet = collection.words.join(" ") === "dns record-set";
   const name = flagText(args, "name");
   const groupFlag = flagText(args, "resource-group");
@@ -597,12 +601,8 @@ async function runShow(
     if (/[?#%\\]/.test(id)) invalid("--ids requires an unescaped ARM resource ID without a query or fragment", path);
     const subMatch = /^\/subscriptions\/([^/]+)\//i.exec(id);
     if (!subMatch || !GUID.test(subMatch[1]!)) invalid("--ids must carry a subscription GUID", path);
-    const idParts = id.split("/").filter(Boolean);
     if (isRecordSet) {
-      const zoneIndex = idParts.findIndex((part) => part.toLowerCase() === "dnszones");
-      const type = (idParts[zoneIndex + 2] ?? "").toUpperCase();
-      if (zoneIndex < 0 || idParts.length !== zoneIndex + 4 ||
-          !(RECORD_TYPES as readonly string[]).includes(type)) {
+      if (!(RECORD_TYPES as readonly string[]).includes(recordTypeOf(id))) {
         invalid("--ids must be one record-set ARM ID: .../dnszones/{zone}/{A|AAAA|CAA|CNAME|MX|NS|PTR|SOA|SRV|TXT}/{name}", path);
       }
     } else if (!collection.idTail.test(id)) {
@@ -625,12 +625,7 @@ async function runShow(
   }
 
   const item = await request<ArmItem>(profile, { method: "GET", path: getPath, apiVersion: collection.apiVersion });
-  const { body, capped } = collection.detail(item, full, limit);
-  const showFields = [...collection.fields,
-    ...Object.keys(body).filter((key) => !collection.fields.includes(key))];
-  if (fields?.some((field) => !showFields.includes(field))) {
-    invalid(`${path} --fields supports only: ${showFields.join(", ")}`, path);
-  }
+  const { body, capped } = collection.detail(item, full, limit, full || !!fields);
   const help: string[] = [];
   if (capped) {
     help.push(`Run \`az-axi ${path}${suffix} --full\` for every nested row`);
@@ -658,6 +653,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
   assertKnownFlags(args, commandFlags(path), path, networkLeafHelp(path));
   const profile = profileFromArgs(args);
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+    invalid("management-group scope is unsupported for network reads; select subscriptions explicitly", path);
+  }
   return verb === "list"
     ? runList(profile, args, collection, path, words)
     : runShow(profile, args, collection, path, words);
