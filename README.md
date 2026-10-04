@@ -698,7 +698,7 @@ Paging hints retain `--body-file` paths; for stdin bodies, replace the hint's `<
 Use each command's `--help` for its defaults and paging limits.
 
 Command output replaces recognized secret fields and values with `***redacted***`, including nested objects and arrays.
-Shared redaction replaces complete absolute network URI values containing userinfo with `***redacted***` and preserves other URI values exactly.
+Shared redaction also replaces complete absolute network URI values containing userinfo with `***redacted***`; URI values without recognized secrets or userinfo are preserved exactly.
 Monitor action-group receiver projections additionally suppress URI queries and fragments.
 Parameter values, defaults and allowed values are redacted when their parameter name is recognized as secret or their declaration uses `secureString` or `secureObject`.
 Supplied deployment parameter values are also matched against secure declarations in the paired inline template, including nested deployments.
