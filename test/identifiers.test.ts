@@ -61,7 +61,7 @@ const GUID = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9
 const EMAIL = /[A-Za-z0-9._%+-]+@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})/g;
 // Hostnames: any URL host, plus bare names under TLDs that real tenants use.
 // Common code words (".org", ".io", ".dev") and file names (".md", ".js") are only checked as URL hosts.
-const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/@]*@)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)/gi;
+const URL_HOST = /\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/@]*@)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)(?=[:/?#\s"'`]|$)/gi;
 const BARE_HOST =
   /(?<![A-Za-z0-9@./_-])((?:[a-z0-9][a-z0-9-]*\.)+(?:com|net|cloud|local|corp|internal|intranet|lan))(?![A-Za-z0-9_-]|\.[A-Za-z0-9])/gi;
 
@@ -104,7 +104,7 @@ export function scanIdentifiers(files: readonly { path: string; lines: readonly 
         .map((m) => m[0]);
       const withoutEmails = line.replace(EMAIL, "");
       const hosts = [
-        ...[...withoutEmails.matchAll(URL_HOST)].map((m) => m[1] ?? ""),
+        ...[...line.matchAll(URL_HOST)].map((m) => m[1] ?? ""),
         ...[...withoutEmails.matchAll(BARE_HOST)].map((m) => m[1] ?? ""),
       ].filter((host) => host !== "" && !domainAllowed(host, allowed));
       for (const token of [...guids, ...emails, ...hosts]) {
@@ -130,6 +130,8 @@ describe("public-repo identifier guard", () => {
         ...PUBLIC_GUIDS.map((guid) => guid.toUpperCase()),
         "analyst@CONTOSO.COM analyst@team.fabrikam.com analyst@example.com",
         "contoso.com service.example.com https://code.claude.com/docs https://MANAGEMENT.AZURE.COM/",
+        "https://private-user:private-password@example.com/view?team=ops#cpu",
+        "https://private@example.com/view https://private-user@example.com/view",
         EXAMPLE_DOMAINS[0].toUpperCase(),
         `HTTPS://${PUBLIC_HOSTS[0].toUpperCase()}/`,
       ],
@@ -158,12 +160,14 @@ describe("public-repo identifier guard", () => {
     const prefix = `not${EXAMPLE_DOMAINS[0]}`;
     expect(scanIdentifiers([{
       path: "hosts.txt",
-      lines: [`https://${domain}/path`, domain, `https://${lookalike}/`, prefix],
+      lines: [`https://${domain}/path`, domain, `https://${lookalike}/`, prefix, ["https://", "user:password@", domain, "/path"].join("")],
     }])).toEqual([
       `hosts.txt:1: ${domain}`,
       `hosts.txt:2: ${domain}`,
       `hosts.txt:3: ${lookalike}`,
       `hosts.txt:4: ${prefix}`,
+      `hosts.txt:5: password@${domain}`,
+      `hosts.txt:5: ${domain}`,
     ]);
   });
 
