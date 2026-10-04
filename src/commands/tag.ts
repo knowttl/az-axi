@@ -14,6 +14,7 @@ import { executeWrite } from "../lib/execute.js";
 import { enforceGates } from "../lib/gates.js";
 import { parseTimeoutFlag } from "../lib/lro.js";
 import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
+import { redact } from "../lib/redact.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { shortenResourceId } from "../lib/scope.js";
 import { formatFlagValue, quoteFlagValue } from "../lib/shell.js";
@@ -100,17 +101,18 @@ interface TagEntry {
 /** One k=v pair per entry; duplicate keys with conflicting values are refused. */
 function parseTags(raw: string[] | undefined): TagEntry[] {
   if (!raw?.length) invalid("tag update needs --tags <k=v> [k=v ...]");
-  const seen = new Map<string, string>();
+  const seen = new Map<string, TagEntry>();
   for (const entry of raw) {
     const at = entry.indexOf("=");
     const key = (at < 0 ? entry : entry.slice(0, at)).trim();
     if (at < 0 || !key) invalid(`--tags entry '${entry}' must be k=v`);
     const value = entry.slice(at + 1);
-    const prior = seen.get(key);
-    if (prior !== undefined && prior !== value) invalid(`conflicting values for tag '${key}'`);
-    seen.set(key, value);
+    const name = key.toLowerCase();
+    const prior = seen.get(name);
+    if (prior !== undefined && prior.value !== value) invalid(`conflicting values for tag '${key}'`);
+    seen.set(name, { key: prior?.key ?? key, value });
   }
-  return [...seen.entries()].map(([key, value]) => ({ key, value }));
+  return [...seen.values()];
 }
 
 function tagsOf(body: unknown): Record<string, string> {
@@ -158,8 +160,12 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   const started = Date.now();
   const selectors = gateSelectorFlags(args);
-  const sentTags = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
-  const tagFlags = entries.map((entry) => formatFlagValue("tags", `${entry.key}=${entry.value}`));
+  const inputTags = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
+  const sentTags = operation === "Delete"
+    ? Object.fromEntries(entries.map((entry) => [entry.key, null]))
+    : inputTags;
+  const tagFlags = Object.entries(redact(inputTags))
+    .map(([key, value]) => formatFlagValue("tags", `${key}=${value}`));
   const command = (etag: string | undefined) =>
     [
       "az-axi tag update",
@@ -197,10 +203,15 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     (typeof probed?.body === "object" && probed?.body !== null && typeof (probed.body as TagsResource).etag === "string"
       ? (probed.body as TagsResource).etag
       : undefined);
+  const currentNames = new Map(Object.keys(currentTags).map((key) => [key.toLowerCase(), key]));
+  const selectedNames = new Set(entries.map((entry) => entry.key.toLowerCase()));
   const effective =
     operation === "Merge"
-      ? { ...currentTags, ...sentTags }
-      : Object.fromEntries(Object.entries(currentTags).filter(([key]) => !(key in sentTags)));
+      ? Object.fromEntries([
+        ...Object.entries(currentTags),
+        ...entries.map(({ key, value }) => [currentNames.get(key.toLowerCase()) ?? key, value]),
+      ])
+      : Object.fromEntries(Object.entries(currentTags).filter(([key]) => !selectedNames.has(key.toLowerCase())));
   // The Tags PATCH carries an operation envelope, which a generic resource diff
   // would misread, so the preview diffs the tag map itself: exact per-tag
   // from/to rows with removals for delete, in dry-run output shape.

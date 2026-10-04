@@ -49,9 +49,16 @@ const tagsPatch = (body) => {
   if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
   const sent = body?.properties?.tags ?? {};
   const current = process.env.AZ_AXI_TEST_TAGS_MISSING === "1" ? {} : tagsBody().properties.tags;
+  const selected = new Map(Object.entries(sent).map(([key, value]) => [key.toLowerCase(), value]));
+  const currentNames = new Map(Object.keys(current).map((key) => [key.toLowerCase(), key]));
   const tags = body?.operation === "Delete"
-    ? Object.fromEntries(Object.entries(current).filter(([key]) => !(key in sent)))
-    : { ...current, ...sent };
+    ? Object.fromEntries(Object.entries(current).filter(([key, value]) =>
+      !selected.has(key.toLowerCase()) ||
+      (selected.get(key.toLowerCase()) !== null && selected.get(key.toLowerCase()) !== value)))
+    : Object.fromEntries([
+      ...Object.entries(current),
+      ...Object.entries(sent).map(([key, value]) => [currentNames.get(key.toLowerCase()) ?? key, value]),
+    ]);
   return json({ id: "https://management.azure.com/tags/default", name: "default",
     type: "Microsoft.Resources/tags", properties: { tags } });
 };
