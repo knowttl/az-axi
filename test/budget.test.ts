@@ -13,6 +13,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encode as encodeToon } from "@toon-format/toon";
+import { AxiError } from "axi-sdk-js";
 import { encode as encodeTokens } from "gpt-tokenizer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -131,6 +132,8 @@ const CEILINGS: Record<string, number> = {
   "sentinel incident show": 226,
   "sentinel incident list-alert": 278,
   "sentinel incident list-entity": 221,
+  "sentinel incident update": 797,
+  "sentinel incident comment create": 288,
   exposure: 298,
   "logs query": 184,
   api: 135,
@@ -351,6 +354,25 @@ describe("token budgets", () => {
     await expectUnderBudget("sentinel incident list-entity", await runSentinel(["incident", "list-entity",
       "--name", sentinelIncidents[0]!.name as string,
       "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--subscription", SUB_A]));
+  });
+
+  it("sentinel incident update preview stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+      writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
+    } }));
+    vi.mocked(request).mockResolvedValue(sentinelIncidentDetail as never);
+    sendMock.mockResolvedValue(ok(sentinelIncidentDetail));
+    const { argv } = routeArgv([...offlineWritePreviews[1]!.argv, "--subscription", SUB_A]);
+    await expectUnderBudget("sentinel incident update", await runSentinel(argv.slice(1)));
+  });
+
+  it("sentinel incident comment create preview stays under its ceiling", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+      writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
+    } }));
+    sendMock.mockRejectedValue(new AxiError("not found", "NOT_FOUND", []));
+    const { argv } = routeArgv([...offlineWritePreviews[2]!.argv, "--subscription", SUB_A]);
+    await expectUnderBudget("sentinel incident comment create", await runSentinel(argv.slice(1)));
   });
 
   it("exposure stays under its ceiling", async () => {

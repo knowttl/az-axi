@@ -1,12 +1,18 @@
 import { AxiError } from "axi-sdk-js";
+import { randomUUID } from "node:crypto";
 import { LOG_ANALYTICS_WORKSPACES, SENTINEL_INCIDENTS } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
-import { request, requestAll } from "../lib/client.js";
+import { buildUrl, request, requestAll } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import type { ResolvedProfile } from "../lib/config.js";
 import { subscriptions } from "../lib/discovery.js";
+import { dryRun } from "../lib/dryRun.js";
+import { executeWrite } from "../lib/execute.js";
+import { enforceGates } from "../lib/gates.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
-import { commandFlags, commandMeta } from "../lib/registry.js";
+import { parseTimeoutFlag } from "../lib/lro.js";
+import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
+import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
 import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
@@ -45,6 +51,9 @@ interface IncidentProperties {
   description?: string;
   severity?: string;
   status?: string;
+  classification?: string;
+  classificationReason?: string;
+  classificationComment?: string;
   createdTimeUtc?: string;
   lastModifiedTimeUtc?: string;
   owner?: IncidentOwner;
@@ -175,22 +184,23 @@ interface WorkspaceTarget {
 }
 
 /** Pure workspace-selector validation: no transport, so unknown or
- * conflicting selectors fail before any dependency call. */
-function selectorError(args: ReturnType<typeof parseArgs>, verb: string): string | undefined {
+ * conflicting selectors fail before any dependency call. `label` names the
+ * verb in errors; reads pass their own verb, writes pass theirs. */
+function selectorError(args: ReturnType<typeof parseArgs>, verb: string, label: string = verb): string | undefined {
   const ids = flagText(args, "ids");
   const workspaceName = flagText(args, "workspace-name");
   const group = flagText(args, "resource-group");
   const workspace = flagText(args, "workspace");
   if (ids) {
-    if (verb === "list") return "incident list takes no --ids; use `sentinel incident show --ids <incident-ARM-id>`";
+    if (verb === "list") return `incident list takes no --ids; use \`sentinel incident show --ids <incident-ARM-id>\``;
     if (workspaceName || group || workspace) return "--ids selects the incident itself; workspace selectors are not accepted with --ids";
     return undefined;
   }
   if (workspace && (workspaceName || group)) return "--workspace conflicts with --workspace-name and --resource-group";
   if (!workspace && !(workspaceName && group)) {
-    return verb === "list"
-      ? "incident list needs --workspace-name and --resource-group, or --workspace <alias|guid>"
-      : `incident ${verb} needs --name <incident-id|number> with --workspace-name and --resource-group, --workspace <alias|guid>, or --ids <incident-ARM-id>`;
+    return verb !== "list"
+      ? `incident ${label} needs --name <incident-id|number> with --workspace-name and --resource-group, --workspace <alias|guid>, or --ids <incident-ARM-id>`
+      : `incident ${label} needs --workspace-name and --resource-group, or --workspace <alias|guid>`;
   }
   // Path-segment shape is pure: reject it before any subscription transport.
   if (workspaceName) segment(workspaceName, "workspace-name");
@@ -733,6 +743,286 @@ async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseAr
   };
 }
 
+/**
+ * Native incident writes (slice 10b). Both verbs are PUTs through the merged
+ * write pipeline: dry-run preview with a field-level diff by default,
+ * compare-and-swap execution with ETag/If-Match, no-op detection, the write
+ * log, LRO handling and the approval hook. No generic write escape.
+ */
+const UPDATE_STATUSES: Record<string, string> = { new: "New", active: "Active", closed: "Closed" };
+const UPDATE_SEVERITIES: Record<string, string> = {
+  high: "High", medium: "Medium", low: "Low", informational: "Informational",
+};
+const UPDATE_CLASSIFICATIONS: Record<string, string> = {
+  undetermined: "Undetermined", truepositive: "TruePositive",
+  benignpositive: "BenignPositive", falsepositive: "FalsePositive",
+};
+const UPDATE_CLASSIFICATION_REASONS: Record<string, string> = {
+  suspiciousactivity: "SuspiciousActivity", suspiciousbutexpected: "SuspiciousButExpected",
+  incorrectalertlogic: "IncorrectAlertLogic", inaccuratedata: "InaccurateData",
+};
+const UPDATE_PROTECTION =
+  "compare-and-swap on the incident ETag (re-read before send; --if-match pins a reviewed value)";
+const COMMENT_PROTECTION =
+  "new comment ID, so there is no current state to compare; reuse --name to update one comment idempotently, --if-match to guard it";
+
+function writeInvalid(leaf: string, message: string): never {
+  throw new AxiError(message, "VALIDATION_ERROR", [`Run \`az-axi ${leaf} --help\``]);
+}
+
+/** Exactly one explicit subscription GUID: names and implicit env/profile scope are refused. */
+function explicitSubscription(args: ReturnType<typeof parseArgs>, leaf: string): string {
+  if (flagText(args, "management-group")) {
+    throw new AxiError("incident writes require one subscription, not a management group", "VALIDATION_ERROR", [
+      "Pass --subscription <id>",
+    ]);
+  }
+  const subs = flagList(args, "subscription");
+  if (subs?.length !== 1 || !GUID.test(subs[0]!)) {
+    throw new AxiError("incident writes require exactly one explicit subscription ID", "VALIDATION_ERROR", [
+      "Pass --subscription <id> from `az-axi sub list`; names and batches are not supported",
+      `Run \`az-axi ${leaf} --help\``,
+    ]);
+  }
+  return subs[0]!;
+}
+
+interface IncidentSelection {
+  incidentId: string;
+  /** Bare incident ARM path, without query string. */
+  path: string;
+  /** Defined unless the incident came from --ids; echoed into execute hints. */
+  target: WorkspaceTarget | undefined;
+}
+
+/**
+ * Resolves --name/--incident-id (GUID or number, with workspace selectors) or
+ * --ids to one incident path. The explicit subscription must agree with --ids.
+ */
+async function resolveIncidentTarget(
+  profile: ResolvedProfile,
+  args: ReturnType<typeof parseArgs>,
+  subscription: string,
+  ref: { name: string } | { ids: string },
+  label: string,
+): Promise<IncidentSelection> {
+  const bad = (message: string): never => writeInvalid(`sentinel incident ${label}`, message);
+  if ("ids" in ref) {
+    const match = INCIDENT_ID.exec(ref.ids.trim());
+    if (match) {
+      if (!GUID.test(match[1]!)) bad("--ids must carry a subscription GUID");
+      if (match[1]!.toLowerCase() !== subscription.toLowerCase()) bad("--ids conflicts with --subscription <id>");
+      if (!GUID.test(match[4]!)) bad("--ids must end in the incident GUID");
+      return {
+        incidentId: match[4]!,
+        path: `/subscriptions/${subscription}/resourceGroups/${segment(match[2]!, "ids")}` +
+          `/providers/Microsoft.OperationalInsights/workspaces/${segment(match[3]!, "ids")}` +
+          `/providers/Microsoft.SecurityInsights/incidents/${match[4]!}`,
+        target: undefined,
+      };
+    }
+    return bad("--ids must be one incident ARM ID under Microsoft.SecurityInsights/incidents");
+  }
+  const selectors = selectorError(args, "show", label);
+  if (selectors) bad(selectors);
+  const target = await resolveWorkspace(profile, args, subscription);
+  const base = incidentBase(target.subscription, target.resourceGroup, target.workspaceName);
+  const raw = ref.name.trim();
+  if (NUMBER.test(raw)) {
+    const found = await listForNumber(profile, target, Number(raw),
+      `az-axi sentinel incident list${selectorSuffix(args, subscription, target)}`);
+    const id = found.id ?? `${base}/${found.name ?? raw}`;
+    const guid = /\/incidents\/([^/]+)$/i.exec(id)?.[1] ?? "";
+    if (!GUID.test(guid)) bad("the incident lookup returned an unexpected resource ID");
+    return { incidentId: guid, path: id, target };
+  }
+  return { incidentId: raw, path: `${base}/${raw}`, target };
+}
+
+function enumFlag(
+  args: ReturnType<typeof parseArgs>,
+  leaf: string,
+  name: string,
+  table: Record<string, string>,
+  message: string,
+): string | undefined {
+  const raw = flagText(args, name);
+  if (raw === undefined) return undefined;
+  const canonical = table[raw.toLowerCase()];
+  if (!canonical) writeInvalid(leaf, message);
+  return canonical;
+}
+
+/** One identity: a GUID becomes objectId, text with @ becomes email, else the assigned-to name. */
+function ownerInfo(raw: string): IncidentOwner {
+  const value = raw.trim();
+  if (GUID.test(value)) return { objectId: value };
+  if (value.includes("@")) return { email: value, userPrincipalName: value };
+  return { assignedTo: value };
+}
+
+function gateSelectorFlags(args: ReturnType<typeof parseArgs>): string {
+  return ["profile", "tenant", "config"]
+    .map((key) => flagText(args, key) === undefined ? "" : formatFlagValue(key, flagText(args, key)!))
+    .filter(Boolean).join(" ");
+}
+
+/**
+ * Refuses before any transport: profile and subscription gates need only the
+ * subscription scope, so a refused write never sends even the merge-GET.
+ * The exact request is re-gated by the client backstop at send time.
+ */
+function refuseBeforeTransport(
+  profile: ResolvedProfile,
+  args: ReturnType<typeof parseArgs>,
+  subscription: string,
+): boolean {
+  const scope = { resource: "arm" as const, method: "PUT", path: `/subscriptions/${subscription}` };
+  const cls = classifyRequest(scope);
+  assertReadOnlyBoundary(scope, cls);
+  return enforceGates(profile, scope, cls, { execute: flagBool(args, "execute") });
+}
+
+async function runUpdate(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const leaf = "sentinel incident update";
+  const bad = (message: string): never => writeInvalid(leaf, message);
+  const subscription = explicitSubscription(args, leaf);
+  const nameFlag = flagText(args, "name");
+  const incidentIdFlag = flagText(args, "incident-id");
+  if (nameFlag && incidentIdFlag && nameFlag.trim() !== incidentIdFlag.trim()) bad("--name conflicts with --incident-id");
+  const name = nameFlag ?? incidentIdFlag;
+  const ids = flagText(args, "ids");
+  if (name && ids) bad("incident update takes --name or --ids, not both");
+  if (!name && !ids) bad("incident update needs --name <incident-id|number> or --ids <incident-ARM-id>");
+  if (name && !NUMBER.test(name.trim()) && !GUID.test(name.trim())) {
+    bad("--name must be the incident GUID or its incident number; full ARM IDs need --ids");
+  }
+
+  const status = enumFlag(args, leaf, "status", UPDATE_STATUSES, "--status must be New, Active or Closed");
+  const severity = enumFlag(args, leaf, "severity", UPDATE_SEVERITIES, "--severity must be High, Medium, Low or Informational");
+  const owner = flagText(args, "owner");
+  const classification = enumFlag(args, leaf, "classification", UPDATE_CLASSIFICATIONS,
+    "--classification must be Undetermined, TruePositive, BenignPositive or FalsePositive");
+  const classificationReason = enumFlag(args, leaf, "classification-reason", UPDATE_CLASSIFICATION_REASONS,
+    "--classification-reason must be SuspiciousActivity, SuspiciousButExpected, IncorrectAlertLogic or InaccurateData");
+  const classificationComment = flagText(args, "classification-comment");
+  if (!status && !severity && !owner && !classification) {
+    bad("incident update needs at least one of --status, --severity, --owner or --classification");
+  }
+  if (status === "Closed" && !classification) bad("closing an incident (--status Closed) requires --classification");
+  if ((classificationReason || classificationComment) && !classification) {
+    bad("--classification-reason and --classification-comment require --classification");
+  }
+  if (classification && classification !== "Undetermined" && !classificationReason) {
+    bad(`classification ${classification} requires --classification-reason`);
+  }
+  const execute = refuseBeforeTransport(profile, args, subscription);
+
+  const selection = await resolveIncidentTarget(profile, args, subscription,
+    name ? { name } : { ids: ids! }, "update");
+  const suffix = selectorSuffix(args, subscription, selection.target);
+
+  // GET-merge-PUT, as az does: the PUT replaces the incident, so the reviewed
+  // body carries every current field with the requested overlay applied.
+  const current = await request<Incident>(profile, {
+    method: "GET",
+    path: selection.path,
+    apiVersion: SENTINEL_INCIDENTS,
+  });
+  const overlay: IncidentProperties = {};
+  if (status) overlay.status = status;
+  if (severity) overlay.severity = severity;
+  if (owner) overlay.owner = ownerInfo(owner);
+  if (classification) {
+    overlay.classification = classification;
+    if (classificationReason) overlay.classificationReason = classificationReason;
+    if (classificationComment) overlay.classificationComment = classificationComment;
+  }
+  const body = { ...current, properties: { ...(current.properties ?? {}), ...overlay } };
+
+  const shape = { resource: "arm" as const, method: "PUT", path: selection.path };
+  const cls = classifyRequest(shape);
+  assertReadOnlyBoundary(shape, cls);
+  const ifMatch = flagText(args, "if-match");
+  const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
+  const selectors = gateSelectorFlags(args);
+  const workspaceFlags = ids ? [] : flagText(args, "workspace") !== undefined
+    ? [formatFlagValue("workspace", flagText(args, "workspace")!)]
+    : [formatFlagValue("resource-group", selection.target!.resourceGroup),
+      formatFlagValue("workspace-name", selection.target!.workspaceName)];
+  const command = ["az-axi sentinel incident update", selectors, formatFlagValue("subscription", subscription),
+    ...(ids ? [formatFlagValue("ids", ids.trim())]
+      : [formatFlagValue("name", name!.trim()), ...workspaceFlags]),
+    ...(status === undefined ? [] : [formatFlagValue("status", status)]),
+    ...(severity === undefined ? [] : [formatFlagValue("severity", severity)]),
+    ...(owner === undefined ? [] : [formatFlagValue("owner", owner)]),
+    ...(classification === undefined ? [] : [formatFlagValue("classification", classification)]),
+    ...(classificationReason === undefined ? [] : [formatFlagValue("classification-reason", classificationReason)]),
+    ...(classificationComment === undefined ? [] : [formatFlagValue("classification-comment", classificationComment)]),
+    ...(ifMatch === undefined ? [] : [formatFlagValue("if-match", ifMatch)]),
+    ...(flagText(args, "timeout") === undefined ? [] : [formatFlagValue("timeout", flagText(args, "timeout")!)]),
+    ...(flagBool(args, "no-wait") ? ["--no-wait"] : []), "--execute"].filter(Boolean).join(" ");
+  if (execute) {
+    return executeWrite({ profile, method: "PUT", path: buildUrl({ path: selection.path, apiVersion: SENTINEL_INCIDENTS }),
+      cls: "write", body, protection: UPDATE_PROTECTION, ifMatch,
+      selectors, timeoutMs, noWait: flagBool(args, "no-wait") });
+  }
+  const preview = await dryRun({ profile, resource: "arm", method: "PUT", path: selection.path, cls,
+    body, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
+  return { ...preview, protection: UPDATE_PROTECTION, help: [`\`${command}\``] };
+}
+
+async function runCommentCreate(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const leaf = "sentinel incident comment create";
+  const bad = (message: string): never => writeInvalid(leaf, message);
+  const subscription = explicitSubscription(args, leaf);
+  const message = flagText(args, "message");
+  if (!message) bad("incident comment create needs --message <text>");
+  const incidentIdFlag = flagText(args, "incident-id");
+  const ids = flagText(args, "ids");
+  if (incidentIdFlag && ids) bad("incident comment create takes --incident-id or --ids, not both");
+  if (!incidentIdFlag && !ids) bad("incident comment create needs --incident-id <incident-id|number> or --ids <incident-ARM-id>");
+  if (incidentIdFlag && !NUMBER.test(incidentIdFlag.trim()) && !GUID.test(incidentIdFlag.trim())) {
+    bad("--incident-id must be the incident GUID or its incident number; full ARM IDs need --ids");
+  }
+  const commentName = flagText(args, "name");
+  if (commentName && !GUID.test(commentName.trim())) bad("--name must be the comment GUID; without it a random ID is generated");
+  const commentId = commentName ? commentName.trim() : randomUUID();
+  const execute = refuseBeforeTransport(profile, args, subscription);
+
+  const selection = await resolveIncidentTarget(profile, args, subscription,
+    incidentIdFlag ? { name: incidentIdFlag } : { ids: ids! }, "comment create");
+  const path = `${selection.path}/comments/${commentId}`;
+  const body = { properties: { message: message! } };
+
+  const shape = { resource: "arm" as const, method: "PUT", path };
+  const cls = classifyRequest(shape);
+  assertReadOnlyBoundary(shape, cls);
+  const ifMatch = flagText(args, "if-match");
+  const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
+  const selectors = gateSelectorFlags(args);
+  const workspaceFlags = ids ? [] : flagText(args, "workspace") !== undefined
+    ? [formatFlagValue("workspace", flagText(args, "workspace")!)]
+    : [formatFlagValue("resource-group", selection.target!.resourceGroup),
+      formatFlagValue("workspace-name", selection.target!.workspaceName)];
+  const command = ["az-axi sentinel incident comment create", selectors, formatFlagValue("subscription", subscription),
+    ...(ids ? [formatFlagValue("ids", ids.trim())]
+      : [formatFlagValue("incident-id", incidentIdFlag!.trim()), ...workspaceFlags]),
+    formatFlagValue("message", message!),
+    ...(commentName === undefined ? [] : [formatFlagValue("name", commentId)]),
+    ...(ifMatch === undefined ? [] : [formatFlagValue("if-match", ifMatch)]),
+    ...(flagText(args, "timeout") === undefined ? [] : [formatFlagValue("timeout", flagText(args, "timeout")!)]),
+    ...(flagBool(args, "no-wait") ? ["--no-wait"] : []), "--execute"].filter(Boolean).join(" ");
+  if (execute) {
+    return executeWrite({ profile, method: "PUT", path: buildUrl({ path, apiVersion: SENTINEL_INCIDENTS }),
+      cls: "write", body, protection: COMMENT_PROTECTION, ifMatch,
+      selectors, timeoutMs, noWait: flagBool(args, "no-wait") });
+  }
+  const preview = await dryRun({ profile, resource: "arm", method: "PUT", path, cls,
+    body, apiVersion: SENTINEL_INCIDENTS, ifMatch, selectors });
+  return { ...preview, protection: COMMENT_PROTECTION, help: [`\`${command}\``] };
+}
+
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const args = parseArgs(argv);
   if (args.positionals[0] !== "incident") {
@@ -743,25 +1033,36 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     );
   }
   const verb = args.positionals[1];
-  if (args.positionals.length > 2) {
-    throw new AxiError(`unexpected argument \`${args.positionals[2]}\` for \`sentinel incident ${verb}\``, "VALIDATION_ERROR", [
+  const tail = args.positionals.slice(2);
+  let leaf: string;
+  if ((verb === "list" || verb === "show" || verb === "list-alert" || verb === "list-entity" || verb === "update") && tail.length === 0) {
+    leaf = `sentinel incident ${verb}`;
+  } else if (verb === "comment" && tail.length === 1 && tail[0] === "create") {
+    leaf = "sentinel incident comment create";
+  } else if (verb === "list" || verb === "show" || verb === "list-alert" || verb === "list-entity" || verb === "update") {
+    throw new AxiError(`unexpected argument \`${tail[0]}\` for \`sentinel incident ${verb}\``, "VALIDATION_ERROR", [
       `Run \`az-axi sentinel incident ${verb} --help\` for usage`,
     ]);
-  }
-  if (verb !== "list" && verb !== "show" && verb !== "list-alert" && verb !== "list-entity") {
+  } else {
     throw new AxiError(
-      verb ? `unknown command \`sentinel incident ${args.positionals.slice(1).join(" ")}\`` : "missing verb for `sentinel incident`",
+      verb ? `unknown command \`sentinel incident ${[verb, ...tail].join(" ")}\`` : "missing verb for `sentinel incident`",
       "VALIDATION_ERROR",
-      ["Expected one of: list | show | list-alert | list-entity", "Run `az-axi sentinel incident list --help` for usage"],
+      ["Expected one of: list | show | list-alert | list-entity | update | comment create", "Run `az-axi sentinel incident list --help` for usage"],
     );
   }
-  assertKnownFlags(args, commandFlags(`sentinel incident ${verb}`), `sentinel incident ${verb}`);
+  assertKnownFlags(args, commandFlags(leaf), leaf);
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
-    invalid("management-group scope is unsupported for Sentinel incidents; select one subscription explicitly");
+  if (leaf === "sentinel incident list" || leaf === "sentinel incident show" || leaf === "sentinel incident list-alert" || leaf === "sentinel incident list-entity") {
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+      invalid("management-group scope is unsupported for Sentinel incidents; select one subscription explicitly");
+    }
   }
-  if (verb === "list") return runList(profile, args);
-  if (verb === "list-alert") return runAlertList(profile, args);
-  if (verb === "list-entity") return runEntityList(profile, args);
-  return runShow(profile, args);
+  if (leaf === "sentinel incident list") return runList(profile, args);
+  if (leaf === "sentinel incident show") return runShow(profile, args);
+  if (leaf === "sentinel incident list-alert") return runAlertList(profile, args);
+  if (leaf === "sentinel incident list-entity") return runEntityList(profile, args);
+  // The module effect stays read so incident reads keep the read-only request
+  // guard; each write verb elevates to the write effect for its own requests.
+  if (leaf === "sentinel incident update") return runWithEffect("write", () => runUpdate(profile, args));
+  return runWithEffect("write", () => runCommentCreate(profile, args));
 }

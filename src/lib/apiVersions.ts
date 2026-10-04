@@ -157,8 +157,6 @@ export const DEFENDER_SECURE_SCORES = "2020-01-01";
  * `Incidents_Get` takes the incident GUID name. Incident identity is the GUID
  * `name` plus the sequential `properties.incidentNumber`; status is
  * New/Active/Closed and severity is High/Medium/Low/Informational.
- * Incident updates are separate operations and are not covered by this read contract.
- *
  * Related alerts (`Incidents_ListAlerts`, POST `.../incidents/{incidentId}/alerts`)
  * and entities (`Incidents_ListEntities`, POST `.../incidents/{incidentId}/entities`)
  * are bodyless management-plane reads under this same version: alerts return
@@ -166,6 +164,15 @@ export const DEFENDER_SECURE_SCORES = "2020-01-01";
  * metaData: IncidentEntitiesResultsMetadata[] }`, and neither response pages.
  * Verified: 2026-10-04 against the same stable spec tree and the
  * GetAllIncidentAlerts/GetAllIncidentEntities examples.
+ * Incident update and comment create verified 2026-10-04 against the REST
+ * reference use the same version: `Incidents_CreateOrUpdate` is
+ * `PUT .../incidents/{incidentId}` requiring properties severity, status and
+ * title with optional classification, classificationReason,
+ * classificationComment and owner, plus a top-level etag; `IncidentComments
+ * CreateOrUpdate` is `PUT .../incidents/{incidentId}/comments/{incidentCommentId}`
+ * with a caller-generated comment ID and `{properties:{message}}`.
+ * Docs: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/create-or-update?view=rest-securityinsights-2025-09-01
+ * and https://learn.microsoft.com/en-us/rest/api/securityinsights/incident-comments/create-or-update?view=rest-securityinsights-2025-09-01
  */
 export const SENTINEL_INCIDENTS = "2025-09-01";
 

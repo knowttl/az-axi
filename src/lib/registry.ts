@@ -64,6 +64,8 @@ export const COMMAND_LEAVES = [
   { path: "sentinel incident show", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value" } },
   { path: "sentinel incident list-alert", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value" } },
   { path: "sentinel incident list-entity", effect: "read", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value" } },
+  { path: "sentinel incident update", effect: "write", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", name: "value", "incident-id": "value", ids: "value", status: "value", severity: "value", owner: "value", classification: "value", "classification-reason": "value", "classification-comment": "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
+  { path: "sentinel incident comment create", effect: "write", capability: "native", flags: { "workspace-name": "value", "resource-group": "value", workspace: "value", "incident-id": "value", name: "value", ids: "value", message: "value", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
   { path: "exposure", effect: "read", capability: "native", flags: { check: "value", "show-query": "boolean" } },
   { path: "monitor log-analytics query", handlerPath: "logs query", aliases: ["logs query"], effect: "read", capability: "native", positionalInput: true, flags: { workspace: "value", timespan: "value", file: "value" }, canonicalFlags: { "analytics-query": "value" } },
   { path: "api", effect: "dynamic", capability: "native", positionalInput: true, flags: { resource: "value", "api-version": "value", query: "value", body: "value", "body-file": "value", raw: "boolean", all: "boolean", execute: "boolean", confirm: "value", "if-match": "value", timeout: "value", "no-wait": "boolean" } },
@@ -178,7 +180,7 @@ const HELP_OVERVIEWS = {
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
   defender: "az-axi defender alerts|assessments|score  # Defender for Cloud posture",
   security: "az-axi security alert update             # gated status update for one Defender alert",
-  sentinel: "az-axi sentinel incident list|show|list-alert|list-entity  # Sentinel incidents and related alerts/entities in one Log Analytics workspace",
+  sentinel: "az-axi sentinel incident list|show|list-alert|list-entity|update|comment create  # Sentinel incidents and related alerts/entities in one Log Analytics workspace",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
   api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
@@ -222,6 +224,27 @@ export const ALERT_UPDATE_HELP = [
   "az-axi security alert update -s <id> -g example-rg -l westeurope -n example-alert --status resolve --execute",
 ].join("\n");
 
+export const SENTINEL_UPDATE_HELP = [
+  "az-axi sentinel incident update --subscription <id> (--name <incident-id|number> | --ids <incident-ARM-id>) [--workspace-name <workspace> --resource-group <group> | --workspace <alias|guid>] [--status New|Active|Closed] [--severity High|Medium|Low|Informational] [--owner <object-id|email|name>] [--classification <classification> --classification-reason <reason> [--classification-comment <text>]]",
+  "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
+  "Incident selection mirrors incident show: --name / --incident-id takes the incident GUID or its number with workspace selectors, --ids takes the full incident ARM ID alone.",
+  "At least one of --status, --severity, --owner or --classification is required. Closing (--status Closed) requires --classification; a concrete classification requires --classification-reason.",
+  "--owner takes one identity: a GUID becomes objectId, text with @ becomes email, anything else becomes the assigned-to name.",
+  "Writes require the existing profile permission and subscription allowlist. Default: dry run with the field-level diff against the re-read incident; --execute sends one merged PUT (GET-merge-PUT, as az does).",
+  "Nothing to change: no-op. --if-match pins a reviewed ETag; without it execution uses the fresh re-read ETag (compare-and-swap).",
+  "--timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log, LRO handling and approval hook apply.",
+  "Examples: az-axi sentinel incident update -s <id> --name 3177 -g <group> --workspace-name <workspace> --status Closed --classification FalsePositive --classification-reason IncorrectAlertLogic --execute",
+].join("\n");
+
+export const SENTINEL_COMMENT_HELP = [
+  "az-axi sentinel incident comment create --subscription <id> (--incident-id <incident-id|number> | --ids <incident-ARM-id>) [--workspace-name <workspace> --resource-group <group> | --workspace <alias|guid>] --message <text> [--name <comment-guid>]",
+  "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
+  "--message is required. --name / -n optionally sets the comment GUID (az parity); without it a random GUID is generated. Reusing a --name updates that comment idempotently.",
+  "Writes require the existing profile permission and subscription allowlist. Default: dry run showing the new comment resource; --execute sends one PUT with {properties:{message}}.",
+  "--if-match guards an update to an existing comment. --timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log, LRO handling and approval hook apply.",
+  "Examples: az-axi sentinel incident comment create -s <id> --incident-id <incident-id> -g <group> --workspace-name <workspace> --message Triaged --execute",
+].join("\n");
+
 const LEAF_HELP: Record<string, string> = {
   "account list": "Lists live ARM subscriptions in selected scope (flags, environment, profile, else all accessible), resolving unambiguous names to IDs. This is not Azure CLI's cached account list. Legacy sub list still lists all visible subscriptions with inScope markers.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata and shows all fetched rows; --fields selects metadata. --limit defaults to 50. Paging stops at 100 pages with lower-bound counts. Management-group scope is unsupported.\nExamples: az-axi account list; az-axi account list -s <subscription> --full",
   "account show": "Shows one live ARM subscription selected by flags, environment or profile, resolving unambiguous names to IDs. Exactly one selected subscription is required; no implicit ambient az default is chosen.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata; --fields selects metadata. This does not change profile defaults or Azure CLI's account. Management-group scope is unsupported.\nExamples: az-axi account show -s <subscription>; az-axi account show --full",
@@ -245,6 +268,8 @@ const LEAF_HELP: Record<string, string> = {
   "sentinel incident show": "Shows one Sentinel incident. --name takes the incident GUID or its sequential incident number (with --workspace-name and --resource-group, or --workspace <alias|guid>); --ids takes the full incident ARM ID alone. --incident-id aliases --name. Exactly one subscription is required.\nDefault: number, id, title, description (truncated at 200 chars), severity, status, created/modified times, owner, labels, provider, tactics and alert count. --full expands the description.\nExamples: az-axi sentinel incident show -n <incident-id> -g <group> --workspace-name <workspace> -s <subscription>; az-axi sentinel incident show --name 3177 --workspace sentinel; az-axi sentinel incident show --ids <incident-ARM-id> --full",
   "sentinel incident list-alert": "Lists the alerts related to one Sentinel incident through a reviewed bodyless read POST (Incidents_ListAlerts, api-version 2025-09-01). Selectors match incident show: --name <incident-id|number> with --workspace-name and --resource-group, or --workspace <alias|guid>, or --ids <incident-ARM-id> alone. --incident-id aliases --name; numbers resolve through the bounded incident list. Exactly one subscription is required.\nDefault rows: name, alert, severity, status, time. --limit defaults to 50; --full shows full ARM IDs, tactics and product names for every related alert; --fields selects row fields. The response does not page.\nExamples: az-axi sentinel incident list-alert --name 3177 --workspace sentinel; az-axi sentinel incident list-alert --ids <incident-ARM-id> --full",
   "sentinel incident list-entity": "Lists the entities related to one Sentinel incident through a reviewed bodyless read POST (Incidents_ListEntities, api-version 2025-09-01). Selectors match incident show: --name <incident-id|number> with --workspace-name and --resource-group, or --workspace <alias|guid>, or --ids <incident-ARM-id> alone. --incident-id aliases --name; numbers resolve through the bounded incident list. Exactly one subscription is required.\nDefault rows: kind, entity, name. --limit defaults to 50; --full adds the ARM ID for every related entity; --fields selects row fields. byKind prefers the server metadata counts. The response does not page.\nExamples: az-axi sentinel incident list-entity --name 3177 --workspace sentinel; az-axi sentinel incident list-entity --ids <incident-ARM-id> --full",
+  "sentinel incident update": SENTINEL_UPDATE_HELP,
+  "sentinel incident comment create": SENTINEL_COMMENT_HELP,
 };
 
 const HELP_FOOTER = [
@@ -347,7 +372,7 @@ const HELP_TEXT = {
     "Examples: az-axi defender alerts --severity High; az-axi defender assessments --severity High; az-axi defender score",
   ].join("\n"),
   security: ALERT_UPDATE_HELP,
-  sentinel: ["az-axi sentinel incident list --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident show --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident list-alert|list-entity --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", LEAF_HELP["sentinel incident list"], LEAF_HELP["sentinel incident show"], LEAF_HELP["sentinel incident list-alert"], LEAF_HELP["sentinel incident list-entity"]].join("\n"),
+  sentinel: ["az-axi sentinel incident list --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident show --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident list-alert|list-entity --name <incident-id|number> --workspace-name <workspace> --resource-group <group> --subscription <id>", "az-axi sentinel incident update --subscription <id> --name <incident-id|number> --status Closed --classification FalsePositive --classification-reason IncorrectAlertLogic", "az-axi sentinel incident comment create --subscription <id> --incident-id <incident-id> --message <text>", LEAF_HELP["sentinel incident list"], LEAF_HELP["sentinel incident show"], LEAF_HELP["sentinel incident list-alert"], LEAF_HELP["sentinel incident list-entity"], LEAF_HELP["sentinel incident update"], LEAF_HELP["sentinel incident comment create"]].join("\n"),
   exposure: [
     "az-axi exposure [--check public-ips|mgmt-ports|any-any|all] [--limit 50]",
     "az-axi exposure --show-query              # print the canned Resource Graph KQL without running it",

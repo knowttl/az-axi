@@ -21,6 +21,8 @@ describe("Claude Code Bash write guard", () => {
   it.each([
     "az-axi security alert update -l westeurope -n example-alert --status dismiss --execute",
     "az-axi defender alerts update --location westeurope --name example-alert --status resolve --execute",
+    "az-axi sentinel incident update --name 3177 --status closed --classification FalsePositive --execute",
+    "az-axi sentinel incident comment create --incident-id 00000000-0000-0000-0000-000000000063 --message Triaged --execute",
     "az-axi api PATCH /target --execute",
     "az-axi api PATCH /target --body-file 'body file.json' --execute",
     "az-axi api PATCH /target --execute < body.json",

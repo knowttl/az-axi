@@ -28,6 +28,8 @@ export const scenarios = [
 // Owner capture/replay stays read-only and never includes native write previews.
 export const offlineWritePreviews = [
   { name: "security-alert-update", argv: ["security", "alert", "update", "--location", "westeurope", "--name", "example-alert", "--status", "dismiss"] },
+  { name: "sentinel-incident-update", argv: ["sentinel", "incident", "update", "--name", "00000000-0000-0000-0000-000000000063", "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--status", "closed", "--classification", "FalsePositive", "--classification-reason", "IncorrectAlertLogic"] },
+  { name: "sentinel-incident-comment-create", argv: ["sentinel", "incident", "comment", "create", "--incident-id", "00000000-0000-0000-0000-000000000063", "--resource-group", "rg-demo", "--workspace-name", "logs-demo", "--message", "Offline triage note"] },
 ];
 
 // Child transport is exercised with fake az responses in the offline budget suite.

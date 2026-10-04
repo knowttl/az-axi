@@ -27,7 +27,8 @@ describe("exact leaf contracts", () => {
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
       "group list", "group show", "resource list", "resource show",
       "graph query", "rbac list", "activity list", "defender alerts", "defender alerts get",
-      "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show", "sentinel incident list-alert", "sentinel incident list-entity", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
+      "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show",
+      "sentinel incident list-alert", "sentinel incident list-entity", "sentinel incident update", "sentinel incident comment create", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
       "storage container list", "storage container show", "storage blob list", "storage blob show",
       "keyvault secret list", "keyvault key list", "keyvault certificate list",
     ]);
@@ -35,7 +36,7 @@ describe("exact leaf contracts", () => {
     expect(new Set(COMMAND_LEAVES.map((leaf) => leaf.path)).size).toBe(COMMAND_LEAVES.length);
     for (const leaf of COMMAND_LEAVES) {
       expect(leaf.capability).toBe(leaf.path === "az group show" ? "passthrough" : "native");
-      expect(leaf.effect).toBe(leaf.path === "api" ? "dynamic" : leaf.path === "security alert update" ? "write" : "read");
+      expect(leaf.effect).toBe(leaf.path === "api" ? "dynamic" : ["security alert update", "sentinel incident update", "sentinel incident comment create"].includes(leaf.path) ? "write" : "read");
     }
   });
 
@@ -52,7 +53,13 @@ describe("exact leaf contracts", () => {
       const module = await COMMANDS[name!]!();
       expect(module.meta).toEqual(commandMeta(name!));
       for (const leaf of COMMAND_LEAVES.filter((leaf: CommandLeaf) => (leaf.handlerPath ?? leaf.path).split(" ")[0] === name)) {
-        expect(leaf.effect).toBe(module.meta.effect);
+        // Sentinel is the one mixed-effect module: list/show stay read while the
+        // write verbs elevate to the write effect for their own requests only.
+        if (name === "sentinel" && leaf.effect === "write") {
+          expect(["sentinel incident update", "sentinel incident comment create"]).toContain(leaf.path);
+        } else {
+          expect(leaf.effect).toBe(module.meta.effect);
+        }
       }
     }
   });
@@ -98,6 +105,9 @@ describe("exact leaf contracts", () => {
 
   it("enforces registered read effects on requests and resets after failure", async () => {
     await expect(runWithEffect(commandMeta("defender").effect, async () => assertEffectAllows("write")))
+      .rejects.toMatchObject({ code: "READ_ONLY" });
+    // Sentinel stays a read-effect module; its write verbs elevate per verb.
+    await expect(runWithEffect(commandMeta("sentinel").effect, async () => assertEffectAllows("write")))
       .rejects.toMatchObject({ code: "READ_ONLY" });
     expect(() => assertEffectAllows("write")).not.toThrow();
     await expect(runWithEffect(commandMeta("api").effect, async () => assertEffectAllows("write")))

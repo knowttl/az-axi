@@ -592,6 +592,9 @@ Related alerts (`sentinel incident list-alert`) and entities (`sentinel incident
 Reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/get?view=rest-securityinsights-2025-09-01
 Related reference: https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list-alerts?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/list-entities?view=rest-securityinsights-2025-09-01
 
+The later native Sentinel incident writes are documented in [README.md#writes](README.md#writes).
+**Reference:** [Azure CLI incident update](https://learn.microsoft.com/en-us/cli/azure/sentinel/incident?view=azure-cli-latest#az-sentinel-incident-update), [Azure CLI incident comment create](https://learn.microsoft.com/en-us/cli/azure/sentinel/incident/comment?view=azure-cli-latest#az-sentinel-incident-comment-create), [ARM incident create-or-update](https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/create-or-update?view=rest-securityinsights-2025-09-01) and [ARM incident comment create-or-update](https://learn.microsoft.com/en-us/rest/api/securityinsights/incident-comments/create-or-update?view=rest-securityinsights-2025-09-01).
+
 ### 6.5 `rg query`
 
 Canonical path: `graph query --graph-query <kql>` / `-q <kql>`, retaining `rg query` as the legacy alias.
@@ -1412,6 +1415,7 @@ Compare az-axi output against an independent source. Counts and key fields shoul
 | `activity list --since 24h --status Failed` | `az monitor activity-log list --offset 24h --status Failed --query "length(@)"` |
 | `defender alerts` | Defender for Cloud portal, Security alerts blade, same filters; or `az security alert list` |
 | `security alert update` | Owner only in a disposable sandbox: compare the selected alert's status before/after in the Defender portal; repeat the action to verify a no-op |
+| `sentinel incident update` | Owner only in a disposable sandbox: compare the selected incident's status/severity/owner/classification before/after in the Sentinel portal; repeat the update to verify a no-op; add a comment with `sentinel incident comment create` and confirm it on the incident |
 | `defender assessments` | Defender for Cloud portal, Recommendations blade, unhealthy counts per recommendation |
 | `defender score` | `az security secure-scores list` |
 | `sentinel incident list/show` | Owner only: `az sentinel incident list -g <group> -w <workspace>` and `show --name <incident-id> -g <group> -w <workspace>` with identical scope; worker verification uses only mocks and fake transports |
@@ -1495,6 +1499,7 @@ Where to look, by topic. Links were current on 2026-10-01; if one has moved, sea
 | Activity Logs - List | https://learn.microsoft.com/en-us/rest/api/monitor/activity-logs/list |
 | Defender alerts | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/list and https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/get-subscription-level |
 | Defender alert status actions | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/alerts/update-subscription-level-state-to-activate?view=rest-defenderforcloud-2022-01-01 (same stable contract for dismiss/resolve and resource-group scope) |
+| Sentinel incident update and comment create | https://learn.microsoft.com/en-us/rest/api/securityinsights/incidents/create-or-update?view=rest-securityinsights-2025-09-01 and https://learn.microsoft.com/en-us/rest/api/securityinsights/incident-comments/create-or-update?view=rest-securityinsights-2025-09-01 (both PUT on api-version 2025-09-01; update requires severity, status and title; comment takes a caller-generated comment ID with {properties:{message}}) |
 | Defender assessments | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/assessments/list |
 | Defender secure scores | https://learn.microsoft.com/en-us/rest/api/defenderforcloud/secure-scores/list |
 | Log Analytics query | https://learn.microsoft.com/en-us/rest/api/loganalytics/dataaccess/query/execute |
