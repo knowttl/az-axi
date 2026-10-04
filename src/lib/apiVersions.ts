@@ -289,6 +289,25 @@ export const POLICY = "2021-06-01";
 export const POLICY_STATES = "2024-10-01";
 
 /**
+ * Deny assignments, list and get (`GET /{scope}/providers/Microsoft.Authorization/
+ * denyAssignments[/{denyAssignmentId}]`). There is no dedicated Azure CLI group
+ * for deny assignments; the spelling follows the ARM resource type.
+ *
+ * Value: 2022-04-01. Newer stable: none (2022-04-01 is the newest stable folder,
+ * the same family as ROLE_ASSIGNMENTS).
+ * Spec: authorization/resource-manager/Microsoft.Authorization/Authorization/stable/2022-04-01/
+ * (authorization-DenyAssignmentCalls.json).
+ * Docs: https://learn.microsoft.com/en-us/rest/api/authorization/deny-assignments/get?view=rest-authorization-2022-04-01
+ * Verified: 2026-10-04 against the spec tree (second check: the Learn REST
+ * get reference documents the same path, version and DenyAssignment shape
+ * with principals, permissions and scope).
+ * Reason: newest stable; `DenyAssignments_List` and `DenyAssignments_Get`
+ * present with `{ value: T[] }` plus `nextLink` list responses. Deny-assignment
+ * mutations are destructive under policy and are never sent.
+ */
+export const DENY_ASSIGNMENTS = "2022-04-01";
+
+/**
  * Deployments - What If, used by deployment dry runs
  * (`POST .../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group
  * and subscription scope).
