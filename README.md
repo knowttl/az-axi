@@ -255,6 +255,8 @@ Discovery uses live ARM GETs, with subscription flags, environment or profile sc
 Unambiguous subscription names resolve to IDs without changing the Azure CLI account default.
 Lists default to 50 compact metadata rows with full IDs, counts and explicit empty states.
 `--fields` selects metadata fields; `--full` expands metadata and shows every fetched row.
+Group views default to name, id, location and state; `--fields state` selects the group's provisioning state even with `--full`.
+`resource list --resource-group` scopes the list; `--name` and `--resource-type` filter exact, case-insensitive matches.
 Generic `resource show` returns only the ARM envelope: id, name, type, kind, location, tags, sku, identity type and provisioningState.
 Its default view shows name, id, type and location; `--full` expands the envelope, and `--fields` selects envelope fields only.
 Provider `properties` and nested field paths are rejected by `--fields`; no show view returns the raw properties blob.
@@ -313,8 +315,8 @@ All legacy paths remain available.
 Command paths must be complete and contiguous; put command flags after the full leaf path.
 Global selector and display flags may precede the command, with one token per value; use commas or repeated flags for leading lists.
 `--assignee` and `--offset` are accepted on their az-shaped paths only; legacy paths retain `--principal` and `--since`.
-`rg query` continues to mean Resource Graph; resource groups use `group` when supported.
-Account/resource discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
+`rg query` continues to mean Resource Graph; use `group list/show` for resource groups and `resource list/show` for ARM resources, as described [above](#use).
+Account discovery, raw assessment lists, and alert name/location selectors for reads are separate additions.
 For the native alert status write and its legacy alias, see [Writes](#writes).
 The aliases expose az grammar with the existing analyst defaults; they do not claim full Azure CLI semantics.
 

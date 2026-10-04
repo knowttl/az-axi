@@ -53,21 +53,12 @@ Hashes from strict scrubbing can inflate token counts and change truncation, so 
 Transport headers are excluded from the token baseline; numeric Retry-After seconds are replayed, while date-form Retry-After and other headers are omitted.
 Recordings with behavior dependent on omitted headers require a new capture without that condition.
 
+Use the following result format for each captured scenario in the [authoritative inventory](benchmark/scenarios.mjs).
+Record skipped optional captures alongside the results.
+
 | Scenario | REST JSON tokens | az-axi TOON tokens | Saved % |
 |---|---:|---:|---:|
-| rg-1 | Owner to fill | Owner to fill | Owner to fill |
-| rg-10 | Owner to fill | Owner to fill | Owner to fill |
-| rg-50 | Owner to fill | Owner to fill | Owner to fill |
-| rbac-privileged | Owner to fill | Owner to fill | Owner to fill |
-| role-assignment-privileged | Owner to fill | Owner to fill | Owner to fill |
-| monitor-activity | Owner to fill | Owner to fill | Owner to fill |
-| security-alerts | Owner to fill | Owner to fill | Owner to fill |
-| security-scores | Owner to fill | Owner to fill | Owner to fill |
-| defender-alerts | Owner to fill | Owner to fill | Owner to fill |
-| exposure | Owner to fill | Owner to fill | Owner to fill |
-| logs-query | Owner to fill | Owner to fill | Owner to fill |
-| graph-query | Owner to fill | Owner to fill | Owner to fill |
-| monitor-log-analytics-query | Owner to fill | Owner to fill | Owner to fill |
+| Scenario name | Owner to fill | Owner to fill | Owner to fill |
 
 ## Skill and help surface
 
