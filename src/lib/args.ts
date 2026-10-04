@@ -1,11 +1,11 @@
 import { AxiError } from "axi-sdk-js";
 
 export interface ParsedArgs {
-  flags: Record<string, string | boolean>;
+  flags: Record<string, string | boolean | string[]>;
   positionals: string[];
 }
 
-export type FlagSchema = Readonly<Record<string, "value" | "literal" | "boolean" | "list">>;
+export type FlagSchema = Readonly<Record<string, "value" | "literal" | "boolean" | "list" | "literal-list">>;
 export const GLOBAL_FLAG_SCHEMA: FlagSchema = {
   profile: "value", tenant: "value", subscription: "list", "management-group": "value",
   config: "value", help: "boolean", full: "boolean", fields: "list", limit: "value",
@@ -39,7 +39,7 @@ export function parseLeafArgs(argv: readonly string[], schema: FlagSchema, comma
       assertKnownFlags({ flags: { [name]: true }, positionals: [] }, Object.keys(schema), command, help);
       throw new AxiError(`unknown flag ${arg} for \`${command}\``, "UNKNOWN_FLAG", [help]);
     }
-    let value: string | boolean;
+    let value: string | boolean | string[];
     if (kind === "boolean") {
       const next = argv[i + 1];
       const explicit = inline.length ? inline.join("=") : next === "true" || next === "false" ? argv[++i] : undefined;
@@ -52,19 +52,20 @@ export function parseLeafArgs(argv: readonly string[], schema: FlagSchema, comma
       if (!inline.length) {
         while (argv[i + 1] !== undefined && (!argv[i + 1]!.startsWith("-") || /^-\d/.test(argv[i + 1]!))) {
           values.push(argv[++i]!);
-          if (kind !== "list" || positionalInput) break;
+          if ((kind !== "list" && kind !== "literal-list") || positionalInput) break;
         }
       }
-      if (!values.length || values.some((v) => !(kind === "literal" ? v : v.trim()))) {
+      if (!values.length || values.some((v) => !(kind === "literal" || kind === "literal-list" ? v : v.trim()))) {
         throw new AxiError(`flag --${name} needs a non-empty value`, "VALIDATION_ERROR", [help]);
       }
-      value = kind === "list" ? values.join(",") : values[0]!;
-      if (kind === "list" && !value.split(",").some((part) => part.trim())) {
+      value = kind === "literal-list" ? values : kind === "list" ? values.join(",") : values[0]!;
+      if (kind === "list" && typeof value === "string" && !value.split(",").some((part) => part.trim())) {
         throw new AxiError(`flag --${name} needs a non-empty value`, "VALIDATION_ERROR", [help]);
       }
     }
     if (Object.hasOwn(flags, name)) {
-      if (kind === "list") value = `${flags[name]},${value}`;
+      if (Array.isArray(value)) value = [...flags[name] as string[], ...value];
+      else if (kind === "list") value = `${flags[name]},${value}`;
       else if (flags[name] !== value) {
         throw new AxiError(`conflicting values for --${name}`, "VALIDATION_ERROR", [help]);
       }

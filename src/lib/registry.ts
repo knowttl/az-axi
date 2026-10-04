@@ -37,6 +37,8 @@ export interface CommandLeaf {
   positionalInput?: boolean;
 }
 
+export const TAG_UPDATE_FLAGS: FlagSchema = { "resource-id": "value", operation: "value", tags: "literal-list", execute: "boolean", "if-match": "value", timeout: "value", "no-wait": "boolean" };
+
 /** Current executable leaves. API methods are arguments of the dynamic `api` leaf. */
 export const COMMAND_LEAVES = [
   { path: "home", effect: "read", capability: "native" },
@@ -53,6 +55,7 @@ export const COMMAND_LEAVES = [
   { path: "group show", effect: "read", capability: "native", flags: { name: "value" } },
   { path: "resource list", effect: "read", capability: "native", flags: { "resource-group": "value", name: "value", "resource-type": "value" } },
   { path: "resource show", effect: "read", capability: "native", flags: { ids: "value", name: "value", "resource-group": "value", "resource-type": "value", "api-version": "value" } },
+  { path: "tag update", effect: "write", capability: "native", flags: TAG_UPDATE_FLAGS },
   { path: "graph query", handlerPath: "rg query", aliases: ["rg query"], effect: "read", capability: "native", positionalInput: true, flags: { "skip-token": "value", file: "value" }, canonicalFlags: { "graph-query": "value", subscriptions: "list", "management-groups": "list" }, canonicalFlagAliases: { first: "limit" }, handlerFlags: { "management-groups": "list" } },
   { path: "rbac list", effect: "read", capability: "native", aliases: ["role assignment list"], aliasFlags: { assignee: "principal" }, flags: { principal: "value", role: "value", scope: "value", privileged: "boolean", "show-query": "boolean" } },
   { path: "activity list", effect: "read", capability: "native", aliases: ["monitor activity-log list"], aliasFlags: { offset: "since" }, flags: { since: "value", caller: "value", "resource-group": "value", status: "value", operation: "value" } },
@@ -124,6 +127,7 @@ const LOADERS = {
   monitor: () => import("../commands/monitor.js"),
   group: () => import("../commands/group.js"),
   resource: () => import("../commands/resource.js"),
+  tag: () => import("../commands/tag.js"),
   rg: () => import("../commands/rg.js"),
   rbac: () => import("../commands/rbac.js"),
   activity: () => import("../commands/activity.js"),
@@ -184,6 +188,7 @@ const HELP_OVERVIEWS = {
   monitor: "az-axi monitor log-analytics workspace list|show  # workspace metadata, no shared keys",
   group: "az-axi group list|show                    # resource groups in selected subscriptions",
   resource: "az-axi resource list|show                 # ARM resource inventory and detail",
+  tag: "az-axi tag update --operation merge|delete   # set or remove tags on one resource or resource group",
   rg: "az-axi rg query \"<kql>\"                  # Resource Graph query across subscriptions",
   rbac: "az-axi rbac list [--privileged]           # role assignments with principal names",
   activity: "az-axi activity list [--since 24h]        # activity log across subscriptions, newest first",
@@ -214,7 +219,7 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
     `Native operation: az-axi ${leaf.handlerPath ?? leaf.path}; existing scope, defaults and TOON output apply.`,
     `Flags: ${[...flags, ...Object.keys(canonical ? leaf.canonicalFlagAliases ?? {} : {})].map((name) => `--${name}`).join(", ")}`,
     "Short flags where accepted: -h help, -s subscription, -g resource-group, -n name, -w workspace, -t timespan.",
-    leaf.positionalInput && !canonical ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
+    leaf.path === "tag update" ? "--tags accepts individual k=v arguments or repeated flags; commas remain part of values. List selectors such as --subscription accept comma-separated values." : leaf.positionalInput && !canonical ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
     "Booleans accept bare flags or true/false. Conflicting scalar values are refused.",
     ...(path === "role assignment list" ? ["--assignee aliases --principal; inherited assignments are always included."] : []),
     ...(path === "monitor activity-log list" ? ["--offset aliases --since (default 24h)."] : []),
@@ -256,6 +261,20 @@ export const SENTINEL_COMMENT_HELP = [
   "Examples: az-axi sentinel incident comment create -s <id> --incident-id <incident-id> -g <group> --workspace-name <workspace> --message Triaged --execute",
 ].join("\n");
 
+export const TAG_UPDATE_HELP = [
+  "az-axi tag update --subscription <id> --resource-id <ARM-id> --operation merge|delete --tags k=v [k=v ...]",
+  "--subscription / -s requires a single explicit subscription ID; names and implicit env/profile scope are not accepted.",
+  "--resource-id takes one exact ARM ID for a resource or resource group in that subscription. Subscription-only IDs, the tags wrapper, query strings and other scopes are refused.",
+  "--operation merge adds the named tags or overwrites their values; --operation delete removes the named tags. replace is refused: it rewrites the whole tag set.",
+  "--tags takes individual k=v arguments after one flag or repeated flags; values retain commas, spaces and additional equals signs. Names are case-insensitive and conflicting values for one name are refused. Delete matches by name; supplied values are ignored and sent as null. Values equal to ***redacted*** are refused: re-supply the real value instead of pasting a redacted hint.",
+  "Writes require the existing profile permission and subscription allowlist. Default: dry run with the tag-map diff against the current tags; --execute sends one PATCH .../providers/Microsoft.Resources/tags/default with {operation, properties:{tags}} (api-version 2021-04-01).",
+  "Nothing to change: no-op. Merge on untagged scope previews creation; delete on missing tags is a no-op.",
+  "--if-match pins a reviewed ETag; without it execution uses the fresh re-read ETag when the service returns one. The Tags API documents no ETag guarantee.",
+  "--timeout defaults to 600 seconds; --no-wait defaults to false. The shared write log and approval hook apply.",
+  "Examples: az-axi tag update -s <id> --resource-id <ARM-id> --operation merge --tags env=prod owner=team",
+  "az-axi tag update -s <id> --resource-id <ARM-id> --operation delete --tags deprecated=true --execute",
+].join("\n");
+
 const LEAF_HELP: Record<string, string> = {
   "account list": "Lists live ARM subscriptions in selected scope (flags, environment, profile, else all accessible), resolving unambiguous names to IDs. This is not Azure CLI's cached account list. Legacy sub list still lists all visible subscriptions with inScope markers.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata and shows all fetched rows; --fields selects metadata. --limit defaults to 50. Paging stops at 100 pages with lower-bound counts. Management-group scope is unsupported.\nExamples: az-axi account list; az-axi account list -s <subscription> --full",
   "account show": "Shows one live ARM subscription selected by flags, environment or profile, resolving unambiguous names to IDs. Exactly one selected subscription is required; no implicit ambient az default is chosen.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata; --fields selects metadata. This does not change profile defaults or Azure CLI's account. Management-group scope is unsupported.\nExamples: az-axi account show -s <subscription>; az-axi account show --full",
@@ -281,6 +300,7 @@ const LEAF_HELP: Record<string, string> = {
   "sentinel incident list-entity": "Lists the entities related to one Sentinel incident through a reviewed bodyless read POST (Incidents_ListEntities, api-version 2025-09-01). Selectors match incident show: --name <incident-id|number> with --workspace-name and --resource-group, or --workspace <alias|guid>, or --ids <incident-ARM-id> alone. --incident-id aliases --name; numbers resolve through the bounded incident list. Exactly one subscription is required.\nDefault rows: kind, entity, name. --limit defaults to 50; --full adds the ARM ID for every related entity; --fields selects row fields. byKind prefers the server metadata counts. The response does not page.\nExamples: az-axi sentinel incident list-entity --name 3177 --workspace sentinel; az-axi sentinel incident list-entity --ids <incident-ARM-id> --full",
   "sentinel incident update": SENTINEL_UPDATE_HELP,
   "sentinel incident comment create": SENTINEL_COMMENT_HELP,
+  "tag update": TAG_UPDATE_HELP,
   "sentinel alert-rule list": "Lists Sentinel analytics rules in one workspace, by display name. Requires --workspace-name and --resource-group, or --workspace <alias|guid> from the profile workspaces. Exactly one subscription is required.\nDefault rows: name, rule, kind, enabled, severity, with byKind and byEnabled aggregates. --limit defaults to 50; --full shows full ARM IDs, tactics, templates and modification times for every fetched row; --fields selects row fields. Lists follow up to 10 pages and disclose incomplete counts.\nExamples: az-axi sentinel alert-rule list -g <group> --workspace-name <workspace> -s <subscription>; az-axi sentinel alert-rule list --workspace sentinel",
   "sentinel alert-rule show": "Shows one Sentinel analytics rule. --name takes the rule ID (with --workspace-name and --resource-group, or --workspace <alias|guid>); --ids takes the full rule ARM ID alone. Exactly one subscription is required.\nDefault: name, id, rule, kind, enabled, severity, description (truncated at 200 chars), tactics, template and modified time. Scheduled and NRT rules also show the KQL query (truncated at 200 chars). --full expands the description and query.\nRule updates stay out of scope: there is no rule mutation command.\nExamples: az-axi sentinel alert-rule show -n <rule-id> -g <group> --workspace-name <workspace> -s <subscription>; az-axi sentinel alert-rule show --ids <rule-ARM-id> --full",
   "sentinel data-connector list": "Lists Sentinel data connectors in one workspace, by connector name. Requires --workspace-name and --resource-group, or --workspace <alias|guid> from the profile workspaces. Exactly one subscription is required.\nDefault rows: name, kind, types (connected data types with state), with byKind aggregates. --limit defaults to 50; --full shows full ARM IDs and safe connection metadata for every fetched row; --fields selects row fields. Lists follow up to 10 pages and disclose incomplete counts.\nConnector secrets, keys and credential fields are never printed: only safelisted metadata is projected, and credential-returning actions are never called.\nExamples: az-axi sentinel data-connector list -g <group> --workspace-name <workspace> -s <subscription>; az-axi sentinel data-connector list --workspace sentinel",
@@ -303,6 +323,7 @@ const HELP_TEXT = {
   az: AZ_HELP,
   group: ["az-axi group list", "az-axi group show --name <group> --subscription <id>", LEAF_HELP["group list"], LEAF_HELP["group show"]].join("\n"),
   resource: ["az-axi resource list", "az-axi resource show --ids <ARM-id>", LEAF_HELP["resource list"], LEAF_HELP["resource show"]].join("\n"),
+  tag: ["az-axi tag update --subscription <id> --resource-id <ARM-id> --operation merge|delete --tags k=v [k=v ...]", LEAF_HELP["tag update"]].join("\n"),
   home: [
     "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
     "az-axi home                              # same as above",

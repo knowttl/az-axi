@@ -23,11 +23,18 @@ export async function executeWrite(options: {
   cls: "write" | "destructive";
   body: unknown;
   mergeBody?: (current: unknown) => unknown;
+  isNoop?: (current: unknown) => boolean;
   ifMatch?: string;
   confirm?: string;
   selectors: string;
   timeoutMs: number;
   noWait: boolean;
+  /**
+   * A missing probe target means empty current state for no-op detection or sending.
+   * Opt-in only: native tag updates PATCH a tags wrapper that does not exist
+   * until the first merge creates it. Other PATCH callers keep fail-fast NOT_FOUND.
+   */
+  allowMissing?: boolean;
   /** Expected resource fields after a POST action, used only for no-op detection. */
   desiredState?: unknown;
   /** Operation-specific limits on review-to-execute protection. */
@@ -48,14 +55,16 @@ export async function executeWrite(options: {
   const identity = profile.auth === "az" ? (await identityOf(profile)).name : "token (identity unavailable)";
   let current: ApiResponse<unknown> | undefined;
   let missing: ApiRequestError | undefined;
+  const absentOk = method === "PUT" || method === "DELETE" || method === "POST" ||
+    (method === "PATCH" && options.allowMissing === true);
   try {
     current = await sendRequest(profile, { path: probePath });
   } catch (error) {
-    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || options.mergeBody !== undefined || options.desiredState !== undefined || (method !== "PUT" && method !== "DELETE" && method !== "POST")) throw error;
+    if (!(error instanceof AxiError) || error.code !== "NOT_FOUND" || options.mergeBody !== undefined || options.desiredState !== undefined || !absentOk) throw error;
     if (error instanceof ApiRequestError) missing = error;
   }
   const body = options.mergeBody ? options.mergeBody(current!.body) : options.body;
-  const noop = method === "DELETE" ? current === undefined :
+  const noop = options.isNoop ? options.isNoop(current?.body) : method === "DELETE" ? current === undefined :
     (method === "PUT" || method === "PATCH") && current !== undefined && body !== undefined && diffResource(current.body, body, method).noop ||
     method === "POST" && current !== undefined && options.desiredState !== undefined && diffResource(current.body, options.desiredState, "PATCH").noop;
   if (noop) {

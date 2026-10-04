@@ -3,6 +3,7 @@ import { appendFileSync } from "node:fs";
 
 const scenario = process.env.AZ_AXI_TEST_OUTCOME;
 let incidentReads = 0;
+let tagReads = 0;
 const operationUrl = "https://management.azure.com/operations/test?api-version=1";
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
   status, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test", ...headers },
@@ -27,6 +28,50 @@ const incidentBody = (name, incidentNumber) => ({
   },
 });
 
+// Synthetic TagsResource shaped like the 2021-04-01 contract. The tag map
+// follows AZ_AXI_TEST_TAGS so tag previews, no-op detection and delete
+// scenarios stay deterministic; AZ_AXI_TEST_TAGS_MISSING=1 simulates a scope
+// with no tags wrapper yet (merge creates it, delete is a no-op).
+const tagsBody = () => ({
+  id: "https://management.azure.com/tags/default",
+  name: "default",
+  type: "Microsoft.Resources/tags",
+  properties: { tags: JSON.parse(process.env.AZ_AXI_TEST_TAGS ?? '{"env":"dev"}') },
+});
+
+const tagsMissing = () => process.env.AZ_AXI_TEST_TAGS_MISSING === "1" || scenario === "gone";
+
+const tagsGet = () => {
+  tagReads += 1;
+  if (tagReads > 1 && process.env.AZ_AXI_TEST_TAGS_FRESH !== undefined) {
+    const tags = JSON.parse(process.env.AZ_AXI_TEST_TAGS_FRESH);
+    if (tags === null) return json({ error: { code: "ResourceNotFound", message: "no tags yet" } }, 404);
+    return json({ ...tagsBody(), properties: { tags } }, 200, { etag: '"tags2"' });
+  }
+  if (tagsMissing()) return json({ error: { code: "ResourceNotFound", message: "no tags yet" } }, 404);
+  return json(tagsBody(), 200, { etag: '"tags1"' });
+};
+
+const tagsPatch = (body) => {
+  if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
+  const sent = body?.properties?.tags ?? {};
+  const current = tagReads > 1 && process.env.AZ_AXI_TEST_TAGS_FRESH !== undefined
+    ? JSON.parse(process.env.AZ_AXI_TEST_TAGS_FRESH) ?? {}
+    : process.env.AZ_AXI_TEST_TAGS_MISSING === "1" ? {} : tagsBody().properties.tags;
+  const selected = new Map(Object.entries(sent).map(([key, value]) => [key.toLowerCase(), value]));
+  const currentNames = new Map(Object.keys(current).map((key) => [key.toLowerCase(), key]));
+  const tags = body?.operation === "Delete"
+    ? Object.fromEntries(Object.entries(current).filter(([key, value]) =>
+      !selected.has(key.toLowerCase()) ||
+      (selected.get(key.toLowerCase()) !== null && selected.get(key.toLowerCase()) !== value)))
+    : Object.fromEntries([
+      ...Object.entries(current),
+      ...Object.entries(sent).map(([key, value]) => [currentNames.get(key.toLowerCase()) ?? key, value]),
+    ]);
+  return json({ id: "https://management.azure.com/tags/default", name: "default",
+    type: "Microsoft.Resources/tags", properties: { tags } });
+};
+
 globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
   let body;
@@ -41,6 +86,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (method === "GET") {
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
+    if (new URL(url).pathname.endsWith("/tags/default")) return tagsGet();
     if (new URL(url).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
     const incidentsPath = new URL(url).pathname;
     if (incidentsPath.includes("/incidents/") || incidentsPath.endsWith("/incidents")) {
@@ -75,6 +121,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (new URL(url).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });
   if (scenario === "precondition") return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
+  if (method === "PATCH" && new URL(url).pathname.endsWith("/tags/default")) return tagsPatch(body);
   if (["incident-race", "review-stale"].includes(scenario) && init.headers?.["If-Match"] !== '"E2"') {
     return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
   }

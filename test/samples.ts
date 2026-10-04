@@ -16,6 +16,9 @@ export const SUB_A = SYN(20);
 
 // source: security/resource-manager/Microsoft.Security/Security/stable/2022-01-01/examples/Alerts/GetAlertSubscriptionLocation_example.json
 export const defenderAlertUpdateState = { properties: { status: "Active" } };
+// source: learn.microsoft.com/rest/api/resources/tags/get-at-scope (2021-04-01 example, synthetic).
+export const tagUpdateState = { id: `/subscriptions/${SUB_A}/resourceGroups/rg-demo/providers/Microsoft.Resources/tags/default`,
+  name: "default", type: "Microsoft.Resources/tags", properties: { tags: { env: "dev" } } };
 export const SUB_B = SYN(21);
 export const SUB_C = SYN(22);
 

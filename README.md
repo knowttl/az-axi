@@ -493,6 +493,7 @@ Additional workspaces are unsupported.
 The following parsing rules apply to native leaves; passthrough uses the stricter rules in the [passthrough reference](#pinned-azure-cli-read-catalogue).
 Use `-h` for leaf help, `-s` for subscription (also before the command), `-g` for resource-group, `-n` for name, `-l` for location, and `-w`/`-t` for workspace/timespan where the leaf accepts those long flags.
 After the complete leaf path, list flags accept commas, spaces or repetition, such as `--subscription a b --subscription c` or `--severity High Medium`.
+For the literal `tag update --tags` exception, see [Writes](#writes).
 On leaves taking positional input (`rg query`, `logs query`, `api`, `op status`, `defender alerts get`), lists consume one token per flag to preserve existing argument placement; use commas or repeated flags there.
 Canonical query paths use named query input and accept space-separated lists after the full leaf path.
 Boolean flags accept a bare flag, `--full=false`, or `--full false`.
@@ -663,6 +664,18 @@ The preview reports the new comment resource; execution sends one `PUT .../incid
 `--execute`, `--timeout`, `--no-wait`, write logging, asynchronous operation handling, read-only gates and the Claude approval hook apply to both Sentinel writes as for `api`.
 `--if-match` applies to incident updates.
 Both Sentinel previews include the redacted request body; `--full` expands a truncated body.
+
+`tag update` sets or removes tags on exactly one resource or resource group, given as one exact `--resource-id` in a single explicit `--subscription / -s`.
+Names and implicit env/profile scope are not accepted; a mismatched, subscription-only or subscriptionless ID is refused, as is the tags wrapper itself.
+`--operation merge` adds the named tags or overwrites their values; `--operation delete` removes the named tags; `replace` is refused because it rewrites the whole tag set.
+`--tags` takes individual `k=v` arguments after one flag or repeated flags, preserving commas, spaces and additional equals signs in values.
+Names are case-insensitive and conflicting values for one name are refused, and delete matches by name with supplied values ignored and sent as null.
+The preview reads the tags wrapper (`GET .../providers/Microsoft.Resources/tags/default?api-version=2021-04-01`) and shows the tag-map diff plus a native execute command; a missing wrapper previews creation for merge and a no-op for delete.
+Protected tag values are redacted in both the diff and execute command; a pasted `***redacted***` value is refused before any request, so re-supply the real value instead.
+Execution re-reads, returns a no-op without a PATCH or log entry when nothing would change, and otherwise sends one `PATCH .../tags/default?api-version=2021-04-01` with `{operation, properties:{tags}}` through the shared pipeline.
+The preview's execute command includes `--if-match <etag>` when the read returns an ETag, pinning the reviewed value.
+Without `--if-match`, execution uses the fresh re-read ETag when the service returns one; the Tags API documents no ETag guarantee.
+`--execute`, `--timeout`, `--no-wait`, write logging, read-only gates and the Claude approval hook apply as for `api`.
 Recognized credential-returning POST actions are blocked with `READ_ONLY` before authentication, in preview and execution modes.
 The authoritative action lists and path matching rules are in [policy.ts](src/lib/policy.ts).
 

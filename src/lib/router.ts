@@ -61,7 +61,8 @@ export function routeArgv(argv: readonly string[]): { argv: string[]; help?: str
   // literal positional input, including KQL or paths that start with a dash.
   return { argv: [
     ...legacy,
-    ...Object.entries(args.flags).map(([name, value]) => `--${name}=${value}`),
+    ...Object.entries(args.flags).flatMap(([name, value]) =>
+      (Array.isArray(value) ? value : [value]).map((entry) => `--${name}=${entry}`)),
     "--", ...args.positionals,
   ] };
 }
