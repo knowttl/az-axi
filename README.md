@@ -259,7 +259,7 @@ az-axi sentinel incident list-alert --name 3177 --workspace sentinel
 az-axi sentinel incident list-entity --name 3177 --workspace sentinel
 ```
 
-Sentinel incident triage uses read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
+Sentinel incident list and show use read-only ARM GETs against Microsoft.SecurityInsights (api-version 2025-09-01) on one Log Analytics workspace.
 Show accepts `--name` / `-n` (also `--incident-id`) with an incident GUID or sequential incident number; full ARM IDs use `--ids`.
 List and name-based show need `--workspace-name` and `--resource-group`, or `--workspace <alias|guid>` from the profile `workspaces` map, plus exactly one subscription.
 `show --ids` takes exactly one incident ARM ID without workspace or name selectors; it uses the ID's subscription when no subscription scope is configured, otherwise that subscription must be included in the selected scope.
@@ -272,11 +272,12 @@ List rows default to number, severity, title, status and time; `--full` adds ful
 `--fields` accepts number, severity, title, status, time, id, created and owner, and takes precedence over the full row schema.
 Show returns the description (truncated at 200 characters unless `--full`), owner, labels, provider, tactics and alert count.
 Lists follow up to 10 pages and mark incomplete counts as lower bounds.
-Number-based show searches the same bounded list and reports `INCOMPLETE_SEARCH` if the number is absent from fetched pages while more pages exist; use the GUID or ARM ID for a direct lookup.
+Number-based show and related reads search the same bounded incident list and report `INCOMPLETE_SEARCH` if the number is absent from fetched pages while more pages exist; use the GUID or ARM ID for a direct lookup.
 Workspace GUID resolution stops at 100 pages and reports `INCOMPLETE_SEARCH` if more pages exist and uniqueness cannot be established; use workspace name and resource group to bypass discovery.
 Related alerts (`incident list-alert`) and entities (`incident list-entity`) read one incident's related records through reviewed bodyless POSTs (api-version 2025-09-01) with the same incident and workspace selectors as show.
-Alert rows default to name, alert, severity, status and time with `bySeverity` and `byStatus` aggregates; `--full` adds ARM IDs, tactics and product names.
-Entity rows default to kind, entity and name with `byKind` aggregates from the server metadata; `--full` adds ARM IDs.
+Alert rows default to name, alert, severity, status and time with `bySeverity` and `byStatus` aggregates; `--full` adds ARM IDs, tactics and product names, and `--fields` accepts these keys (id, tactics and product for the additions).
+Entity rows default to kind, entity and name with `byKind` aggregates from the server metadata, falling back to returned entity counts when metadata counts are absent; `--full` adds ARM IDs, and `--fields` accepts kind, entity, name and id.
+Both related commands use the same display limit as incident list; `--full` shows every returned row, and `--fields` takes precedence over the full row schema.
 Neither related response pages.
 Analytics rules, connectors and incident updates are out of scope; query workspace tables with `logs query` to investigate further.
 Management-group scope is unsupported; select one subscription explicitly.

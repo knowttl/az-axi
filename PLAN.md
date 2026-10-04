@@ -779,7 +779,7 @@ Every request, from every command, is classified before it is sent:
 | Class | Rule | Allowed when |
 |---|---|---|
 | `read` | GET or HEAD | Always |
-| `query` | POST to exactly these paths: Resource Graph `/providers/Microsoft.ResourceGraph/resources` (arm); deployment `.../providers/Microsoft.Resources/deployments/{name}/whatIf` at resource group and subscription scope (arm, used by dry runs, **VERIFY** paths); `/v1/workspaces/{id}/query` (logs); `/v1.0/directoryObjects/getByIds` (graph) | Always |
+| `query` | Reviewed read POSTs recognized by the authoritative path rules in [policy.ts](src/lib/policy.ts) | Always |
 | `secret` | Credential-returning POST actions recognized by the authoritative lists and path rules in [policy.ts](src/lib/policy.ts) | **Never** in v1, in any mode (`READ_ONLY`) |
 | `destructive` | DELETE; POST actions and protected Microsoft.Authorization types recognized by [policy.ts](src/lib/policy.ts) | Gates pass, plus `--confirm` |
 | `write` | Any other PUT, PATCH or POST on arm | Gates pass |

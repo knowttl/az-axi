@@ -144,7 +144,7 @@ export const DEFENDER_ASSESSMENTS = "2025-05-04";
 export const DEFENDER_SECURE_SCORES = "2020-01-01";
 
 /**
- * Microsoft Sentinel incidents, List and Get by ID
+ * Microsoft Sentinel incident reads. List and Get by ID use
  * (`GET .../workspaces/{workspaceName}/providers/Microsoft.SecurityInsights/incidents[/{incidentId}]`).
  *
  * Value: 2025-09-01. Newer stable: none (2025-09-01 is the newest stable folder).
@@ -157,8 +157,7 @@ export const DEFENDER_SECURE_SCORES = "2020-01-01";
  * `Incidents_Get` takes the incident GUID name. Incident identity is the GUID
  * `name` plus the sequential `properties.incidentNumber`; status is
  * New/Active/Closed and severity is High/Medium/Low/Informational.
- * Related alerts/entities and incident updates are separate operations and are
- * not covered by this read contract.
+ * Incident updates are separate operations and are not covered by this read contract.
  *
  * Related alerts (`Incidents_ListAlerts`, POST `.../incidents/{incidentId}/alerts`)
  * and entities (`Incidents_ListEntities`, POST `.../incidents/{incidentId}/entities`)
