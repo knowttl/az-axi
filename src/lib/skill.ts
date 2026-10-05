@@ -19,7 +19,7 @@ export function skillFrontmatter(): string {
   return [
     "---",
     "name: az-axi",
-    "description: Read-only Azure inspection: subscriptions, resources, RBAC, activity, Defender, Sentinel, network, policy, and Log Analytics.",
+    'description: "Read-only Azure inspection: subscriptions, resources, RBAC, activity, Defender, Sentinel, network, policy, and Log Analytics."',
     "user-invocable: false",
     "---",
     "",
