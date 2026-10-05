@@ -30,7 +30,7 @@ Update the row of a file in the same commit that changes it.
 | `.github/workflows/ci.yml` | `.github/workflows/ci.yml` | smoke test runs `dist/bin/az-axi.js` |
 | `scripts/release-notes.mjs` | `scripts/release-notes.mjs` | Also recognizes unlinked release-please version headings |
 | `test/release-notes.test.ts` | `test/release-notes.test.ts` | Coverage for unlinked release-please version headings |
-| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`; no-emit `typecheck` script; read-catalogue maintenance scripts (see [README.md](README.md#pinned-azure-cli-read-catalogue)); benchmark scripts adapted for Azure (see [BENCHMARK.md](BENCHMARK.md)) |
+| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`; no-emit `typecheck` script; read-catalogue maintenance scripts (see [README.md](README.md#pinned-azure-cli-read-catalogue)); skill generation and drift-check scripts (see [README.md](README.md#use)), YAML parser for skill frontmatter tests; benchmark scripts adapted for Azure (see [BENCHMARK.md](BENCHMARK.md)) |
 
 The copied `.github/workflows/release.yml` was replaced by the local release workflow described in [README.md#releases](README.md#releases).
 

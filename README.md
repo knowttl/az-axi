@@ -2,7 +2,7 @@
 
 az-axi is a CLI for agents and analysts to inspect Azure resources, access permissions, activity, security posture and logs.
 It is read-only by default and returns compact, token-efficient TOON output with actionable hints.
-Start with `az-axi` for a dashboard, then use focused inspection commands, KQL queries or the `api` REST escape hatch to investigate a selected profile and scope.
+Use `az-axi` for dashboard orientation, or run focused inspection commands, KQL queries or the `api` REST escape hatch directly to investigate a selected profile and scope.
 
 ## How it works
 
@@ -71,10 +71,10 @@ See npm's [trusted publisher setup](https://docs.npmjs.com/trusted-publishers/) 
 
 ## Agent integration
 
-Install the usage skill from this repository:
+Install the usage skill from this repository (no global install needed - the skill invokes the published package directly):
 
 ```
-npx skills add knowttl/az-axi --skill az-axi -g
+npx skills add knowttl/az-axi --skill az-axi
 ```
 
 For agent sessions that should never write, launch the agent with `AZ_AXI_READ_ONLY=1` in its environment.
@@ -239,7 +239,7 @@ az-axi monitor log-analytics query --file hunt.kql --workspace sentinel --timesp
 ```
 
 The identity needs Log Analytics Reader on the workspace.
-See the agent guide's [safe shell input rule](skills/az-axi/SKILL.md#safe-shell-input) for query input across shells.
+See the [safe shell input guidance](#use) for query input across shells.
 Use `az-axi monitor log-analytics query --help` for workspace IDs, query input handling, time windows and output limits.
 
 ## Use
@@ -477,10 +477,13 @@ One example per inspection command; see [Profiles](#profiles) for `config init` 
 Every command also accepts `--help` with its full reference.
 
 The machine-readable exact leaf registry in [src/lib/registry.ts](src/lib/registry.ts) owns dispatch metadata, Azure effect declarations, capability definitions and the existing grouped help.
-Its generated [agent skill command list](skills/az-axi/SKILL.md#orientation) records each leaf's capability and Azure effect.
+Its generated [agent skill command list](skills/az-axi/SKILL.md#commands) records each leaf's capability and Azure effect.
 The registry includes additive az-shaped paths for existing native operations and does not claim coverage for other Azure commands.
 `api` retains its request-classified dynamic effect and all write safeguards; `config init` has no Azure effect.
 Offline tests fail when help or the committed skill command list diverges from the registry.
+The full packaged skill is generated from [src/lib/skill.ts](src/lib/skill.ts), using the CLI description and leaf registry.
+In a source checkout, edit that source and run `pnpm skill:generate`; `pnpm skill:check` checks the committed skill for drift without rewriting it.
+Both commands build first and make no Azure calls.
 
 ```
 az-axi                                                  # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes
@@ -619,6 +622,7 @@ The aliases expose az grammar with the existing analyst defaults; they do not cl
 `graph query` and `monitor log-analytics query` are the canonical query paths; `rg query` and `logs query` remain aliases with their existing flags and output keys.
 For inline KQL, use `--graph-query` / `-q` on `graph query` or `--analytics-query` on `monitor log-analytics query`.
 Both canonical paths also accept `--file` or piped stdin; choose one query source, with no positional KQL.
+Across shells, pass multiline or shell-sensitive KQL and JSON through file or stdin input rather than interpolated command-line arguments.
 Graph accepts `--subscriptions a b` (also `--subscription` / `-s a b`), `--management-groups a b`, `--first` as an alias for `--limit` (maximum 1000), and `--skip-token`.
 Explicit subscription and management-group scope families are mutually exclusive on the canonical Graph path.
 The singular `--management-group` selector remains accepted, but cannot be combined with `--management-groups`.
