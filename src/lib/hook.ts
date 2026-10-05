@@ -1,5 +1,5 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagString, parseArgs } from "./args.js";
+import { flagString, parseLeafArgs } from "./args.js";
 import { loadConfig, writeStatus } from "./config.js";
 import { graphScope, profileFromArgs, scopeFlags } from "./context.js";
 import { packageInfo } from "./version.js";
@@ -13,8 +13,17 @@ import { packageInfo } from "./version.js";
  * entry point always exits 0; only unrecognized flags throw usage errors.
  */
 export function sessionSummary(argv: string[]): Record<string, unknown> {
-  const args = parseArgs(argv);
-  assertKnownFlags(args, [], "hook");
+  const args = parseLeafArgs(
+    argv,
+    { profile: "value", tenant: "value", subscription: "list", "management-group": "value", config: "value" },
+    "hook",
+    "Run `az-axi-hook` with no arguments for the session summary",
+  );
+  if (args.positionals.length > 0) {
+    throw new AxiError(`unexpected argument \`${args.positionals[0]}\` for \`hook\``, "VALIDATION_ERROR", [
+      "Run `az-axi-hook` with no arguments for the session summary",
+    ]);
+  }
   const version = packageInfo().version;
   try {
     const explicit = flagString(args, "config");
