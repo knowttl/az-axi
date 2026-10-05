@@ -3,6 +3,23 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.4](https://github.com/knowttl/az-axi/compare/v0.1.3...v0.1.4) (2026-10-05)
+
+
+### Features
+
+* add local-only session-start hook with setup installer ([#71](https://github.com/knowttl/az-axi/issues/71)) ([adbdd1a](https://github.com/knowttl/az-axi/commit/adbdd1a9d334600b4a6016ccce752392c6991220))
+
+
+### Bug Fixes
+
+* streamline az-axi agent skill and prevent documentation drift ([#67](https://github.com/knowttl/az-axi/issues/67)) ([53cb7d0](https://github.com/knowttl/az-axi/commit/53cb7d05909992f0cafcf3ce97080e6c26021958))
+
+
+### Performance Improvements
+
+* answer --version without loading the command catalogue ([#70](https://github.com/knowttl/az-axi/issues/70)) ([6bf7dc0](https://github.com/knowttl/az-axi/commit/6bf7dc0f18dbd2a522340af79eec4c69b2c068a1))
+
 ## [0.1.3](https://github.com/knowttl/az-axi/compare/v0.1.2...v0.1.3) (2026-10-04)
 
 
