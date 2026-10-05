@@ -58,6 +58,7 @@ export const NSG_RULE_CREATE_FLAGS: FlagSchema = {
 /** Current executable leaves. API methods are arguments of the dynamic `api` leaf. */
 export const COMMAND_LEAVES = [
   { path: "home", effect: "read", capability: "native" },
+  { path: "setup hooks", effect: "read", capability: "native" },
   { path: "doctor", effect: "read", capability: "native" },
   { path: "config init", effect: "read", capability: "native", flags: { name: "value", auth: "value", workspace: "list", "token-env": "list", default: "boolean" } },
   { path: "config list", effect: "read", capability: "native" },
@@ -186,6 +187,7 @@ export interface CommandModule {
 /** Lazy loaders, one per top-level command. Each module exports `meta` and `run`. */
 const LOADERS = {
   home: () => import("../commands/home.js"),
+  setup: () => import("../commands/setup.js"),
   doctor: () => import("../commands/doctor.js"),
   config: () => import("../commands/config.js"),
   sub: () => import("../commands/sub.js"),
@@ -255,6 +257,7 @@ export const DESCRIPTION =
 
 const HELP_OVERVIEWS = {
   home: "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
+  setup: "az-axi setup hooks                       # install the local-only session-start hook for ambient context",
   doctor: "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
   config: "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
   sub: "az-axi sub list                          # subscriptions visible to the identity",
@@ -436,6 +439,15 @@ const HELP_TEXT = {
     "exposure is a count per canned check. A failed section degrades to a hint; the rest still render.",
     "Writes report effective status, configured write subscriptions, AZ_AXI_READ_ONLY and the write log path.",
     "Examples: az-axi; az-axi home; az-axi home --help",
+  ].join("\n"),
+  setup: [
+    "az-axi setup hooks",
+    "",
+    "Install or repair the agent SessionStart hooks for az-axi ambient context (Claude Code, Codex, OpenCode).",
+    "The hook runs the local-only az-axi-hook entry point at session start: profile, scope, write posture, version and one next step.",
+    "No network, no Azure call, no `az`; unconfigured machines report \"not configured\" and exit 0.",
+    "No positional arguments. Selector flags are accepted but unnecessary; --help prints this reference.",
+    "Examples: az-axi setup hooks",
   ].join("\n"),
   doctor: [
     "az-axi doctor [--profile <name>] [--config <path>]",

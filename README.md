@@ -77,6 +77,18 @@ Install the usage skill from this repository (no global install needed - the ski
 npx skills add knowttl/az-axi --skill az-axi
 ```
 
+Alternatively, install the session-start hook so every agent session opens with az-axi ambient context (you need only one of the skill and the hook):
+
+```
+az-axi setup hooks
+```
+
+This registers the local-only `az-axi-hook` entry point as the SessionStart hook for Claude Code and Codex, plus the OpenCode ambient plugin.
+At session start the agent sees the configured profile, scope, write posture, version and one next step.
+The hook reads local state only: no network, no Azure call, no `az`.
+Unconfigured machines report `not configured` and exit 0.
+Restart the agent session after installing.
+
 For agent sessions that should never write, launch the agent with `AZ_AXI_READ_ONLY=1` in its environment.
 For example, `AZ_AXI_READ_ONLY=1 claude` forces az-axi write previews and execution to remain blocked even on a write-enabled profile.
 

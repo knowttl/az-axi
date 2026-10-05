@@ -2,12 +2,13 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 44,
-    "body": 3339,
-    "total": 3382
+    "body": 3352,
+    "total": 3395
   },
   "help": {
-    "topLevel": 1073,
+    "topLevel": 1091,
     "home": 244,
+    "setup": 108,
     "doctor": 231,
     "config": 171,
     "sub": 58,
@@ -39,5 +40,5 @@
     "vmss": 1259,
     "disk": 806
   },
-  "helpTotal": 17574
+  "helpTotal": 17700
 }
