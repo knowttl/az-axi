@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { skillMarkdown } from "../src/lib/skill.js";
 
 describe("packaged agent skill", () => {
@@ -8,13 +9,21 @@ describe("packaged agent skill", () => {
     expect(skill).toBe(skillMarkdown());
   });
 
-  it("stays trigger-shaped, static and non-interactive", () => {
-    const skill = readFileSync(new URL("../skills/az-axi/SKILL.md", import.meta.url), "utf8");
+  it.each([
+    ["generated", skillMarkdown()],
+    ["packaged", readFileSync(new URL("../skills/az-axi/SKILL.md", import.meta.url), "utf8")],
+  ])("exposes valid discovery metadata in the %s skill", (_source, skill) => {
     const match = skill.match(/^---\n([\s\S]*?)\n---\n/);
     expect(match).not.toBeNull();
-    // Trigger-shaped frontmatter: name plus a terse single-line description.
-    expect(match![1]!.split("\n").filter((line) => line.startsWith("description:"))).toHaveLength(1);
-    expect(match![1]!).toMatch(/^name: az-axi$/m);
+    expect(parse(match![1]!)).toEqual({
+      name: "az-axi",
+      description: "Read-only Azure inspection: subscriptions, resources, RBAC, activity, Defender, Sentinel, network, policy, and Log Analytics.",
+      "user-invocable": false,
+    });
+  });
+
+  it("stays static and non-interactive", () => {
+    const skill = readFileSync(new URL("../skills/az-axi/SKILL.md", import.meta.url), "utf8");
     // No live state: the static skill never carries session data.
     expect(skill).not.toMatch(/\(token\)|tenantId|subscriptionId/);
     // Runnable command forms use the non-interactive npx invocation; the only
