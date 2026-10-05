@@ -23,7 +23,7 @@ function documentedLeaves(help: string): string[] {
 describe("exact leaf contracts", () => {
   it("records canonical query leaves while retaining legacy aliases", () => {
     expect(COMMAND_LEAVES.map((leaf) => leaf.path)).toEqual([
-      "home", "doctor", "config init", "config list", "config path", "sub list",
+      "home", "setup hooks", "doctor", "config init", "config list", "config path", "sub list",
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
       "monitor metrics alert list", "monitor metrics alert show", "monitor action-group list", "monitor action-group show",
       "monitor diagnostic-settings list", "monitor diagnostic-settings show", "monitor metrics list",
@@ -122,7 +122,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role", "vm", "vmss", "disk"].includes(name))
+      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role", "vm", "vmss", "disk", "setup"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

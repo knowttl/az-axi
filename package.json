@@ -24,7 +24,8 @@
   },
   "type": "module",
   "bin": {
-    "az-axi": "dist/bin/az-axi.js"
+    "az-axi": "dist/bin/az-axi.js",
+    "az-axi-hook": "dist/bin/az-axi-hook.js"
   },
   "files": [
     "dist",

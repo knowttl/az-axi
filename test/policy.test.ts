@@ -216,6 +216,7 @@ describe("command effect registry", () => {
       group: "read", resource: "read",
       account: "read", monitor: "read",
       home: "read",
+      setup: "read",
       doctor: "read",
       config: "read",
       sub: "read",

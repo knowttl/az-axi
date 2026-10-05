@@ -34,6 +34,7 @@ The exact current leaf registry is `src/lib/registry.ts`. Capability labels: `na
 | Command | Capability | Azure effect |
 |---|---|---|
 | `az-axi home` | native | read |
+| `az-axi setup hooks` | native | read |
 | `az-axi doctor` | native | read |
 | `az-axi config init` | native | read |
 | `az-axi config list` | native | read |
