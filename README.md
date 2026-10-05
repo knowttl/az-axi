@@ -71,10 +71,10 @@ See npm's [trusted publisher setup](https://docs.npmjs.com/trusted-publishers/) 
 
 ## Agent integration
 
-Install the usage skill from this repository:
+Install the usage skill from this repository (no global install needed - the skill invokes the published package directly):
 
 ```
-npx skills add knowttl/az-axi --skill az-axi -g
+npx skills add knowttl/az-axi --skill az-axi
 ```
 
 For agent sessions that should never write, launch the agent with `AZ_AXI_READ_ONLY=1` in its environment.

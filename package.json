@@ -45,6 +45,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "catalogue:generate": "node scripts/az-read-catalogue.mjs",
     "catalogue:check": "node scripts/az-read-catalogue.mjs --check",
+    "skill:generate": "npm run build && node scripts/skill.mjs",
+    "skill:check": "npm run build && node scripts/skill.mjs --check",
     "dev": "tsx src/bin/az-axi.ts",
     "test": "vitest run",
     "test:watch": "vitest",
