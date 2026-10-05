@@ -1,4 +1,6 @@
 # no-mistakes repository configuration
+# Run the gate on the pi harness; model/effort come from host global config.
+agent: pi
 commands:
   prepare: 'corepack pnpm install --frozen-lockfile --ignore-scripts --config.confirm-modules-purge=false'
   test: 'corepack pnpm run build && corepack pnpm test'
