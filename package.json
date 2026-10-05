@@ -1,6 +1,6 @@
 {
   "name": "@knowttl/az-axi",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Agent-ergonomic CLI for Azure, read-only by default. Resource inventory, RBAC, activity log, Defender for Cloud and Log Analytics through token-efficient TOON output. An AXI (Agent eXperience Interface) over the Azure REST APIs.",
   "keywords": [
     "azure",
