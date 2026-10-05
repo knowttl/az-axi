@@ -2,7 +2,7 @@
 
 az-axi is a CLI for agents and analysts to inspect Azure resources, access permissions, activity, security posture and logs.
 It is read-only by default and returns compact, token-efficient TOON output with actionable hints.
-Start with `az-axi` for a dashboard, then use focused inspection commands, KQL queries or the `api` REST escape hatch to investigate a selected profile and scope.
+Use `az-axi` for dashboard orientation, or run focused inspection commands, KQL queries or the `api` REST escape hatch directly to investigate a selected profile and scope.
 
 ## How it works
 

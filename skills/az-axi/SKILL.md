@@ -8,9 +8,11 @@ user-invocable: false
 
 Read-only Azure inspection for agents: resource inventory, RBAC, activity log, Defender for Cloud and Log Analytics. Results render as token-efficient TOON on stdout, with a raw REST escape hatch (`api`) for everything else.
 
-Run every command as `npx -y @knowttl/az-axi ...`: no global install needed and no interactive prompts. Never run against a real tenant in tests; use the offline suite instead.
+Run commands as `npx -y @knowttl/az-axi ...`: no global install needed and no interactive prompts.
+Version pinning is the installer's choice: use `npx -y @knowttl/az-axi@<version> ...` to select a specific release.
+Never run against a real tenant in tests; use the offline suite instead.
 
-## Start here
+## Orientation
 
 ```sh
 npx -y @knowttl/az-axi                      # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes
@@ -20,7 +22,9 @@ npx -y @knowttl/az-axi sub list             # subscriptions visible to the ident
 npx -y @knowttl/az-axi <complete-leaf-path> --help  # that leaf's flags, defaults and examples
 ```
 
-Run the dashboard first. It prints the active profile, identity, visible subscription count, active Defender alerts by severity, average and lowest secure score, exposure counts, and write status - enough to act without a second call. A failed section degrades to a hint; the rest still render.
+Use the dashboard when you need orientation, or run a known command directly.
+It prints the active profile, identity, visible subscription count, active Defender alerts by severity, average and lowest secure score, exposure counts, and write status - enough to act without a second call.
+A failed section degrades to a hint; the rest still render.
 
 ## Commands
 

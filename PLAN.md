@@ -110,7 +110,7 @@ A review of `masyanru/az-axi` (v0.1.4, MIT) found these ideas worth adopting. No
 | Secret redaction, extended with value patterns because key-name matching alone missed storage keys, Cosmos DB keys and ACR passwords in that project | `redact.ts` (Section 6.13.8) |
 | Treat unknown operations as writes, never as reads | `policy.ts` fall-through rule (Section 6.13.1) |
 
-Problems found in that review that this plan deliberately avoids: spawning `az` with `execFile` (fails on Windows because `az` is a `.cmd` shim), Ubuntu-only CI, an `--execute` flag as the only write control, and unpinned `npx -y` in skill instructions.
+Problems found in that review that this plan deliberately avoids: spawning `az` with `execFile` (fails on Windows because `az` is a `.cmd` shim), Ubuntu-only CI, and an `--execute` flag as the only write control.
 
 ---
 
@@ -1162,7 +1162,9 @@ Tasks:
 4. Review every `help[]` hint for accuracy against the final command surface.
 5. Configure npm trusted publishing (OIDC) for the release workflow, matching upstream's `id-token: write` permission, and publish as `@<npm-scope>/az-axi` (Section 2.4).
 6. Add the maintenance assets from Section 13: the four repo-local skills under `.claude/skills/`, the benchmark harness (`benchmark/`, `scripts/benchmark/`, `test/benchmark.test.ts`), `scripts/check-links.mjs`, `scripts/upstream-diff.mjs`, `usageLog.ts`, and the README "Maintaining" section. The owner runs `pnpm bench:capture` and `pnpm bench`, and `BENCHMARK.md` plus the README "Why AXI" table are filled from the results.
-7. Add the naming notice from Section 2.4 to README.md and `skills/az-axi/SKILL.md`. The skill tells agents to call the globally installed, pinned `az-axi` binary, never unpinned `npx -y`.
+7. Add the naming notice from Section 2.4 to README.md and `skills/az-axi/SKILL.md`.
+   The skill uses non-interactive `npx -y @knowttl/az-axi ...` commands without requiring a global install.
+   Version pinning is the installer's choice, for example `npx -y @knowttl/az-axi@<version> ...`.
 8. Run the full Verification guide (Section 14) and attach the results to the release PR.
 9. Move `Unreleased` to `0.1.0`, bump version, tag `v0.1.0`.
 
