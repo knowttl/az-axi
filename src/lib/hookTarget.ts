@@ -6,7 +6,13 @@ import { AxiError } from "axi-sdk-js";
 /** Hooks outlive validation builds, so only durable installations may be registered. */
 export function assertDurableHookTarget(entry: string): void {
   const absolute = resolve(entry);
-  const paths = [absolute, realpathSync(absolute)];
+  let resolved: string;
+  try {
+    resolved = realpathSync(absolute);
+  } catch {
+    resolved = absolute;
+  }
+  const paths = [absolute, resolved];
   const temporaryRoots = [tmpdir(), "/tmp", "/var/tmp", "/private/tmp"].map((path) => resolve(path));
   for (const path of paths) {
     const temporary = temporaryRoots.some((root) => {
@@ -19,7 +25,12 @@ export function assertDurableHookTarget(entry: string): void {
     let worktree = false;
     for (let dir = dirname(path); ; dir = dirname(dir)) {
       const git = join(dir, ".git");
-      if (existsSync(git) && statSync(git).isFile()) worktree = true;
+      if (existsSync(git)) {
+        try {
+          if (statSync(git).isFile()) worktree = true;
+        } catch {
+        }
+      }
       if (dirname(dir) === dir) break;
     }
     if (temporary || disposable || worktree) {
