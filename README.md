@@ -81,7 +81,7 @@ az-axi doctor
 az-axi account list
 ```
 
-## Usage
+## <a id="use"></a>Usage
 
 The no-argument dashboard reports the selected profile, identity, subscriptions, Defender alerts, secure score, exposure and write status.
 Native commands call Azure REST APIs directly; the separate `az` passthrough supports only one pinned, reviewed read.
@@ -172,7 +172,7 @@ ARM requires `--api-version` unless the path already contains that query paramet
 All body input forms share the same request classification and write safeguards.
 Paging hints preserve body-file paths; for stdin input, replace the hint's `<body-file>` with a file containing the original JSON.
 
-### TOON output behavior
+### <a id="behavior"></a>TOON output behavior
 
 | Control | Behavior |
 | --- | --- |
@@ -492,6 +492,12 @@ Only the owner runs `pnpm bench:capture` or [live smoke checks](scripts/live-smo
 Live write smoke checks modify sandbox tags and leave the test tag in place; the optional storage-account deletion check is destructive and requires an owner-created throwaway target.
 Benchmark targets and captures must remain local and gitignored; never commit or upload recordings, even scrubbed.
 Follow [BENCHMARK.md](BENCHMARK.md) for strict scrubbing and leak checks before any fixture is written.
+
+### <a id="releases"></a>Releases
+
+Conventional commits on `main` produce a release-please PR with the version and `CHANGELOG.md` changes.
+Merging a release PR creates its tag and GitHub release, then builds, typechecks, and tests that tag and publishes it to npm with OIDC provenance unless the version is already published.
+`release-please` owns the changelog and GitHub release notes; `scripts/release-notes.mjs` remains available to extract a version's changelog section locally (`node scripts/release-notes.mjs v0.2.0`).
 
 ## License
 
