@@ -194,9 +194,8 @@ async function accessibleSubscriptions(profile: ResolvedProfile): Promise<string
 }
 
 /**
- * Scope order matches `rg query`, except `$AZ_AXI_SUBSCRIPTION` overrides a profile
- * management group. `resolveProfile` copies that env var onto `subscriptions` without
- * clearing `managementGroup`, so the flag and env var have to be read here.
+ * Scope order matches `rg query`: --management-group, --subscription, profile
+ * managementGroup, profile subscriptions, then all visible subscriptions.
  */
 async function resolveSubscriptionIds(
   profile: ResolvedProfile,

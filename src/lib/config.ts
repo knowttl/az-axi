@@ -53,7 +53,7 @@ export interface ResolvedProfile extends Profile {
   configPath?: string;
   /**
    * The subscriptions writes may target: copied from the config file BEFORE any
-   * --subscription / $AZ_AXI_SUBSCRIPTION override, so a flag can never widen them.
+   * --subscription flag override, so a flag can never widen them.
    */
   writeSubscriptions: string[];
 }

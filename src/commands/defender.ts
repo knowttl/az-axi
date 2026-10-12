@@ -226,7 +226,7 @@ async function accessibleSubscriptions(profile: ResolvedProfile): Promise<string
 /**
  * ARM has no management-group fan-out, so a group expands to subscriptions first.
  * Matches `activity list` scope precedence: --management-group, --subscription,
- * $AZ_AXI_SUBSCRIPTION, profile managementGroup, profile subscriptions, all visible.
+ * profile managementGroup, profile subscriptions, all visible.
  */
 async function resolveSubscriptionIds(
   profile: ResolvedProfile,
