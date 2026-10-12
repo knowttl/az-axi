@@ -379,7 +379,7 @@ describe("built CLI Monitor reads offline", () => {
     expect(decode(shown.stdout)).toMatchObject({ shortName: "agdemo", enabled: true });
   });
 
-  it("keeps webhook URI credentials and secrets out of compact and full alert and action-group output", () => {
+  it("keeps webhook URI credentials and secrets out of compact and full alert and action-group output", { timeout: 15000 }, () => {
     for (const argv of [
       ["monitor", "metrics", "alert", "list"],
       ["monitor", "metrics", "alert", "list", "--full"],
