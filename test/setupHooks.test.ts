@@ -2,8 +2,11 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installHooks, run } from "../src/commands/setup.js";
+
+// Installer behavior uses temporary fixtures; target policy has separate real-filesystem tests.
+vi.mock("../src/lib/hookTarget.js", () => ({ assertDurableHookTarget: vi.fn() }));
 
 let dir: string;
 let savedPath: string | undefined;

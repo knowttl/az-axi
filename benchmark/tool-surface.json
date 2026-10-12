@@ -8,7 +8,7 @@
   "help": {
     "topLevel": 1091,
     "home": 244,
-    "setup": 108,
+    "setup": 128,
     "doctor": 231,
     "config": 171,
     "sub": 58,
@@ -40,5 +40,5 @@
     "vmss": 1259,
     "disk": 806
   },
-  "helpTotal": 17700
+  "helpTotal": 17720
 }

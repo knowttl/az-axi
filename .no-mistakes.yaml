@@ -3,7 +3,7 @@
 agent: pi
 commands:
   prepare: 'corepack pnpm install --frozen-lockfile --ignore-scripts --config.confirm-modules-purge=false'
-  test: 'corepack pnpm run build && corepack pnpm test'
+  test: 'node scripts/isolated-run.mjs corepack pnpm run build && corepack pnpm test'
   lint: 'corepack pnpm exec tsc --noEmit -p tsconfig.json'
 document:
   instructions: |

@@ -445,6 +445,7 @@ const HELP_TEXT = {
     "",
     "Install or repair the agent SessionStart hooks for az-axi ambient context (Claude Code, Codex, OpenCode).",
     "The hook runs the local-only az-axi-hook entry point at session start: profile, scope, write posture, version and one next step.",
+    "Requires a persistent installation; temporary directories, worktrees and pipeline builds cannot be registered as hook targets.",
     "No network, no Azure call, no `az`; unconfigured machines report \"not configured\" and exit 0.",
     "No positional arguments. Selector flags are accepted but unnecessary; --help prints this reference.",
     "Examples: az-axi setup hooks",

@@ -4,6 +4,7 @@ import { AxiError, installSessionStartHooks, sessionStartHookStatus } from "axi-
 import { assertKnownFlags, parseArgs } from "../lib/args.js";
 import { subcommandOf } from "../lib/context.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
+import { assertDurableHookTarget } from "../lib/hookTarget.js";
 
 /** `setup hooks` writes session-hook configuration only; it never touches Azure. */
 export const meta = commandMeta("setup");
@@ -36,6 +37,7 @@ export interface InstallHooksOptions {
  */
 export async function installHooks(options: InstallHooksOptions = {}): Promise<Record<string, unknown>> {
   const entry = options.execPath ?? hookEntrypoint();
+  assertDurableHookTarget(entry);
   installSessionStartHooks({
     marker: "az-axi",
     execPath: entry,
