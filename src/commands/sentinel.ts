@@ -1474,7 +1474,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     }
     assertKnownFlags(args, commandFlags(leaf), leaf);
     const profile = profileFromArgs(args);
-    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
       invalid("management-group scope is unsupported for Sentinel analytics rules and connectors; select one subscription explicitly");
     }
     if (leaf === "sentinel alert-rule list") return runAlertRuleList(profile, args);
@@ -1510,7 +1510,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   assertKnownFlags(args, commandFlags(leaf), leaf);
   const profile = profileFromArgs(args);
   if (leaf === "sentinel incident list" || leaf === "sentinel incident show" || leaf === "sentinel incident list-alert" || leaf === "sentinel incident list-entity") {
-    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
       invalid("management-group scope is unsupported for Sentinel incidents; select one subscription explicitly");
     }
   }

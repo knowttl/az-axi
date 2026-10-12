@@ -319,7 +319,7 @@ describe("token budgets", () => {
     await expectUnderBudget(argv.slice(0, 3).join(" "), await runAcr(routed.slice(1)));
   });
   it("security alert update preview stays under its ceiling", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
     } }));
     sendMock.mockResolvedValue(ok(defenderAlertUpdateState));
@@ -327,7 +327,7 @@ describe("token budgets", () => {
     await expectUnderBudget("security alert update", await runSecurity(argv.slice(1)));
   });
   it("reviewed group show stays under its ceiling", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ defaultProfile: "work", profiles: { work: { auth: "az", tenant: TENANT, subscriptions: [SUB_A] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ defaultProfile: "work", version: 1, profiles: { work: { auth: "az", tenantId: TENANT, subscriptions: [SUB_A] } } }));
     runAzMock
       .mockResolvedValueOnce(JSON.stringify({ "azure-cli": "2.90.0", "azure-cli-core": "2.90.0", extensions: {} }))
       .mockResolvedValueOnce(JSON.stringify({ name: "AzureCloud", profile: "latest", endpoints: { resourceManager: "https://management.azure.com/" } }))
@@ -531,7 +531,7 @@ describe("token budgets", () => {
   });
 
   it("sentinel incident update preview stays under its ceiling", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
     } }));
     vi.mocked(request).mockResolvedValue(sentinelIncidentDetail as never);
@@ -541,7 +541,7 @@ describe("token budgets", () => {
   });
 
   it("tag update preview stays under its ceiling", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
     } }));
     sendMock.mockResolvedValue(ok(tagUpdateState));
@@ -550,7 +550,7 @@ describe("token budgets", () => {
   });
 
   it("nsg deny-rule create preview stays under its ceiling", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
     } }));
     sendMock.mockResolvedValue(ok(networkNsg));
@@ -559,7 +559,7 @@ describe("token budgets", () => {
   });
 
   it("sentinel incident comment create preview stays under its ceiling", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       writer: { auth: "token", allowWrites: true, subscriptions: [SUB_A] },
     } }));
     sendMock.mockRejectedValue(new AxiError("not found", "NOT_FOUND", []));

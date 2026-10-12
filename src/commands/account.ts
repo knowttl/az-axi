@@ -35,7 +35,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const limit = flagNumber(args, "limit") ?? 50;
   if (!Number.isInteger(limit) || limit <= 0) invalid("--limit must be a positive integer");
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) invalid("management-group scope is unsupported for discovery; select subscriptions explicitly");
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) invalid("management-group scope is unsupported for discovery; select subscriptions explicitly");
   if (verb === "show") {
     const ids = await subscriptions(profile);
     if (ids.length !== 1) invalid("account show requires exactly one selected subscription; use --subscription <id>");

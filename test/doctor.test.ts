@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { writePrivateFile as writeFileSync } from "../src/lib/privateFile.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AxiError } from "axi-sdk-js";
@@ -81,7 +82,7 @@ describe("doctor", () => {
       path,
       JSON.stringify({
         defaultProfile: "work",
-        profiles: {
+        version: 1, profiles: {
           work: { auth: "az" },
           sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true },
           ci: { auth: "token" },
@@ -101,7 +102,7 @@ describe("doctor", () => {
   });
 
   it("shows write status forced off by $AZ_AXI_READ_ONLY", async () => {
-    writeFileSync(path, JSON.stringify({ profiles: { sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
+    writeFileSync(path, JSON.stringify({ version: 1, profiles: { sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
     process.env.AZ_AXI_READ_ONLY = "1";
     const result = await run([]);
     expect(result.readOnly).toEqual({ set: true, forced: true });
@@ -111,7 +112,7 @@ describe("doctor", () => {
   });
 
   it("reports a set but inactive override, custom log and unchanged write scope despite read selectors", async () => {
-    writeFileSync(path, JSON.stringify({ profiles: { sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
+    writeFileSync(path, JSON.stringify({ version: 1, profiles: { sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
     process.env.AZ_AXI_READ_ONLY = "0";
     process.env.AZ_AXI_WRITE_LOG = join(dir, "custom.log");
     process.env.AZ_AXI_SUBSCRIPTION = "00000000-0000-0000-0000-000000000021";
@@ -123,20 +124,14 @@ describe("doctor", () => {
   });
 
   it("restricts the check to --profile", async () => {
-    writeFileSync(path, JSON.stringify({ profiles: { a: { auth: "az" }, b: { auth: "az" } } }));
+    writeFileSync(path, JSON.stringify({ version: 1, profiles: { a: { auth: "az" }, b: { auth: "az" } } }));
     expect((await rows(["--profile", "b"])).map((row) => row.name)).toEqual(["b"]);
   });
 
-  it("reports an invalid profile without failing the whole check", async () => {
-    writeFileSync(path, JSON.stringify({ profiles: { bad: { auth: "az", allowWrites: true }, good: { auth: "az" } } }));
-    const result = await run([]);
-    const [bad, good] = result.profiles as Array<Record<string, unknown>>;
-    expect(bad?.status).toContain("invalid write configuration");
-    expect(good?.status).toBe("ok");
-    const help = (result.help as string[]).join("\n");
-    expect(help).toContain("[bad] see README.md#writes");
-    expect(help).not.toMatch(/allowWrites|config file|Edit the profile/i);
-    expect((result.help as string[]).every((line) => line.startsWith("[bad] "))).toBe(true);
+  it("rejects invalid profiles before making live checks", async () => {
+    writeFileSync(path, JSON.stringify({ version: 1, profiles: { bad: { auth: "az", allowWrites: true }, good: { auth: "az" } } }));
+    await expect(run([])).rejects.toMatchObject({ code: "CONFIG_INVALID" });
+    expect(runAzMock).not.toHaveBeenCalled();
   });
 
   it("fails clearly when az is not installed and skips the az-dependent checks", async () => {

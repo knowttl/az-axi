@@ -12,7 +12,7 @@ describe("built CLI workspace and account reads offline", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-workspace-account-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
   function run(argv: string[] | string, mode = "normal") {
@@ -71,7 +71,7 @@ describe("built CLI workspace and account reads offline", () => {
     { path: workspace, target: "--ids <ARM-id>", scope: ` --subscription ${SUB_A}`, details: ["--ids", discoveryWorkspace.id, "--subscription", SUB_A], suffix: "for details" },
   ])("preserves explicit identity and scope in $path detail hints", ({ path, target, scope, details, suffix }) => {
     const config = join(dir, "profiles with spaces.json");
-    writeFileSync(config, JSON.stringify({ defaultProfile: "ci", profiles: {
+    writeFileSync(config, JSON.stringify({ defaultProfile: "ci", version: 1, profiles: {
       ci: { auth: "token", subscriptions: [SUB_B] }, prod: { auth: "token", subscriptions: [SUB_B] },
     } }));
     const identity = ["--config", config, "--profile", "prod", "--tenant", TENANT];
@@ -87,14 +87,14 @@ describe("built CLI workspace and account reads offline", () => {
     expect(show.stderr).toContain(`/subscriptions/${SUB_A}`);
   });
   it.each([
-    { path: ["account"], hint: 0, mode: "normal", subscriptions: [SUB_A], filters: [], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "-prod", account: { id: SUB_A } } },
-    { path: workspace, hint: 0, mode: "normal", subscriptions: [SUB_A], filters: [], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "-prod", workspace: { id: discoveryWorkspace.id } } },
-    { path: ["account"], hint: 1, mode: "normal", subscriptions: [SUB_A, SUB_B], filters: [], requestPath: "/subscriptions?", expected: { profile: "-prod", total: 2 } },
-    { path: workspace, hint: 1, mode: "scoped", subscriptions: [SUB_A, SUB_B], filters: ["--resource-group", "rg-demo", "--name", "logs-demo"], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "-prod", total: 2 } },
-  ])("executes $path hint $hint through a shell with literal dollar paths and leading-dash profiles", ({ path, hint, mode, subscriptions, filters, requestPath, expected }) => {
+    { path: ["account"], hint: 0, mode: "normal", subscriptions: [SUB_A], filters: [], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "prod", account: { id: SUB_A } } },
+    { path: workspace, hint: 0, mode: "normal", subscriptions: [SUB_A], filters: [], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "prod", workspace: { id: discoveryWorkspace.id } } },
+    { path: ["account"], hint: 1, mode: "normal", subscriptions: [SUB_A, SUB_B], filters: [], requestPath: "/subscriptions?", expected: { profile: "prod", total: 2 } },
+    { path: workspace, hint: 1, mode: "scoped", subscriptions: [SUB_A, SUB_B], filters: ["--resource-group", "rg-demo", "--name", "logs-demo"], requestPath: `/subscriptions/${SUB_A}`, expected: { profile: "prod", total: 2 } },
+  ])("executes $path hint $hint through a shell with literal dollar paths and explicit profiles", ({ path, hint, mode, subscriptions, filters, requestPath, expected }) => {
     const config = join(dir, "profiles $prod's.json");
-    writeFileSync(config, JSON.stringify({ profiles: { "-prod": { auth: "token", subscriptions: [SUB_B] } } }));
-    const list = run([...path, "list", "--config", config, "--profile=-prod", "--tenant", TENANT, "--subscription", ...subscriptions, ...filters, "--limit", "1"], mode);
+    writeFileSync(config, JSON.stringify({ version: 1, profiles: { "prod": { auth: "token", subscriptions: [SUB_B] } } }));
+    const list = run([...path, "list", "--config", config, "--profile=prod", "--tenant", TENANT, "--subscription", ...subscriptions, ...filters, "--limit", "1"], mode);
     expect(list.status, list.stdout).toBe(0);
     const output = decode(list.stdout) as { help: string[] };
     const command = output.help[hint]!.split("`")[1]!.replace("<id>", SUB_A).replace("<ARM-id>", discoveryWorkspace.id);

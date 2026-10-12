@@ -7,7 +7,7 @@ import { acrCatalog, acrDigest, acrManifest, acrTags } from "./samples.js";
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-acr-cli-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", password: "hostile-password" } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
   writeFileSync(join(dir, "config"), "[acr]\nusername=hostile-user\npassword=hostile-password\n");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));

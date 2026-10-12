@@ -292,7 +292,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const assessed = assessedFlag?.replace(/\/+$/, "");
   if (assessed !== undefined) args.flags["assessed-resource-id"] = assessed;
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     governanceInvalid("management-group scope is unsupported for Defender reads; select subscriptions explicitly", path);
   }
   if (typeof assessed === "string") {

@@ -10,7 +10,7 @@ describe("built CLI ARM discovery offline", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-discovery-cli-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
   function run(args: string[], empty = false, resource: Record<string, unknown> = discoveryResource) {

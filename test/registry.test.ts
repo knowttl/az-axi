@@ -23,6 +23,7 @@ function documentedLeaves(help: string): string[] {
 describe("exact leaf contracts", () => {
   it("records canonical query leaves while retaining legacy aliases", () => {
     expect(COMMAND_LEAVES.map((leaf) => leaf.path)).toEqual([
+      "auth status",
       "home", "setup hooks", "doctor", "config init", "config list", "config path", "sub list",
       "account list", "account show", "monitor log-analytics workspace list", "monitor log-analytics workspace show",
       "monitor metrics alert list", "monitor metrics alert show", "monitor action-group list", "monitor action-group show",
@@ -75,7 +76,7 @@ describe("exact leaf contracts", () => {
     expect(documentedLeaves(Object.values(COMMAND_HELP).join("\n")))
       .toEqual(COMMAND_LEAVES.map((leaf: CommandLeaf) => leaf.handlerPath ?? leaf.path).sort());
     expect([...new Set(documentedLeaves(TOP_LEVEL_HELP).map((path) => path.split(" ")[0]))].sort())
-      .toEqual([...new Set([...names, "graph", "role", "monitor", "security"])].sort());
+      .toEqual([...new Set([...names, "graph", "role", "monitor", "security", "profile"])].sort());
     for (const name of names) {
       expect(typeof COMMAND_HELP[name]).toBe("string");
       const module = await COMMANDS[name!]!();
@@ -110,7 +111,6 @@ describe("exact leaf contracts", () => {
     const expected = {
       home: "d3ca0c70af59860ef81995074ea50c4ad93da1d0f3eab53cf287316e00cb2c25",
       doctor: "17f287915d3cd4c621533eec03a8f3079f30223f7015165b5a7a2460feab9ea1",
-      config: "9055852012e73c38dc9e8203c351d4d832aa0ff03f255d8fc79330d1a9327052",
       sub: "6f9a9637c3fcd37decc544aeaa111c07b5d3ae8ed5d007a8f668ad5e80ea13ef",
       rg: "7c5e020a5c4bd1817201f9680c88a0d74caccb85130a0e69dd64e4b1e73bdc19",
       rbac: "114552b9a5fbe8c7516f37171150027994051bb061996386969031c47b7aced6",
@@ -122,7 +122,7 @@ describe("exact leaf contracts", () => {
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };
     expect(Object.fromEntries(Object.entries(COMMAND_HELP)
-      .filter(([name]) => !["az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role", "vm", "vmss", "disk", "setup"].includes(name))
+      .filter(([name]) => !["auth", "config", "az", "security", "group", "resource", "storage", "keyvault", "account", "monitor", "sentinel", "acr", "tag", "network", "policy", "lock", "deny-assignment", "role", "vm", "vmss", "disk", "setup"].includes(name))
       .map(([name, help]) => [name, createHash("sha256").update(help).digest("hex")]))).toEqual(expected);
   });
 

@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.stubEnv("AZ_AXI_CONFIG", join(dir, "config.json"));
   vi.stubEnv("AZ_AXI_PROFILE", "ci");
   vi.stubEnv("AZ_AXI_SUBSCRIPTION", "");
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   all.mockReset(); get.mockReset();
   all.mockImplementation(async (_profile, options) => ({ items: options.path === "/subscriptions" ? subscriptionList : options.path.endsWith("/resources") ? [discoveryResource] : [discoveryGroup] }));
   get.mockImplementation(async (_profile, options) => options.path.includes("/providers/") ? discoveryResource : discoveryGroup);

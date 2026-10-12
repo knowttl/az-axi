@@ -182,15 +182,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   let subscriptions: string[] | undefined;
   let managementGroups: string[] | undefined;
-  const envSubs = (process.env.AZ_AXI_SUBSCRIPTION ?? "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-  // $AZ_AXI_SUBSCRIPTION overrides a profile management group. resolveProfile copies
-  // the env var onto subscriptions without clearing managementGroup.
   if (flagMg) managementGroups = [flagMg];
   else if (flagSubs?.length) subscriptions = flagSubs;
-  else if (envSubs.length > 0) subscriptions = envSubs;
   else if (profile.managementGroup) managementGroups = [profile.managementGroup];
   else if (profile.subscriptions?.length) subscriptions = profile.subscriptions;
 

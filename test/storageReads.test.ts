@@ -12,7 +12,7 @@ let dir: string;
 const args = ["blob", "list", "--account-name", "stexample", "--container-name", "example"];
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-storage-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
   vi.stubEnv("AZ_AXI_CONFIG", join(dir, "config.json"));
   vi.stubEnv("AZ_AXI_PROFILE", "ci");
   read.mockReset().mockResolvedValue({ rows: [{ name: "example", lastModified: "date", etag: "etag", size: "42", blobType: "BlockBlob" }] });
@@ -79,9 +79,9 @@ describe("storage read commands", () => {
     ["container", "show", undefined], ["blob", "show", undefined],
   ])("%s %s hints preserve selector whitespace through shell and routing", async (kind, verb, nextMarker) => {
     const config = join(dir, "config.json ");
-    const profile = " ci ";
+    const profile = "ci";
     const tenant = " tenant ";
-    writeFileSync(config, JSON.stringify({ profiles: { [profile]: { auth: "token", tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } } } }));
+    writeFileSync(config, JSON.stringify({ version: 1, profiles: { [profile]: { auth: "token", tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } } } }));
     read.mockResolvedValue({ rows: [{ name: "example", etag: "etag" }], nextMarker });
     const expectedProfile = { name: profile, tenant, configPath: config, tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } };
     const result = await run(routeArgv(["storage", kind!, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--config", config, "--profile", profile, "--tenant", tenant]).argv.slice(1));

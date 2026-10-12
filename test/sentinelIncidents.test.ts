@@ -54,7 +54,7 @@ function mockTransport(options: { incidents?: unknown[]; nextLink?: string; work
 }
 
 function useProfile(name = "ci", profile: Record<string, unknown> = { auth: "token", subscriptions: [SUB_A] }) {
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { [name]: profile } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { [name]: profile } }));
   process.env.AZ_AXI_PROFILE = name;
 }
 

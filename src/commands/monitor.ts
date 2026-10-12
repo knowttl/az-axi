@@ -503,7 +503,7 @@ async function runMetricsList(
   if (/^\/subscriptions\/[^/]+$/i.test(resource)) {
     invalid("--resource must target one resource; subscription-scope metrics stay out", path);
   }
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
   }
   const metricNames = flagList(args, "metric");
@@ -653,7 +653,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     }
     assertKnownFlags(args, commandFlags(path), path, monitorLeafHelp(path));
     const profile = profileFromArgs(args);
-    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
       invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
     }
     if (verb === "list") return runGovernanceList(profile, args, collection, path);
@@ -669,7 +669,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     }
     assertKnownFlags(args, commandFlags(path), path, monitorLeafHelp(path));
     const profile = profileFromArgs(args);
-    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+    if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
       invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
     }
     if (verb === "list") return runDiagnosticSettingsList(profile, args, path);

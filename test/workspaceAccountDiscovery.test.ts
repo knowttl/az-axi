@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.stubEnv("AZ_AXI_CONFIG", join(dir, "config.json"));
   vi.stubEnv("AZ_AXI_PROFILE", "ci");
   vi.stubEnv("AZ_AXI_SUBSCRIPTION", "");
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   all.mockReset(); get.mockReset();
   all.mockResolvedValue({ items: subscriptionList });
   get.mockResolvedValue(discoveryAccount);
@@ -27,10 +27,10 @@ afterEach(() => { vi.unstubAllEnvs(); rmSync(dir, { recursive: true, force: true
 
 describe("account and workspace discovery scope contracts", () => {
   it("overrides discovery read scope while preserving configured writable scope and read-only gates", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A], allowWrites: true } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB_A], allowWrites: true } } }));
     vi.stubEnv("AZ_AXI_SUBSCRIPTION", SUB_B);
-    vi.stubEnv("AZ_AXI_READ_ONLY", "");
-    expect(await account(["list"])).toMatchObject({ total: 1, subscriptions: [{ name: "Lab", id: SUB_B }] });
+    vi.stubEnv("AZ_AXI_READ_ONLY", "0");
+    expect(await account(["list", "--subscription", SUB_B])).toMatchObject({ total: 1, subscriptions: [{ name: "Lab", id: SUB_B }] });
     expect(all).toHaveBeenCalledWith(expect.objectContaining({ allowWrites: true, subscriptions: [SUB_B], writeSubscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", path: "/subscriptions" }), 100);
     const profile = all.mock.calls[0]![0];
     const writable = { resource: "arm" as const, method: "PATCH", path: `/subscriptions/${SUB_A}/resourceGroups/rg-demo` };
@@ -48,12 +48,12 @@ describe("account and workspace discovery scope contracts", () => {
     expect(all).not.toHaveBeenCalled();
   });
   it("requires a unique account when no subscription default exists", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
     await expect(account(["show"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(get).not.toHaveBeenCalled();
   });
   it("lists all accessible accounts when no subscription scope exists", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
     expect(await account(["list"])).toMatchObject({ total: 3 });
   });
   it("refuses name resolution against a capped subscription catalogue", async () => {
@@ -66,7 +66,7 @@ describe("account and workspace discovery scope contracts", () => {
     expect(JSON.stringify(await account(["show", "--full"]))).not.toContain("opaque-secret");
   });
   it("uses an ID's subscription for an unscoped workspace profile", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
     get.mockResolvedValue(discoveryWorkspace);
     await monitor(["log-analytics", "workspace", "show", "--ids", discoveryWorkspace.id]);
     expect(get).toHaveBeenCalledWith(expect.anything(), { method: "GET", path: discoveryWorkspace.id, apiVersion: "2025-07-01" });
@@ -78,7 +78,7 @@ describe("account and workspace discovery scope contracts", () => {
     expect(await monitor(["log-analytics", "workspace", "list", "--full", "--limit", "1"])).toMatchObject({ count: "2 of 2 workspaces" });
   });
   it.each([account, (argv: string[]) => monitor(["log-analytics", "workspace", ...argv])])("refuses implicit management-group scope before transport", async (run) => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", managementGroup: "root", subscriptions: [SUB_A] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", managementGroup: "root", subscriptions: [SUB_A] } } }));
     await expect(run(["list"])).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(all).not.toHaveBeenCalled();
     expect(get).not.toHaveBeenCalled();

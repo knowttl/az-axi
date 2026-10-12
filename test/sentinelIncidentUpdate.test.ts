@@ -21,7 +21,7 @@ let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-sentinel-update-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
     reader: { auth: "token", subscriptions: [SUB] },
     writer: { auth: "token", allowWrites: true, subscriptions: [SUB] },
     alias: { auth: "token", allowWrites: true, subscriptions: [SUB], workspaces: { sentinel: WORKSPACE_ID } },
@@ -91,7 +91,7 @@ function cli(extra: string[] = [], options: CliOptions = {}) {
     AZ_AXI_PROFILE: "",
     AZ_AXI_TENANT: "",
     AZ_AXI_SUBSCRIPTION: "",
-    AZ_AXI_READ_ONLY: options.readOnly ?? "",
+    AZ_AXI_READ_ONLY: options.readOnly ?? "0",
     AZ_AXI_WRITE_LOG: join(dir, "writes.log"),
     AZ_AXI_ARM_TOKEN: "offline-sentinel-token",
     AZ_AXI_TEST_OUTCOME: options.scenario ?? "sync",
@@ -232,14 +232,14 @@ describe("built Sentinel incident update, offline only", () => {
   });
 
   it.each([
-    ["reader", "", [], "WRITES_DISABLED", {}],
+    ["reader", "0", [], "WRITES_DISABLED", {}],
     ["writer", "1", [], "WRITES_DISABLED", {}],
-    ["writer", "", ["-s", OTHER], "SUBSCRIPTION_NOT_WRITABLE", {}],
-    ["writer", "", ["-s", `${SUB},${OTHER}`], "VALIDATION_ERROR", {}],
-    ["writer", "", [], "VALIDATION_ERROR", { subscription: null }],
-    ["writer", "", ["--body", "{}"], "UNKNOWN_FLAG", {}],
-    ["writer", "", ["--confirm", INCIDENT], "UNKNOWN_FLAG", {}],
-    ["writer", "", ["--management-group", "example-mg"], "VALIDATION_ERROR", {}],
+    ["writer", "0", ["-s", OTHER], "SUBSCRIPTION_NOT_WRITABLE", {}],
+    ["writer", "0", ["-s", `${SUB},${OTHER}`], "VALIDATION_ERROR", {}],
+    ["writer", "0", [], "VALIDATION_ERROR", { subscription: null }],
+    ["writer", "0", ["--body", "{}"], "UNKNOWN_FLAG", {}],
+    ["writer", "0", ["--confirm", INCIDENT], "UNKNOWN_FLAG", {}],
+    ["writer", "0", ["--management-group", "example-mg"], "VALIDATION_ERROR", {}],
   ])("refuses %s %s %j before transport or audit", (profile, readOnly, extra, code, options = {}) => {
     const result = cli(["--execute", ...extra], { profile, readOnly, subscription: extra.includes("-s") ? null : SUB, ...options });
     expect(result.status).toBe(2);
@@ -447,13 +447,13 @@ describe("built Sentinel incident comment create, offline only", () => {
   });
 
   it.each([
-    ["reader", "", [], "WRITES_DISABLED", {}],
+    ["reader", "0", [], "WRITES_DISABLED", {}],
     ["writer", "1", [], "WRITES_DISABLED", {}],
-    ["writer", "", ["-s", OTHER], "SUBSCRIPTION_NOT_WRITABLE", {}],
-    ["writer", "", [], "VALIDATION_ERROR", { subscription: null }],
-    ["writer", "", [], "VALIDATION_ERROR", { message: null }],
-    ["writer", "", ["--body", "{}"], "UNKNOWN_FLAG", {}],
-    ["writer", "", [], "VALIDATION_ERROR", { incident: "not-a-guid" }],
+    ["writer", "0", ["-s", OTHER], "SUBSCRIPTION_NOT_WRITABLE", {}],
+    ["writer", "0", [], "VALIDATION_ERROR", { subscription: null }],
+    ["writer", "0", [], "VALIDATION_ERROR", { message: null }],
+    ["writer", "0", ["--body", "{}"], "UNKNOWN_FLAG", {}],
+    ["writer", "0", [], "VALIDATION_ERROR", { incident: "not-a-guid" }],
   ])("refuses comment %s %s %j before transport or audit", (profile, readOnly, extra, code, options = {}) => {
     const result = cli(["--execute", ...extra], { route: "comment", profile, readOnly,
       subscription: extra.includes("-s") ? null : SUB, ...(options as CliOptions) });

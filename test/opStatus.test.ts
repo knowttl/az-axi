@@ -13,7 +13,7 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(process.cwd(), ".op-status-test-"));
   writeFileSync(join(dir, "config.json"), JSON.stringify({
-    profiles: { writer: { auth: "token", allowWrites: true, subscriptions: [SUB] } },
+    version: 1, profiles: { writer: { auth: "token", allowWrites: true, subscriptions: [SUB] } },
   }));
 });
 

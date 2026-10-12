@@ -330,7 +330,8 @@ Async writes with HTTP 201/202 and an operation URL poll after immediate verific
 HTTP 202 without an operation URL is an error because completion cannot be tracked.
 Outcomes include target, status, available request/correlation IDs, duration and verification guidance.
 
-Attempted dispatched writes, including failures, append JSON Lines metadata to `~/.az-axi/writes.log`, overridden by `AZ_AXI_WRITE_LOG`.
+Attempted dispatched writes, including failures, append JSON Lines metadata to `$XDG_STATE_HOME/az-axi/writes.log` (default `~/.local/state/az-axi/writes.log`), overridden by `AZ_AXI_WRITE_LOG`.
+On Windows the default is `%LOCALAPPDATA%\az-axi\writes.log`; XDG variables are ignored.
 The log includes time, profile, identity, request class, method, URL, available request/correlation IDs, HTTP status and outcome, excluding bodies and headers.
 Token-mode identity is recorded as unavailable without decoding the token.
 New log files/directories use user-only permissions where supported.
@@ -386,13 +387,22 @@ See the official [hook decision reference](https://code.claude.com/docs/en/hooks
 
 ### Profiles
 
-Configuration lookup order is `--config <path>`, `AZ_AXI_CONFIG`, `./az-axi.config.json`, then `~/.az-axi/config.json`.
-Profile selection is `--profile`, `AZ_AXI_PROFILE`, `defaultProfile`, then the only configured profile.
-Without configured profiles, native commands use an implicit `az` profile; multiple profiles without a selection are an error.
+az-axi follows the [AXI credential standard](https://github.com/knowttl/artium-axi/blob/main/docs/credential-standard.md).
+Configuration lookup order is `--config <path>`, `AZ_AXI_CONFIG`, then `$XDG_CONFIG_HOME/az-axi/config.json` when XDG_CONFIG_HOME is absolute, otherwise `~/.config/az-axi/config.json`.
+On Windows the default is `%APPDATA%\az-axi\config.json`, and XDG variables are ignored.
+Legacy `~/.az-axi/config.json` and `./az-axi.config.json` are never read; when only a legacy file exists, `CONFIG_MOVED` names the old and new paths and a move command.
+Update the moved file to version 1, rename `tenant` to `tenantId`, and replace legacy `tokenEnv` entries with SecretRefs.
+Profile selection is `--profile`, `AZ_AXI_PROFILE`, a complete env profile, `defaultProfile`, then the only configured profile.
+The env profile uses ambient auth when `AZ_AXI_TENANT_ID` is set, or token auth when `AZ_AXI_ARM_TOKEN` is set; mixed and partial sources are rejected.
+An explicit file profile ignores env-profile fields, while SecretRefs still resolve the variables they name.
+With no config and no env profile, native commands use an implicit ambient `az` profile so `az login` alone still works.
+An empty profile file requires a profile; multiple profiles without a selection are ambiguous.
 
 ```sh
 az-axi config init --name work --auth az
 az-axi config list
+az-axi profile list
+az-axi auth status
 az-axi config path
 ```
 
@@ -400,6 +410,7 @@ Example configuration, with writes disabled:
 
 ```json
 {
+  "version": 1,
   "defaultProfile": "work",
   "profiles": {
     "work": {
@@ -411,11 +422,9 @@ Example configuration, with writes disabled:
     },
     "ci": {
       "auth": "token",
-      "tokenEnv": {
-        "arm": "AZ_AXI_ARM_TOKEN",
-        "logs": "AZ_AXI_LOGS_TOKEN",
-        "graph": "AZ_AXI_GRAPH_TOKEN"
-      }
+      "armToken": { "env": "AZ_AXI_ARM_TOKEN" },
+      "logsToken": { "env": "AZ_AXI_LOGS_TOKEN" },
+      "graphToken": { "env": "AZ_AXI_GRAPH_TOKEN" }
     }
   }
 }
@@ -424,16 +433,16 @@ Example configuration, with writes disabled:
 | Profile field | Meaning |
 | --- | --- |
 | `auth` | Required: `az` or `token` |
-| `tenant` | Tenant passed to Azure CLI token acquisition |
+| `tenantId` | Tenant passed to Azure CLI token acquisition |
 | `managementGroup` | Default Resource Graph scope |
 | `subscriptions` | Default read scope; absent/empty means all accessible subscriptions; also the fixed write allowlist when writes are enabled |
 | `workspaces` | Alias to Log Analytics workspace customer GUID, not ARM resource ID |
-| `tokenEnv` | Token environment-variable names for `arm`, `logs`, `graph`, `storage`, `vault` and `registry` |
+| `armToken`, `logsToken`, `graphToken`, `storageToken`, `vaultToken`, `registryToken` | SecretRefs, defaulting to the corresponding `AZ_AXI_<RESOURCE>_TOKEN` env variable |
 | `description` | Profile description |
 | `allowWrites` | Human-edited write opt-in, requiring non-empty subscriptions; see [Writes](#writes) |
 
 Native selectors include `--profile`, `--tenant`, `--subscription`, `--management-group` and `--config`.
-Read scope resolves from flags, then supported environment overrides, then profile defaults.
+Read scope resolves from flags, then the selected profile.
 Some operations require one subscription or reject management-group scope; leaf help describes those constraints.
 Read-scope overrides never change the write allowlist.
 
@@ -442,25 +451,41 @@ Read-scope overrides never change the write allowlist.
 | Mode | Source |
 | --- | --- |
 | `az` (default) | `az account get-access-token`, using existing Azure CLI sign-in; supports identities understood by `az` |
-| `token` | Pre-acquired bearer tokens in environment variables selected by the profile |
+| `token` | Pre-acquired bearer tokens resolved from the profile's SecretRefs |
 
 Run `az-axi doctor` after authentication or profile changes to check sign-in, tokens, ARM reachability and per-profile write status.
+`az-axi auth status` reports profile, endpoint, credential source names or paths, and the ambient identity through `az account show`, without printing secrets or minting tokens.
+Both diagnostic commands verify Windows DACLs; ordinary reads check file type and reject links/reparse points.
 For Conditional Access failures, the CLI advises fresh Azure CLI sign-in in the intended tenant.
 Token-mode credentials stay in process memory and are not persisted by az-axi; expired tokens must be replaced externally.
+SecretRefs are exactly `{ "env": "NAME" }`, `{ "file": "/absolute/path" }`, or `{ "stored": true }`.
+File references must be private regular files; UTF-8 BOM and trailing whitespace are removed.
+Windows file references require absolute drive paths and reject UNC and device paths.
+az-axi implements no credential store or login/logout commands, so stored references fail with `AUTH_REQUIRED`.
+Unknown profile keys and inline secrets fail with `CONFIG_INVALID`, without echoing values.
+Legacy `tokenEnv` keys remain accepted with a stderr deprecation notice for one minor release.
+The package ships [axi-credential.schema.json](axi-credential.schema.json), the strict schema for one profile, with `x-secret` on each secret field.
+Config writes are atomic and files are created with mode 0600 in 0700 directories on Linux/macOS.
+Reads require owner UID and reject group/other write access to configs, and all group/other access to secret files.
+Windows writes apply a protected DACL granting FullControl only to the current user, SYSTEM and Administrators, with bounded rename retries.
+The Microsoft Azure CLI and its existing `~/.azure` login remain the ambient credential source and are unchanged.
 
 | Variable | Meaning |
 | --- | --- |
 | `AZ_AXI_CONFIG` | Configuration path override |
 | `AZ_AXI_PROFILE` | Selected profile |
-| `AZ_AXI_TENANT` | Native tenant override |
-| `AZ_AXI_SUBSCRIPTION` | Native subscription override, comma-separated |
+| `AZ_AXI_TENANT_ID` | Env-profile tenant; selects ambient auth |
+| `AZ_AXI_TENANT` | Deprecated alias for `AZ_AXI_TENANT_ID`, accepted with a stderr notice for one minor release |
+| `AZ_AXI_SUBSCRIPTIONS` | Env-profile subscriptions, comma-separated |
+| `AZ_AXI_SUBSCRIPTION` | Deprecated alias for `AZ_AXI_SUBSCRIPTIONS`, accepted with a stderr notice for one minor release |
+| `AZ_AXI_MANAGEMENT_GROUP` | Env-profile management group |
 | `AZ_AXI_ARM_TOKEN` | Default token variable for `https://management.azure.com/` |
 | `AZ_AXI_LOGS_TOKEN` | Default token variable for `https://api.loganalytics.io` |
 | `AZ_AXI_GRAPH_TOKEN` | Default Microsoft Graph token variable |
 | `AZ_AXI_STORAGE_TOKEN` | Default native storage token variable for `https://storage.azure.com/` |
 | `AZ_AXI_VAULT_TOKEN` | Default native Key Vault token variable for `https://vault.azure.net/` |
 | `AZ_AXI_REGISTRY_TOKEN` | Default native ACR token variable for `https://containerregistry.azure.net` |
-| `AZ_AXI_READ_ONLY` | `1` or `true` (case-insensitive) blocks write previews and execution regardless of profile |
+| `AZ_AXI_READ_ONLY` | `1` or `true` blocks writes; `0`, `false` or unset is off (case-insensitive); any other value fails with `CONFIG_INVALID` |
 | `AZ_AXI_WRITE_LOG` | Write log path override |
 | `NODE_EXTRA_CA_CERTS` | PEM root CA file for Node.js on networks with TLS-inspecting proxies |
 

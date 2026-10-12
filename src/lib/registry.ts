@@ -57,11 +57,12 @@ export const NSG_RULE_CREATE_FLAGS: FlagSchema = {
 
 /** Current executable leaves. API methods are arguments of the dynamic `api` leaf. */
 export const COMMAND_LEAVES = [
+  { path: "auth status", effect: "read", capability: "native" },
   { path: "home", effect: "read", capability: "native" },
   { path: "setup hooks", effect: "read", capability: "native" },
   { path: "doctor", effect: "read", capability: "native" },
   { path: "config init", effect: "read", capability: "native", flags: { name: "value", auth: "value", workspace: "list", "token-env": "list", default: "boolean" } },
-  { path: "config list", effect: "read", capability: "native" },
+  { path: "config list", aliases: ["profile list"], effect: "read", capability: "native" },
   { path: "config path", effect: "read", capability: "native" },
   { path: "sub list", effect: "read", capability: "native" },
   { path: "account list", effect: "read", capability: "native" },
@@ -186,6 +187,7 @@ export interface CommandModule {
 
 /** Lazy loaders, one per top-level command. Each module exports `meta` and `run`. */
 const LOADERS = {
+  auth: () => import("../commands/auth.js"),
   home: () => import("../commands/home.js"),
   setup: () => import("../commands/setup.js"),
   doctor: () => import("../commands/doctor.js"),
@@ -256,10 +258,11 @@ export const DESCRIPTION =
   "Read-only Azure inspection for agents: resource inventory, RBAC, activity log, Defender for Cloud and Log Analytics";
 
 const HELP_OVERVIEWS = {
+  auth: "az-axi auth status                       # selected profile, identity and credential sources",
   home: "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
   setup: "az-axi setup hooks                       # install the local-only session-start hook for ambient context",
   doctor: "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
-  config: "az-axi config init|list|path             # manage profiles in ~/.az-axi/config.json",
+  config: "az-axi config init|list|path             # manage profiles in the platform config directory",
   sub: "az-axi sub list                          # subscriptions visible to the identity",
   account: "az-axi account list|show                  # live ARM subscriptions in selected scope",
   monitor: "az-axi monitor log-analytics workspace list|show  # workspace metadata, no shared keys\naz-axi monitor log-analytics query --workspace <alias|guid>  # KQL query; alias of logs query\naz-axi monitor activity-log list  # alias of activity list\naz-axi monitor metrics alert|action-group list|show  # alert rules and action groups\naz-axi monitor diagnostic-settings list|show --resource <ARM-id>  # routing for one resource\naz-axi monitor metrics list --resource <ARM-id>  # definitions, or values with --metric",
@@ -373,6 +376,8 @@ export const TAG_UPDATE_HELP = [
 ].join("\n");
 
 const LEAF_HELP: Record<string, string> = {
+  "auth status": "Shows the selected profile, endpoint and credential sources without secret values. Ambient auth wraps az account show; token auth checks references locally. Verifies Windows DACLs.\nExamples: az-axi auth status; az-axi auth status --profile work",
+  "profile list": "Lists configured profiles, scope and write status.\nExamples: az-axi profile list; az-axi profile list --config <path>",
   "account list": "Lists live ARM subscriptions in selected scope (flags, environment, profile, else all accessible), resolving unambiguous names to IDs. This is not Azure CLI's cached account list. Legacy sub list still lists all visible subscriptions with inScope markers.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata and shows all fetched rows; --fields selects metadata. --limit defaults to 50. Paging stops at 100 pages with lower-bound counts. Management-group scope is unsupported.\nExamples: az-axi account list; az-axi account list -s <subscription> --full",
   "account show": "Shows one live ARM subscription selected by flags, environment or profile, resolving unambiguous names to IDs. Exactly one selected subscription is required; no implicit ambient az default is chosen.\nDefault: name, id (subscription GUID), state, tenantId. --full adds ARM metadata; --fields selects metadata. This does not change profile defaults or Azure CLI's account. Management-group scope is unsupported.\nExamples: az-axi account show -s <subscription>; az-axi account show --full",
   "monitor log-analytics workspace list": "Lists ARM workspace metadata in selected subscriptions (flags, environment, profile, else all accessible). --resource-group / -g scopes the list; --name / -n filters exact names.\nDefault: name, id (ARM ID), location, customerId (query workspace GUID). --limit defaults to 50; --full shows all fetched rows and safe metadata; --fields selects only documented metadata. Paging stops at 100 pages per subscription with lower-bound counts. Management-group scope is unsupported.\nExamples: az-axi monitor log-analytics workspace list; az-axi monitor log-analytics workspace list -g <group> --full",
@@ -412,6 +417,7 @@ const HELP_FOOTER = [
 ];
 
 const HELP_TEXT = {
+  auth: "az-axi auth status [--profile <name>] [--config <path>]\nShows profile, endpoint, identity and credential sources. Checks Windows DACLs.\nExamples: az-axi auth status; az-axi auth status --profile work",
   storage: STORAGE_HELP,
   keyvault: KEYVAULT_HELP,
   acr: ACR_HELP,
@@ -465,8 +471,8 @@ const HELP_TEXT = {
     "az-axi config list                       # profiles with scope, write status and description",
     "az-axi config path                       # the config file in use",
     "",
-    "Config file order: --config, $AZ_AXI_CONFIG, ./az-axi.config.json, ~/.az-axi/config.json.",
-    "Profile selection: --profile, $AZ_AXI_PROFILE, defaultProfile, the only profile, else an implicit az profile.",
+    "Config file order: --config, $AZ_AXI_CONFIG, platform config directory (XDG on Linux/macOS, APPDATA on Windows). Legacy locations fail with CONFIG_MOVED.",
+    "Profile selection: --profile, $AZ_AXI_PROFILE, complete env profile, defaultProfile, the only profile; no config permits ambient az auth.",
     "Examples: az-axi config init --name work --auth az --tenant <tenant-id>; az-axi config list",
   ].join("\n"),
   sub: [

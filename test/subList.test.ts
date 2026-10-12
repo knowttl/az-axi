@@ -62,7 +62,7 @@ describe("sub list", () => {
   it("marks the subscriptions in the active profile's scope", async () => {
     writeFileSync(
       join(dir, "config.json"),
-      JSON.stringify({ profiles: { work: { auth: "az", subscriptions: [ID(22).toUpperCase()] } } }),
+      JSON.stringify({ version: 1, profiles: { work: { auth: "az", subscriptions: [ID(22).toUpperCase()] } } }),
     );
     const rows = (await run(["list"])).subscriptions as Array<{ name: string; inScope: string }>;
     expect(rows.map((row) => [row.name, row.inScope])).toEqual([["Alpha", "no"], ["Mid", "no"], ["Zeta", "yes"]]);

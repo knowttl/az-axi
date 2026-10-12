@@ -2,6 +2,7 @@ import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagString, parseArgs } from "../lib/args.js";
 import {
   DEFAULT_TOKEN_ENV,
+  PROFILE_NAME,
   configPath,
   loadConfig,
   saveConfig,
@@ -43,37 +44,28 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   return initProfile(args, explicit);
 }
 
-function stringArray(value: unknown): string[] | undefined {
-  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
-}
-
 function listProfiles(explicit: string | undefined): Record<string, unknown> {
   const { path, config } = loadConfig(explicit);
   const entries = Object.entries(config?.profiles ?? {});
   if (entries.length === 0) {
     return {
       config: collapseHomeDirectory(path),
-      profiles: emptyState("profiles", `in ${collapseHomeDirectory(path)} (the implicit \`az\` profile is used)`),
+      profiles: emptyState("profiles", `in ${collapseHomeDirectory(path)}${config ? "" : " (the implicit `az` profile is used)"}`),
       help: ["Run `az-axi config init --name <name> --auth az --tenant <tenant-id>` to create a profile"],
     };
   }
   const rows = entries.map(([name, p]) => {
-    const subscriptions = stringArray(p.subscriptions);
-    const invalidSubscriptions = p.subscriptions !== undefined && subscriptions === undefined;
-    const invalidWrites =
-      (p.allowWrites !== undefined && typeof p.allowWrites !== "boolean") || invalidSubscriptions;
+    const subscriptions = p.subscriptions;
     return {
       name,
       auth: p.auth,
-      tenant: p.tenant ?? "",
+      tenant: p.tenantId ?? "",
       scope: p.managementGroup
         ? `mg:${p.managementGroup}`
         : subscriptions?.length
           ? `${subscriptions.length} subscriptions`
-          : invalidSubscriptions
-            ? "-"
-            : "all",
-      writes: invalidWrites ? "disabled (invalid configuration)" : writeStatus(p.allowWrites, subscriptions ?? []).label,
+          : "all",
+      writes: writeStatus(p.allowWrites, subscriptions ?? []).label,
       description: p.description ?? "",
     };
   });
@@ -88,9 +80,9 @@ function listProfiles(explicit: string | undefined): Record<string, unknown> {
 
 function initProfile(args: ReturnType<typeof parseArgs>, explicit: string | undefined): Record<string, unknown> {
   const name = flagString(args, "name") ?? "default";
-  if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+  if (!PROFILE_NAME.test(name)) {
     throw new AxiError(`invalid profile name '${name}'`, "VALIDATION_ERROR", [
-      "Use letters, digits, dot, dash and underscore",
+      "Use 1-64 letters, digits, dash or underscore, starting with a letter or digit",
     ]);
   }
   const auth = (flagString(args, "auth") ?? "az") as AuthMode;
@@ -104,7 +96,7 @@ function initProfile(args: ReturnType<typeof parseArgs>, explicit: string | unde
   const tenant = flagString(args, "tenant");
   const managementGroup = flagString(args, "management-group");
   const subscriptions = flagList(args, "subscription");
-  if (tenant) profile.tenant = tenant;
+  if (tenant) profile.tenantId = tenant;
   if (managementGroup) profile.managementGroup = managementGroup;
   if (subscriptions?.length) profile.subscriptions = subscriptions;
 
@@ -112,7 +104,11 @@ function initProfile(args: ReturnType<typeof parseArgs>, explicit: string | unde
   if (workspaces) profile.workspaces = workspaces;
 
   const tokenEnv = parseTokenEnv(flagList(args, "token-env"));
-  if (auth === "token") profile.tokenEnv = { ...DEFAULT_TOKEN_ENV, ...tokenEnv };
+  if (auth === "token") {
+    for (const [resource, variable] of Object.entries({ ...DEFAULT_TOKEN_ENV, ...tokenEnv })) {
+      profile[`${resource as Resource}Token`] = { env: variable };
+    }
+  }
   else if (tokenEnv) {
     throw new AxiError("--token-env only applies with --auth token", "VALIDATION_ERROR", [
       "Add --auth token, or drop --token-env",
@@ -122,7 +118,7 @@ function initProfile(args: ReturnType<typeof parseArgs>, explicit: string | unde
   // The profile is replaced wholesale and never carries `allowWrites`: enabling
   // writes is a human edit of the config file, and no flag exists for it.
   const { config: existing } = loadConfig(explicit);
-  const config: ConfigFile = existing ?? { profiles: {} };
+  const config: ConfigFile = existing ?? { version: 1, profiles: {} };
   config.profiles[name] = profile;
   const makeDefault = flagBool(args, "default") || !config.defaultProfile;
   if (makeDefault) config.defaultProfile = name;
@@ -163,7 +159,7 @@ function parseTokenEnv(entries: string[] | undefined): Partial<Record<Resource, 
     const eq = entry.indexOf("=");
     const resource = entry.slice(0, eq);
     const variable = entry.slice(eq + 1);
-    if (eq < 0 || !(resource in DEFAULT_TOKEN_ENV) || !ENV_VAR.test(variable)) {
+    if (eq < 0 || !Object.hasOwn(DEFAULT_TOKEN_ENV, resource) || !ENV_VAR.test(variable)) {
       throw new AxiError(`invalid --token-env '${entry}'`, "VALIDATION_ERROR", [
         "Use resource=VARIABLE with resource arm, logs or graph",
         "Example: --token-env arm=AZ_AXI_ARM_TOKEN,logs=AZ_AXI_LOGS_TOKEN",

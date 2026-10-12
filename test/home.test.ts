@@ -70,20 +70,21 @@ describe("dashboard skeleton", () => {
 
   it("reports configured write scope, environment override and log without write-enablement hints", async () => {
     const sub = "00000000-0000-0000-0000-000000000020";
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { sandbox: { auth: "token", allowWrites: true, subscriptions: [sub] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { sandbox: { auth: "token", allowWrites: true, subscriptions: [sub] } } }));
     process.env.AZ_AXI_WRITE_LOG = join(dir, "custom.log");
+    process.env.AZ_AXI_PROFILE = "sandbox";
     process.env.AZ_AXI_SUBSCRIPTION = "00000000-0000-0000-0000-000000000021";
     const result = await run(["--subscription", "00000000-0000-0000-0000-000000000022"]);
     expect(result).toMatchObject({ writes: "ENABLED for 1 subscription", writeSubscriptions: [sub], readOnly: { set: false, forced: false }, writeLog: join(dir, "custom.log") });
     process.env.AZ_AXI_READ_ONLY = "true";
     expect(await run([])).toMatchObject({ writes: "disabled (AZ_AXI_READ_ONLY)", writeSubscriptions: [sub], readOnly: { set: true, forced: true } });
-    process.env.AZ_AXI_READ_ONLY = "";
+    process.env.AZ_AXI_READ_ONLY = "0";
     expect(await run([])).toMatchObject({ readOnly: { set: true, forced: false } });
     expect(JSON.stringify(result.help)).not.toMatch(/allowWrites/);
   });
 
   it("reports token identities without calling az", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
     const result = await run([]);
     expect(result).toMatchObject({ profile: "ci", identity: "(token)", type: "token" });
     expect(identityMock).not.toHaveBeenCalled();
@@ -150,7 +151,7 @@ describe("dashboard skeleton", () => {
   });
 
   it("shows config, profiles and the error without a working profile", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { a: { auth: "az" }, b: { auth: "az" } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { a: { auth: "az" }, b: { auth: "az" } } }));
     const result = await run([]);
     expect(result.error).toContain("several profiles");
     expect(result.profiles).toEqual(["a", "b"]);

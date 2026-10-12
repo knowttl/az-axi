@@ -267,7 +267,7 @@ describe("rbac list", () => {
   it("prefers flags, then profile management group, then profile subscriptions", async () => {
     writeFileSync(
       join(dir, "config.json"),
-      JSON.stringify({ profiles: { work: { auth: "az", managementGroup: "mg-profile", subscriptions: [SUB_B] } } }),
+      JSON.stringify({ version: 1, profiles: { work: { auth: "az", managementGroup: "mg-profile", subscriptions: [SUB_B] } } }),
     );
     await run(["list", "--subscription", SUB_A, "--profile", "work"]);
     expect(armBody()).toMatchObject({ subscriptions: [SUB_A] });

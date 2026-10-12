@@ -466,7 +466,7 @@ async function runTop(top: string, collection: GovernanceCollection, argv: strin
   }
   assertKnownFlags(args, commandFlags(path), path, computeLeafHelp(path));
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     invalid(`management-group scope is unsupported for ${top} reads; select subscriptions explicitly`, path);
   }
   if (verb === "list") return runGovernanceList(profile, args, collection, path);

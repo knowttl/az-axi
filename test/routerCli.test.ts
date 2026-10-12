@@ -12,7 +12,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-router-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB_A] } } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -76,7 +76,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
   });
 
   it("keeps profile management-group precedence unless explicit subscriptions select the scope", () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", managementGroup: "parent", subscriptions: [SUB_A] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token", managementGroup: "parent", subscriptions: [SUB_A] } } }));
     const defaultScope = run(["graph", "query", "-q", "Resources"]);
     expect(defaultScope.status).toBe(0);
     expect(defaultScope.stderr).toContain('"managementGroups":["parent"]');
@@ -88,7 +88,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
   });
 
   it("queries all accessible subscriptions only when neither flags nor profile specify scope", () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
     const result = run(["graph", "query", "-q", "Resources"]);
     expect(result.status).toBe(0);
     expect(result.stderr).not.toContain('"subscriptions":');

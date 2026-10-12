@@ -17,13 +17,13 @@ beforeEach(() => {
   writeFileSync(join(dir, "body file.json"), BODY);
   writeFileSync(join(dir, "bad.json"), "{invalid");
   writeFileSync(join(dir, "empty.json"), "");
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
     reader: { auth: "token" }, writer: { auth: "token", allowWrites: true, subscriptions: [SUB] },
   } }));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-function cli(flags: string[], input = "", path = TARGET, method = "PATCH", readOnly = "", profile = "writer") {
+function cli(flags: string[], input = "", path = TARGET, method = "PATCH", readOnly = "0", profile = "writer") {
   return spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.mjs")).href,
     join(ROOT, "dist/bin/az-axi.js"), "api", method, path, "--api-version", "1", "--profile", profile, ...flags], {
     cwd: ROOT, encoding: "utf8", input, env: { ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"),
@@ -100,7 +100,7 @@ describe("built API body inputs, offline only", () => {
   it.each(["file", "stdin"])("keeps read-only, credential, scope and confirmation gates for %s", (form) => {
     const { flags, input } = source(form);
     const cases = [
-      cli([...flags, "--execute"], input, TARGET, "PATCH", "", "reader"),
+      cli([...flags, "--execute"], input, TARGET, "PATCH", "0", "reader"),
       cli([...flags, "--execute"], input, TARGET, "PATCH", "1"),
       cli(flags, input, `${TARGET}/providers/Microsoft.Storage/storageAccounts/demo/listKeys`, "POST"),
       cli(flags, input, TARGET.replace(SUB, "00000000-0000-0000-0000-000000000022")),

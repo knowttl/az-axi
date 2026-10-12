@@ -35,7 +35,7 @@ describe("config init", () => {
     const result = await run(["init", "--name", "work", "--auth", "az", "--tenant", "contoso.example.com"]);
     expect(read()).toEqual({
       defaultProfile: "work",
-      profiles: { work: { auth: "az", tenant: "contoso.example.com" } },
+      version: 1, profiles: { work: { auth: "az", tenantId: "contoso.example.com" } },
     });
     expect(result).toMatchObject({ profile: "work", auth: "az", default: true, writes: "disabled (default)" });
   });
@@ -51,7 +51,7 @@ describe("config init", () => {
       managementGroup: "contoso-root",
       subscriptions: [SUB_A, "00000000-0000-0000-0000-000000000021"],
       workspaces: { sentinel: WS },
-      tokenEnv: { arm: "CI_ARM", logs: "CI_LOGS", graph: "AZ_AXI_GRAPH_TOKEN" },
+      armToken: { env: "CI_ARM" }, logsToken: { env: "CI_LOGS" }, graphToken: { env: "AZ_AXI_GRAPH_TOKEN" },
     });
   });
 
@@ -71,14 +71,14 @@ describe("config init", () => {
   });
 
   it("drops a hand-set allowWrites when it rewrites a profile, leaving it read-only", async () => {
-    writeFileSync(path, JSON.stringify({ profiles: { work: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
+    writeFileSync(path, JSON.stringify({ version: 1, profiles: { work: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
     const result = await run(["init", "--name", "work", "--subscription", SUB_A]);
     expect(read().profiles.work).toEqual({ auth: "az", subscriptions: [SUB_A] });
     expect(result.writes).toBe("disabled (default)");
   });
 
   it("keeps other profiles untouched", async () => {
-    writeFileSync(path, JSON.stringify({ defaultProfile: "a", profiles: { a: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
+    writeFileSync(path, JSON.stringify({ defaultProfile: "a", version: 1, profiles: { a: { auth: "az", subscriptions: [SUB_A], allowWrites: true } } }));
     await run(["init", "--name", "b"]);
     expect(read().profiles.a).toEqual({ auth: "az", subscriptions: [SUB_A], allowWrites: true });
   });
@@ -116,8 +116,8 @@ describe("config list and path", () => {
       path,
       JSON.stringify({
         defaultProfile: "work",
-        profiles: {
-          work: { auth: "az", tenant: "contoso.example.com", managementGroup: "contoso-root", description: "Daily analyst profile" },
+        version: 1, profiles: {
+          work: { auth: "az", tenantId: "contoso.example.com", managementGroup: "contoso-root", description: "Daily analyst profile" },
           sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true },
           ci: { auth: "token", subscriptions: [SUB_A, "00000000-0000-0000-0000-000000000021"] },
         },
@@ -137,24 +137,18 @@ describe("config list and path", () => {
     expect(forced.map((row) => row.writes)).toEqual(Array(3).fill("disabled (AZ_AXI_READ_ONLY)"));
   });
 
-  it("does not count a non-array subscriptions value and labels an invalid write configuration", async () => {
+  it("rejects invalid profile types before listing profiles", async () => {
     const id = "00000000-0000-0000-0000-000000000020";
     writeFileSync(
       path,
       JSON.stringify({
-        profiles: {
+        version: 1, profiles: {
           stringId: { auth: "az", subscriptions: id, allowWrites: true },
           textFlag: { auth: "az", subscriptions: [id], allowWrites: "true" },
         },
       }),
     );
-    const rows = (await run(["list"])).profiles as Array<{ name: string; scope: string; writes: string }>;
-    expect(rows).toEqual([
-      { name: "stringId", auth: "az", tenant: "", scope: "-", writes: "disabled (invalid configuration)", description: "" },
-      { name: "textFlag", auth: "az", tenant: "", scope: "1 subscriptions", writes: "disabled (invalid configuration)", description: "" },
-    ]);
-    expect(rows.map((row) => row.scope).join(" ")).not.toContain("36");
-    expect(rows.map((row) => row.writes).join(" ")).not.toContain("ENABLED");
+    await expect(run(["list"])).rejects.toMatchObject({ code: "CONFIG_INVALID" });
   });
 
   it("reports the config path and whether it exists", async () => {

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appendWriteLog, resolveWriteLogPath, type WriteLogInput } from "../src/lib/writeLog.js";
+import { registerSecret } from "../src/lib/redact.js";
 
 const SUB = "00000000-0000-0000-0000-000000000020";
 const REQUEST_ID = "00000000-0000-0000-0000-000000000031";
@@ -37,7 +38,7 @@ const LISTED_FIELDS = [
 ].sort();
 
 let dir: string;
-const ENV_KEYS = ["AZ_AXI_WRITE_LOG", "HOME", "USERPROFILE"];
+const ENV_KEYS = ["AZ_AXI_WRITE_LOG", "HOME", "USERPROFILE", "XDG_STATE_HOME", "LOCALAPPDATA"];
 let saved: Record<string, string | undefined>;
 
 function linesOf(file: string): unknown[] {
@@ -64,18 +65,26 @@ afterEach(() => {
 });
 
 describe("resolveWriteLogPath", () => {
-  it("defaults to ~/.az-axi/writes.log", () => {
-    expect(resolveWriteLogPath()).toBe(join(dir, ".az-axi", "writes.log"));
+  it("defaults to the platform state directory", () => {
+    expect(resolveWriteLogPath()).toBe(join(dir, process.platform === "win32" ? "AppData/Local" : ".local/state", "az-axi", "writes.log"));
   });
 
   it("honours $AZ_AXI_WRITE_LOG, falling back on a blank value", () => {
     const override = join(dir, "custom.log");
     expect(resolveWriteLogPath({ AZ_AXI_WRITE_LOG: override })).toBe(override);
-    expect(resolveWriteLogPath({ AZ_AXI_WRITE_LOG: "  " })).toBe(join(dir, ".az-axi", "writes.log"));
+    expect(resolveWriteLogPath({ AZ_AXI_WRITE_LOG: "  " })).toBe(join(dir, process.platform === "win32" ? "AppData/Local" : ".local/state", "az-axi", "writes.log"));
   });
 });
 
 describe("appendWriteLog", () => {
+  it("redacts exact credential values reflected in journal metadata", () => {
+    const value = 'synthetic-journal="credential/value"';
+    registerSecret(value);
+    const file = join(dir, "writes.log");
+    appendWriteLog({ ...INPUT, identity: value, url: `${URL}&echo=${encodeURIComponent(value)}` }, file);
+    expect(linesOf(file)).toEqual([expect.objectContaining({ identity: "***redacted***", url: `${URL}&echo=***redacted***` })]);
+    expect(readFileSync(file, "utf8")).not.toContain("synthetic-journal");
+  });
   it("writes exactly the listed fields as one JSON line, creating parents", () => {
     const file = join(dir, "nested", "writes.log");
     appendWriteLog(INPUT, file);
@@ -126,7 +135,7 @@ describe("appendWriteLog", () => {
 
   it("uses the default path when no file is given", () => {
     appendWriteLog(INPUT);
-    const [entry] = linesOf(join(dir, ".az-axi", "writes.log")) as [Record<string, unknown>];
+    const [entry] = linesOf(resolveWriteLogPath()) as [Record<string, unknown>];
     expect(entry).toMatchObject({ profile: "sandbox", outcome: "success" });
   });
 

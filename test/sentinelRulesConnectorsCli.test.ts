@@ -15,7 +15,7 @@ describe("built CLI sentinel alert-rule and data-connector reads offline", () =>
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-sentinel-4c-cli-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       ci: { auth: "token", subscriptions: [SUB_A] },
       alias: { auth: "token", subscriptions: [SUB_A], workspaces: { sentinel: WORKSPACE } },
     } }));

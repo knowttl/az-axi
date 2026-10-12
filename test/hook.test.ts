@@ -64,12 +64,12 @@ describe("session summary", () => {
   });
 
   it("reports not configured with an empty profile set", () => {
-    writeConfig({ profiles: {} });
+    writeConfig({ version: 1, profiles: {} });
     expect(sessionSummary([]).profile).toBe("not configured");
   });
 
   it("summarizes a configured profile from local state only", () => {
-    writeConfig({ profiles: { work: { auth: "az", subscriptions: [SUB] } } });
+    writeConfig({ version: 1, profiles: { work: { auth: "az", subscriptions: [SUB] } } });
     // auth:az would spawn `az` for identity; the child_process tripwire above
     // proves the summary never gets that far.
     expect(sessionSummary([])).toEqual({
@@ -82,7 +82,7 @@ describe("session summary", () => {
   });
 
   it("labels management-group scope and carries scope flags into the hint", () => {
-    writeConfig({ profiles: { work: { auth: "az", managementGroup: "mg-prod" } } });
+    writeConfig({ version: 1, profiles: { work: { auth: "az", managementGroup: "mg-prod" } } });
     expect(sessionSummary([])).toMatchObject({ scope: "in management group mg-prod" });
     expect(sessionSummary(["--subscription", SUB])).toMatchObject({
       scope: "for 1 subscription",
@@ -91,14 +91,14 @@ describe("session summary", () => {
   });
 
   it("reports write posture including the read-only override", () => {
-    writeConfig({ profiles: { prod: { auth: "az", allowWrites: true, subscriptions: [SUB] } } });
+    writeConfig({ version: 1, profiles: { prod: { auth: "az", allowWrites: true, subscriptions: [SUB] } } });
     expect(sessionSummary([])).toMatchObject({ writes: "ENABLED for 1 subscription" });
     process.env.AZ_AXI_READ_ONLY = "1";
     expect(sessionSummary([])).toMatchObject({ writes: "disabled (AZ_AXI_READ_ONLY)" });
   });
 
   it("returns short records instead of throwing for config problems", () => {
-    writeConfig({ profiles: { a: { auth: "az" }, b: { auth: "az" } } });
+    writeConfig({ version: 1, profiles: { a: { auth: "az" }, b: { auth: "az" } } });
     const ambiguous = sessionSummary([]);
     expect(ambiguous.error).toContain("several profiles");
     expect(ambiguous.help).toContain("Pass --profile <name> or set $AZ_AXI_PROFILE");
@@ -112,7 +112,7 @@ describe("session summary", () => {
   });
 
   it("finishes well under a second", () => {
-    writeConfig({ profiles: { work: { auth: "az", subscriptions: [SUB] } } });
+    writeConfig({ version: 1, profiles: { work: { auth: "az", subscriptions: [SUB] } } });
     const start = Date.now();
     sessionSummary([]);
     expect(Date.now() - start).toBeLessThan(2000);
@@ -130,7 +130,7 @@ describe("hook entry point", () => {
   }
 
   it("exits 0 with the summary from source and from the build", () => {
-    writeConfig({ profiles: { work: { auth: "az", subscriptions: [SUB] } } });
+    writeConfig({ version: 1, profiles: { work: { auth: "az", subscriptions: [SUB] } } });
     const env = { AZ_AXI_CONFIG: join(dir, "config.json") };
     for (const entry of [[TSX, "src/bin/az-axi-hook.ts"], ["dist/bin/az-axi-hook.js"]]) {
       const result = runBin(entry, env);
@@ -157,7 +157,7 @@ describe("hook entry point", () => {
   }, 30_000);
 
   it("finishes the built binary well under a second", () => {
-    writeConfig({ profiles: { work: { auth: "az", subscriptions: [SUB] } } });
+    writeConfig({ version: 1, profiles: { work: { auth: "az", subscriptions: [SUB] } } });
     const start = Date.now();
     const result = runBin(["dist/bin/az-axi-hook.js"], { AZ_AXI_CONFIG: join(dir, "config.json") });
     expect(result.status).toBe(0);
