@@ -70,7 +70,7 @@ describe("end to end with a stubbed network", () => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-e2e-"));
     writeFileSync(
       join(dir, "config.json"),
-      JSON.stringify({ profiles: { ci: { auth: "token", subscriptions: [SUB] } } }),
+      JSON.stringify({ version: 1, profiles: { ci: { auth: "token", subscriptions: [SUB] } } }),
     );
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));

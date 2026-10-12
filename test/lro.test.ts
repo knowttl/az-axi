@@ -294,8 +294,8 @@ describe("op status", () => {
     expect(result.help !== undefined).toBe(status === 202);
   });
 
-  it.each(["work", "--work"])("retains config, profile %s and tenant when its hint is executed", async (name) => {
-    const config = saveConfig({ profiles: { [name]: { auth: "token", tenant: "original" } } }, join(dir, "work.json"));
+  it.each(["work", "work-prod"])("retains config, profile %s and tenant when its hint is executed", async (name) => {
+    const config = saveConfig({ version: 1, profiles: { [name]: { auth: "token", tenantId: "original" } } }, join(dir, "work.json"));
     sendMock.mockResolvedValue(asyncOp("InProgress"));
     const result = await run(["status", OP_URL, "--config", config, `--profile=${name}`, "--tenant=--T"]);
     const hint = (result.help as string[])[0] as string;

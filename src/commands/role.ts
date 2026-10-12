@@ -110,7 +110,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
   assertKnownFlags(args, commandFlags(path), path, roleLeafHelp(path));
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     governanceInvalid("management-group scope is unsupported for role reads; select subscriptions explicitly", path);
   }
   if (verb === "list") return runGovernanceList(profile, args, ROLE_DEFINITION, path);

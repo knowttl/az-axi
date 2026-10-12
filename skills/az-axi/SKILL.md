@@ -33,11 +33,13 @@ The exact current leaf registry is `src/lib/registry.ts`. Capability labels: `na
 <!-- command-registry:start -->
 | Command | Capability | Azure effect |
 |---|---|---|
+| `az-axi auth status` | native | read |
 | `az-axi home` | native | read |
 | `az-axi setup hooks` | native | read |
 | `az-axi doctor` | native | read |
 | `az-axi config init` | native | read |
 | `az-axi config list` | native | read |
+| `az-axi profile list` | native | read |
 | `az-axi config path` | native | read |
 | `az-axi sub list` | native | read |
 | `az-axi account list` | native | read |
@@ -167,7 +169,9 @@ Native commands accept these selector flags, and they never count as unknown fla
 - `--subscription a,b` - one-off subscription scope; `--management-group <mg>` for management-group scope
 - `--tenant <id>` - passed through to `az` for token acquisition
 - `--config <path>` - one-off config file
-- `$AZ_AXI_PROFILE` / `$AZ_AXI_SUBSCRIPTION` / `$AZ_AXI_TENANT` / `$AZ_AXI_CONFIG` - environment overrides
+- `$AZ_AXI_PROFILE` / `$AZ_AXI_CONFIG` - profile and config selectors; `$AZ_AXI_SUBSCRIPTIONS` / `$AZ_AXI_TENANT_ID` configure the env profile only
+File-selected profiles ignore env-profile fields. Legacy AZ_AXI_SUBSCRIPTION, AZ_AXI_TENANT and tokenEnv are deprecated for one minor release.
+The [AXI credential standard](https://github.com/knowttl/artium-axi/blob/main/docs/credential-standard.md) defines the profile contract; `npx -y @knowttl/az-axi auth status` reports credential sources without values.
 
 With no config file at all, az-axi uses an implicit `az` profile, so it works right after `az login`. `npx -y @knowttl/az-axi config init --name work --auth az` manages profiles locally and never touches Azure.
 

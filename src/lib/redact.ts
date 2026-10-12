@@ -1,5 +1,18 @@
 /** Secret redaction applied to all command output; see README.md Behavior. */
 export const REDACTED = "***redacted***";
+const exactSecrets = new Set<string>();
+
+export function registerSecret(value: string): void {
+  if (!value) return;
+  exactSecrets.add(value);
+  exactSecrets.add(JSON.stringify(value).slice(1, -1));
+  exactSecrets.add(encodeURIComponent(value));
+}
+
+export function redactText(value: string): string {
+  for (const secret of [...exactSecrets].sort((a, b) => b.length - a.length)) value = value.replaceAll(secret, REDACTED);
+  return value;
+}
 
 const SECRET_KEY_PARTS = ["password", "secret", "token", "connectionstring", "credential", "sasuri", "sasurl"];
 /** `primaryKey`, `accountKey` ...: a name ending in "key"/"keys" with a prefix (a bare `key` is not secret). */
@@ -40,7 +53,7 @@ function walk(value: unknown, parentKey: string | undefined, secureParameter = f
       const uri = URL.parse(value);
       if (uri?.username || uri?.password) return REDACTED;
     }
-    return value;
+    return redactText(value);
   }
   if (Array.isArray(value)) return value.map((item) => walk(item, parentKey, secureParameter));
   if (value === null || typeof value !== "object") return value;

@@ -29,6 +29,7 @@
   },
   "files": [
     "dist",
+    "axi-credential.schema.json",
     "skills/az-axi",
     "README.md",
     "LICENSE",

@@ -16,7 +16,7 @@ let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-tag-update-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
     reader: { auth: "token", subscriptions: [SUB] },
     writer: { auth: "token", allowWrites: true, subscriptions: [SUB] },
   } }));
@@ -53,7 +53,7 @@ function cli(extra: string[] = [], options: {
       AZ_AXI_PROFILE: "",
       AZ_AXI_TENANT: "",
       AZ_AXI_SUBSCRIPTION: "",
-      AZ_AXI_READ_ONLY: options.readOnly ?? "",
+      AZ_AXI_READ_ONLY: options.readOnly ?? "0",
       AZ_AXI_WRITE_LOG: join(dir, "writes.log"),
       AZ_AXI_TEST_OUTCOME: options.scenario ?? "sync",
       AZ_AXI_TEST_TAGS: options.tagsEnv ?? '{"env":"dev"}',
@@ -423,10 +423,10 @@ describe("built tag update, offline only", () => {
   });
 
   it.each([
-    ["reader", "", [], "WRITES_DISABLED"],
+    ["reader", "0", [], "WRITES_DISABLED"],
     ["writer", "1", [], "WRITES_DISABLED"],
-    ["writer", "", ["--body", "{}"], "UNKNOWN_FLAG"],
-    ["writer", "", ["--management-group", "example-mg"], "VALIDATION_ERROR"],
+    ["writer", "0", ["--body", "{}"], "UNKNOWN_FLAG"],
+    ["writer", "0", ["--management-group", "example-mg"], "VALIDATION_ERROR"],
   ])("refuses %s %s %j before transport or audit", (profile, readOnly, extra, code) => {
     const result = cli(["--execute", ...extra], { profile, readOnly });
     expect(result.status).toBe(2);

@@ -209,12 +209,6 @@ async function resolveSubscriptionIds(
     ]);
   }
   const flagSubs = flagList(args, "subscription");
-  const envSubs = uniqueIds(
-    (process.env.AZ_AXI_SUBSCRIPTION ?? "")
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean),
-  );
 
   if (flagMg) {
     return {
@@ -234,13 +228,6 @@ async function resolveSubscriptionIds(
       ids,
       label: `for ${ids.length} subscription${ids.length === 1 ? "" : "s"}`,
       narrowed,
-    };
-  }
-  if (envSubs.length > 0) {
-    return {
-      ids: envSubs,
-      label: `for ${envSubs.length} subscription${envSubs.length === 1 ? "" : "s"}`,
-      narrowed: false,
     };
   }
   if (profile.managementGroup) {

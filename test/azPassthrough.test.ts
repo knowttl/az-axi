@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { decode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SUB_A, SUB_B, TENANT, azResourceGroup } from "./samples.js";
+import { writePrivateFile } from "../src/lib/privateFile.js";
 
 const probes = [["version", "--output", "json"], ["cloud", "show", "--output", "json"], ["account", "show", "--output", "json"]];
 const read = ["group", "show", "--name", "rg-demo", "--subscription", SUB_A, "--output", "json"];
@@ -12,6 +13,13 @@ const args = ["az", "group", "show", "--name", "rg-demo", "--subscription", SUB_
 let dir: string;
 let responses: Record<string, unknown>;
 let profile: Record<string, unknown>;
+
+it("auth status wraps only account show and reports the ambient identity", () => {
+  const result = invoke(["auth", "status"]);
+  expect(result.status, JSON.stringify(result.output)).toBe(0);
+  expect(result.output).toMatchObject({ profile: "work", auth: "az", endpoint: "https://management.azure.com/", identity: { name: "ada@contoso.com", tenantId: TENANT } });
+  expect(result.calls).toEqual([["account", "show", "--output", "json"]]);
+});
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-passthrough-"));
@@ -22,7 +30,7 @@ beforeEach(() => {
     copyFileSync(resolve("test/fixtures/az-passthrough.mjs"), join(dir, "az"));
     chmodSync(join(dir, "az"), 0o755);
   }
-  profile = { auth: "az", tenant: TENANT, subscriptions: [SUB_A] };
+  profile = { auth: "az", tenantId: TENANT, subscriptions: [SUB_A] };
   responses = {
     version: { "azure-cli": "2.90.0", "azure-cli-core": "2.90.0", extensions: {} },
     "cloud show": { name: "AzureCloud", profile: "latest", endpoints: { resourceManager: "https://management.azure.com/" } },
@@ -34,7 +42,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 function invoke(argv = args, extraEnv: Record<string, string> = {}) {
   writeFileSync(join(dir, "responses.json"), JSON.stringify(responses));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ defaultProfile: "work", profiles: { work: profile } }));
+  writePrivateFile(join(dir, "config.json"), JSON.stringify({ defaultProfile: "work", version: 1, profiles: { work: profile } }));
   const env = { ...process.env, PATH: `${dir}${process.platform === "win32" ? ";" : ":"}${process.env.PATH}`, AZ_AXI_CONFIG: join(dir, "config.json"), AZURE_CONFIG_DIR: join(dir, "signed-in-context"), ...extraEnv };
   for (const key of ["AZ_AXI_PROFILE", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION"]) if (!Object.hasOwn(extraEnv, key)) delete env[key as keyof typeof env];
   const result = spawnSync(process.execPath, ["dist/bin/az-axi.js", ...argv], { encoding: "utf8", env, timeout: 10_000 });
@@ -127,7 +135,7 @@ describe("built CLI reviewed passthrough", () => {
     expect(invoke(argv)).toMatchObject({ status: 2, calls: [], output: { code: "VALIDATION_ERROR" } });
   });
   it.each([
-    { auth: "token" }, { tenant: undefined }, { subscriptions: [SUB_B] },
+    { auth: "token" }, { tenantId: undefined }, { subscriptions: [SUB_B] },
     { subscriptions: [SUB_A, SUB_B] }, { managementGroup: "root" },
   ])("refuses incompatible profile %j before probes", (change) => {
     profile = { ...profile, ...change };

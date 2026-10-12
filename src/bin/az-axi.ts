@@ -13,7 +13,12 @@ if (!tryFastPath(process.argv.slice(2), { version })) {
   const { normalizeArgv } = await import("../lib/argv.js");
   const { routeArgv } = await import("../lib/router.js");
   const { WriteExecutionError } = await import("../lib/execute.js");
-  const { redact } = await import("../lib/redact.js");
+  const { redact, redactText } = await import("../lib/redact.js");
+  for (const stream of [process.stdout, process.stderr]) {
+    const write = stream.write.bind(stream);
+    stream.write = ((chunk: string | Uint8Array, ...args: unknown[]) =>
+      Reflect.apply(write, stream, [redactText(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8")), ...args])) as typeof stream.write;
+  }
   const { COMMANDS, runCommand } = await import("../lib/registry.js");
   const { DESCRIPTION, TOP_LEVEL_HELP } = await import("../help.js");
 

@@ -7,7 +7,7 @@ import { storageBlobs, storageContainers, storageProperties } from "./samples.js
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-storage-cli-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token", authMode: "key", accountKey: "hostile-key", sasToken: "sig=hostile", connectionString: "AccountKey=hostile" } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
   writeFileSync(join(dir, "config"), "[storage]\nauth_mode=key\nkey=hostile-key\nsas_token=sig=hostile\nconnection_string=AccountKey=hostile\n");
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));

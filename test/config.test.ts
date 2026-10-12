@@ -16,7 +16,7 @@ const SUB_B = "00000000-0000-0000-0000-000000000021";
 const TENANT = "00000000-0000-0000-0000-000000000001";
 
 let dir: string;
-const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_READ_ONLY", "HOME", "USERPROFILE"];
+const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_TENANT", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_READ_ONLY", "HOME", "USERPROFILE", "XDG_CONFIG_HOME", "APPDATA", "AZ_AXI_TENANT_ID"];
 let saved: Record<string, string | undefined>;
 
 function writeConfig(config: unknown, name = "config.json"): string {
@@ -45,15 +45,15 @@ afterEach(() => {
 
 const WORK: ConfigFile = {
   defaultProfile: "work",
-  profiles: {
-    work: { auth: "az", tenant: TENANT, managementGroup: "contoso-root", subscriptions: [] },
+  version: 1, profiles: {
+    work: { auth: "az", tenantId: TENANT, managementGroup: "contoso-root", subscriptions: [] },
     sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true },
     ci: { auth: "token", tokenEnv: { arm: "CI_ARM" } },
   },
 };
 
 describe("configPath", () => {
-  it("resolves --config, then $AZ_AXI_CONFIG, then ./az-axi.config.json, then the home config", () => {
+  it("resolves --config, then $AZ_AXI_CONFIG, then the platform config, ignoring cwd", () => {
     const explicit = join(dir, "explicit.json");
     const fromEnv = join(dir, "env.json");
     process.env.AZ_AXI_CONFIG = fromEnv;
@@ -61,10 +61,11 @@ describe("configPath", () => {
     expect(configPath()).toBe(fromEnv);
 
     delete process.env.AZ_AXI_CONFIG;
-    expect(configPath()).toBe(join(dir, ".az-axi", "config.json"));
+    const expected = join(dir, process.platform === "win32" ? "AppData/Roaming" : ".config", "az-axi", "config.json");
+    expect(configPath()).toBe(expected);
 
-    const local = writeConfig({ profiles: {} }, "az-axi.config.json");
-    expect(configPath()).toBe(local);
+    writeConfig({ version: 1, profiles: {} }, "az-axi.config.json");
+    expect(configPath()).toBe(expected);
   });
 });
 
@@ -74,9 +75,9 @@ describe("loadConfig", () => {
   });
 
   it("rejects invalid JSON and a missing profiles object", () => {
-    expect(() => loadConfig(writeConfig("{nope"))).toThrowError(expect.objectContaining({ code: "VALIDATION_ERROR" }));
+    expect(() => loadConfig(writeConfig("{nope"))).toThrowError(expect.objectContaining({ code: "CONFIG_INVALID" }));
     expect(() => loadConfig(writeConfig({ defaultProfile: "x" }))).toThrowError(
-      expect.objectContaining({ code: "VALIDATION_ERROR" }),
+      expect.objectContaining({ code: "CONFIG_INVALID" }),
     );
   });
 });
@@ -105,16 +106,16 @@ describe("resolveProfile", () => {
   });
 
   it("uses the only profile when there is no default and demands a choice among several", () => {
-    expect(resolveProfile({ config: writeConfig({ profiles: { solo: { auth: "az" } } }) }).name).toBe("solo");
-    expect(() => resolveProfile({ config: writeConfig({ profiles: WORK.profiles }) })).toThrowError(
-      expect.objectContaining({ code: "VALIDATION_ERROR" }),
+    expect(resolveProfile({ config: writeConfig({ version: 1, profiles: { solo: { auth: "az" } } }) }).name).toBe("solo");
+    expect(() => resolveProfile({ config: writeConfig({ version: 1, profiles: WORK.profiles }) })).toThrowError(
+      expect.objectContaining({ code: "PROFILE_AMBIGUOUS" }),
     );
   });
 
   it("rejects an unknown profile and a dangling defaultProfile", () => {
     const config = writeConfig(WORK);
     expect(() => resolveProfile({ config, profile: "nope" })).toThrowError(/not found/);
-    expect(() => resolveProfile({ config: writeConfig({ defaultProfile: "gone", profiles: { a: { auth: "az" } } }) })).toThrowError(
+    expect(() => resolveProfile({ config: writeConfig({ defaultProfile: "gone", version: 1, profiles: { a: { auth: "az" } } }) })).toThrowError(
       /defaultProfile 'gone'/,
     );
   });
@@ -135,7 +136,7 @@ describe("resolveProfile", () => {
     const config = writeConfig(WORK);
     process.env.AZ_AXI_SUBSCRIPTION = SUB_B;
     const viaEnv = resolveProfile({ config, profile: "sandbox" });
-    expect(viaEnv.subscriptions).toEqual([SUB_B]);
+    expect(viaEnv.subscriptions).toEqual([SUB_A]);
     expect(viaEnv.writeSubscriptions).toEqual([SUB_A]);
     const viaFlag = resolveProfile({ config, profile: "sandbox", subscriptions: [SUB_B] });
     expect(viaFlag.writeSubscriptions).toEqual([SUB_A]);
@@ -151,12 +152,12 @@ describe("allowWrites rules", () => {
     ]) {
       let error: { code?: string; message?: string; suggestions?: string[] } | undefined;
       try {
-        resolveProfile({ config: writeConfig({ profiles: { bad: profile } }) });
+        resolveProfile({ config: writeConfig({ version: 1, profiles: { bad: profile } }) });
       } catch (err) {
         error = err as typeof error;
       }
       const text = [error?.message, ...(error?.suggestions ?? [])].join("\n");
-      expect(error?.code).toBe("VALIDATION_ERROR");
+      expect(error?.code).toBe("CONFIG_INVALID");
       expect(text).toContain("invalid write configuration");
       expect(text).toContain("README.md#writes");
       expect(text).not.toMatch(/allowWrites|config file|Edit the profile/i);
@@ -181,7 +182,7 @@ describe("allowWrites rules", () => {
     expect(writeStatus(true, [SUB_A])).toEqual({ enabled: false, label: "disabled (AZ_AXI_READ_ONLY)" });
   });
 
-  it.each(["0", "", "no"])("$AZ_AXI_READ_ONLY=%j does not force read-only", (value) => {
+  it.each(["0", "false", "FALSE"])("$AZ_AXI_READ_ONLY=%j does not force read-only", (value) => {
     process.env.AZ_AXI_READ_ONLY = value;
     expect(writeStatus(true, [SUB_A]).enabled).toBe(true);
   });

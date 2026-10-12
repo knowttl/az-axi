@@ -81,7 +81,7 @@ describe("logs query", () => {
   it("resolves a workspace alias from the profile", async () => {
     writeFileSync(
       join(dir, "config.json"),
-      JSON.stringify({ profiles: { work: { auth: "az", workspaces: { sentinel: WS } } }, defaultProfile: "work" }),
+      JSON.stringify({ version: 1, profiles: { work: { auth: "az", workspaces: { sentinel: WS } } }, defaultProfile: "work" }),
     );
     const result = await run(["query", "SigninLogs | take 1", "--workspace", "sentinel"]);
     expect(lastRequest().path).toBe(`/v1/workspaces/${WS}/query`);
@@ -118,7 +118,7 @@ describe("logs query", () => {
 
     writeFileSync(
       join(dir, "config.json"),
-      JSON.stringify({ profiles: { work: { auth: "az", workspaces: { sentinel: ARM_ID } } }, defaultProfile: "work" }),
+      JSON.stringify({ version: 1, profiles: { work: { auth: "az", workspaces: { sentinel: ARM_ID } } }, defaultProfile: "work" }),
     );
     await expect(run(["query", "SigninLogs | take 1", "--workspace", "sentinel"])).rejects.toMatchObject({
       code: "VALIDATION_ERROR",

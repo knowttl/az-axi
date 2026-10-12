@@ -129,7 +129,7 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
   }
   const target = ids ? resourceId(ids) : undefined;
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     invalid("management-group scope is unsupported for discovery; select subscriptions explicitly");
   }
   let subs: string[];

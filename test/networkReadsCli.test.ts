@@ -17,7 +17,7 @@ describe("built CLI network reads offline", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-network-cli-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       ci: { auth: "token", subscriptions: [SUB_A] },
     } }));
   });

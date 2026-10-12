@@ -967,7 +967,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
   assertKnownFlags(args, commandFlags(path), path, networkLeafHelp(path));
   const profile = profileFromArgs(args);
-  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription && !process.env.AZ_AXI_SUBSCRIPTION?.trim()) {
+  if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     invalid("management-group scope is unsupported for network reads; select subscriptions explicitly", path);
   }
   return verb === "list"

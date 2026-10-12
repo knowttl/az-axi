@@ -1,7 +1,7 @@
-import { appendFileSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { RequestClass } from "./policy.js";
+import { appendPrivateFile, toolDirectory } from "./privateFile.js";
+import { redactText } from "./redact.js";
 
 /** Environment override for the write log location. */
 export const WRITE_LOG_ENV = "AZ_AXI_WRITE_LOG";
@@ -38,13 +38,13 @@ export type WriteLogInput = Omit<WriteLogEntry, "time"> & { time?: string };
 
 /**
  * Where executed writes are recorded: `$AZ_AXI_WRITE_LOG` when set,
- * otherwise `~/.az-axi/writes.log`. Built with `homedir` and `join`, so it
+ * otherwise the platform's az-axi state directory. Built with `join`, so it
  * is Windows-safe. A blank override falls back to the default.
  */
 export function resolveWriteLogPath(env: NodeJS.ProcessEnv = process.env): string {
   const override = env[WRITE_LOG_ENV]?.trim();
   if (override) return override;
-  return join(homedir(), ".az-axi", "writes.log");
+  return join(toolDirectory("state", env), "writes.log");
 }
 
 /**
@@ -67,6 +67,5 @@ export function appendWriteLog(input: WriteLogInput, file: string = resolveWrite
     httpStatus: input.httpStatus,
     outcome: input.outcome,
   };
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  appendFileSync(file, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+  appendPrivateFile(file, redactText(`${JSON.stringify(entry)}\n`));
 }

@@ -24,7 +24,7 @@ describe("built CLI Monitor reads offline", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-monitor-cli-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       ci: { auth: "token", subscriptions: [SUB_A] },
       mg: { auth: "token", subscriptions: [SUB_A], managementGroup: "other-group" },
     } }));
@@ -152,11 +152,11 @@ describe("built CLI Monitor reads offline", () => {
       expect(result.stderr).toContain("Microsoft.Insights/diagnosticSettings");
     });
 
-    it("accepts an environment subscription overriding the profile management group", () => {
+    it("ignores environment subscriptions for a selected management-group profile", () => {
       const result = run(["monitor", "diagnostic-settings", ...argv, "--profile", "mg"], "normal", SUB_A);
-      expect(result.status, result.stdout).toBe(0);
-      expect(result.stdout).toContain("to-hub");
-      expect(result.stderr).toContain("Microsoft.Insights/diagnosticSettings");
+      expect(result.status, result.stdout).toBe(2);
+      expect(result.stdout).toContain("management-group scope is unsupported");
+      expect(result.stderr).toBe("");
     });
   });
 

@@ -30,7 +30,7 @@ const execute = (extra: string[] = [], method = "PATCH", body = '{"tags":{"env":
   run([method, TARGET, "--api-version", "1", "--body", body, "--execute", ...extra]);
 
 beforeEach(() => {
-  vi.stubEnv("AZ_AXI_READ_ONLY", "");
+  vi.stubEnv("AZ_AXI_READ_ONLY", "0");
   profile = { name: "writer", source: "implicit", auth: "token", allowWrites: true,
     subscriptions: [SUB], writeSubscriptions: [SUB] };
   send.mockReset();

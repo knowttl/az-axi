@@ -63,7 +63,7 @@ export async function run(argv: string[], signal?: AbortSignal): Promise<Record<
   const fields = flags.fields?.split(",");
   if (fields?.some((field) => !["id", "name", "location", "state"].includes(field))) refuse("--fields accepts id,name,location,state");
   if (fields && flags.full === "true") refuse("--fields and --full are mutually exclusive");
-  if (process.env.AZ_AXI_TENANT || process.env.AZ_AXI_SUBSCRIPTION) refuse("passthrough scope must come from the configured profile, without environment scope overrides");
+  if (process.env.AZ_AXI_TENANT_ID || process.env.AZ_AXI_TENANT || process.env.AZ_AXI_SUBSCRIPTIONS || process.env.AZ_AXI_SUBSCRIPTION) refuse("passthrough scope must come from the configured profile, without environment scope overrides");
   const profile = resolveProfile({ profile: flags.profile, config: flags.config });
   if (profile.auth !== "az" || profile.source === "implicit") refuse("passthrough requires a configured az-auth profile; token profiles never use ambient login");
   const subscription = flags.subscription!;

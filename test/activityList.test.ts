@@ -220,7 +220,7 @@ describe("activity list", () => {
   it("uses the profile management group when no subscription flag is set", async () => {
     writeFileSync(
       join(dir, "config.json"),
-      JSON.stringify({ profiles: { work: { auth: "az", managementGroup: "mg-profile" } } }),
+      JSON.stringify({ version: 1, profiles: { work: { auth: "az", managementGroup: "mg-profile" } } }),
     );
     sendMock.mockImplementation(async (_profile: unknown, options: Record<string, unknown>) => {
       if (options["method"] === "POST") {

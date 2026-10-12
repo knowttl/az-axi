@@ -12,13 +12,13 @@ let dir: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-execute-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
     reader: { auth: "token" }, writer: { auth: "token", allowWrites: true, subscriptions: [SUB] },
   } }));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-function cli(scenario: string, extra: string[] = [], profile = "writer", readOnly = "", method = "PATCH") {
+function cli(scenario: string, extra: string[] = [], profile = "writer", readOnly = "0", method = "PATCH") {
   return spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.mjs")).href,
     join(ROOT, "dist/bin/az-axi.js"), "api", method, TARGET, "--api-version", "1",
     "--body", '{"tags":{"env":"prod"}}', "--profile", profile,
@@ -75,7 +75,7 @@ describe("built API CLI, offline only", () => {
     expect(entries()).toEqual([expect.objectContaining({ outcome: code })]);
   });
 
-  it.each([["reader", ""], ["writer", "1"]])("blocks %s with read-only override %s before any fetch or audit", (profile, readOnly) => {
+  it.each([["reader", "0"], ["writer", "1"]])("blocks %s with read-only override %s before any fetch or audit", (profile, readOnly) => {
     for (const method of ["PUT", "PATCH", "POST", "DELETE"]) {
       const result = cli("sync", ["--confirm", "rg-demo"], profile, readOnly, method);
       expect(result.status).toBe(2);
@@ -87,7 +87,7 @@ describe("built API CLI, offline only", () => {
   });
 
   it.each([["noop", "PATCH"], ["gone", "DELETE"]])("skips %s with only a GET and no audit entry", (scenario, method) => {
-    const result = cli(scenario, ["--confirm", "rg-demo"], "writer", "", method);
+    const result = cli(scenario, ["--confirm", "rg-demo"], "writer", "0", method);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("result: already in desired state (no-op)");
     expect(requests().map((request) => request.method)).toEqual(["GET"]);

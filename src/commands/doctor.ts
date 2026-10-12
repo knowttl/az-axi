@@ -3,7 +3,7 @@ import { SUBSCRIPTIONS_LIST } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagString, parseArgs } from "../lib/args.js";
 import { identityOf, resolveCredential, runAz, type Identity } from "../lib/auth.js";
 import { requestAll } from "../lib/client.js";
-import { loadConfig, readOnlyForced, resolveProfile, writeStatus, type ResolvedProfile } from "../lib/config.js";
+import { CREDENTIAL_RESOURCES, loadConfig, readOnlyForced, resolveProfile, resolveSecret, secretRefFor, writeStatus, type ResolvedProfile } from "../lib/config.js";
 import { collapseHomeDirectory } from "../lib/paths.js";
 import { commandMeta } from "../lib/registry.js";
 import { packageInfo } from "../lib/version.js";
@@ -27,7 +27,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
 
   const explicit = flagString(args, "config");
-  const { path, config } = loadConfig(explicit);
+  const { path, config } = loadConfig(explicit, true);
   const requested = flagString(args, "profile");
   const names = requested ? [requested] : Object.keys(config?.profiles ?? {});
 
@@ -82,6 +82,12 @@ async function inspect(
   }
 
   const problems: Problem[] = [];
+  if (profile.auth === "token") {
+    for (const resource of CREDENTIAL_RESOURCES) {
+      const ref = secretRefFor(profile, resource);
+      if ("file" in ref) resolveSecret(ref, true);
+    }
+  }
   const attempt = async <T>(check: string, optional: boolean, fn: () => Promise<T>): Promise<T | undefined> => {
     try {
       return await fn();

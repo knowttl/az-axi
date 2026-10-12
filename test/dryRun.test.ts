@@ -86,7 +86,7 @@ beforeEach(() => {
     join(dir, "config.json"),
     JSON.stringify({
       defaultProfile: "default",
-      profiles: {
+      version: 1, profiles: {
         default: { auth: "token" },
         writer: { auth: "token", allowWrites: true, subscriptions: [SUB] },
       },
@@ -467,13 +467,11 @@ describe("selected preview regressions", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it("replays a preview with a profile name beginning with --", async () => {
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { "--writer": { auth: "token", allowWrites: true, subscriptions: [SUB] } } }));
-    const result = await run(["PATCH", STORAGE, "--api-version", API_VERSION, "--profile=--writer", "--body", "{}"]);
-    const command = (result.help as string[]).find((hint) => hint.startsWith("`az-axi api"))!;
-    fetchMock.mockClear();
-    await expect(run(commandArguments(command).slice(1))).resolves.toHaveProperty("result");
-    expect(fetchMock).toHaveBeenCalled();
+  it("rejects a profile name beginning with -- before a preview", async () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { "--writer": { auth: "token", allowWrites: true, subscriptions: [SUB] } } }));
+    await expect(run(["PATCH", STORAGE, "--api-version", API_VERSION, "--profile=--writer", "--body", "{}"]))
+      .rejects.toMatchObject({ code: "CONFIG_INVALID" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each(["roleAssignments", "roleDefinitions", "locks", "policyAssignments"])(

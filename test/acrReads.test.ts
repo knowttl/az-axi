@@ -13,7 +13,7 @@ let dir: string;
 const list = ["repository", "list", "--name", "myregistry"];
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-acr-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
   vi.stubEnv("AZ_AXI_CONFIG", join(dir, "config.json"));
   vi.stubEnv("AZ_AXI_PROFILE", "ci");
   read.mockReset().mockResolvedValue({ rows: [{ name: "hello-world" }, { name: "nanoserver" }] });
@@ -63,7 +63,7 @@ describe("acr read commands", () => {
   });
   it.each(["hello-world", "team.azurecr.io-tools", "team/image.azurecr.io"])("preserves explicit identity and config when following tags for %s to a manifest", async (repository) => {
     const config = join(dir, "selected config.json");
-    writeFileSync(config, JSON.stringify({ profiles: { selected: { auth: "token" } } }));
+    writeFileSync(config, JSON.stringify({ version: 1, profiles: { selected: { auth: "token" } } }));
     read.mockResolvedValue({ rows: [acrMetadataRows.tag] });
     const result = await run(["repository", "show-tags", "--name", "myregistry", "--repository", repository,
       "--profile", "selected", "--tenant", "selected-tenant", "--config", config]);

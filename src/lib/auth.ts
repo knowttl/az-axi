@@ -4,7 +4,8 @@ import { StringDecoder } from "node:string_decoder";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tokenEnvFor, type CredentialResource, type ResolvedProfile } from "./config.js";
+import { resolveSecret, secretRefFor, type CredentialResource, type ResolvedProfile } from "./config.js";
+import { registerSecret } from "./redact.js";
 
 export type { Resource } from "./config.js";
 
@@ -52,10 +53,10 @@ export async function resolveCredential(
 ): Promise<Credential> {
   signal?.throwIfAborted();
   const key = `${profile.auth}:${resource}:${profile.tenant ?? ""}:${
-    profile.auth === "token" ? tokenEnvFor(profile, resource) : ""
+    profile.auth === "token" ? JSON.stringify(secretRefFor(profile, resource)) : ""
   }`;
   const hit = cache.get(key);
-  if (hit && (hit.expiresAt === undefined || hit.expiresAt - Date.now() > EXPIRY_MARGIN_MS)) return hit;
+  if (profile.auth !== "token" && hit && (hit.expiresAt === undefined || hit.expiresAt - Date.now() > EXPIRY_MARGIN_MS)) return hit;
 
   const credential =
     profile.auth === "token" ? tokenCredential(profile, resource) : await azCredential(profile, resource, signal);
@@ -65,9 +66,9 @@ export async function resolveCredential(
 }
 
 function tokenCredential(profile: ResolvedProfile, resource: CredentialResource): Credential {
-  const varName = tokenEnvFor(profile, resource);
-  const token = process.env[varName];
-  if (!token) {
+  const ref = secretRefFor(profile, resource);
+  if ("env" in ref && !process.env[ref.env]) {
+    const varName = ref.env;
     throw new AxiError(
       `access token env var $${varName} is not set (profile '${profile.name}', ${resource})`,
       "AUTH_REQUIRED",
@@ -78,6 +79,7 @@ function tokenCredential(profile: ResolvedProfile, resource: CredentialResource)
       ],
     );
   }
+  const token = resolveSecret(ref);
   return { header: `Bearer ${token}`, mode: "token" };
 }
 
@@ -116,6 +118,7 @@ async function azCredential(profile: ResolvedProfile, resource: CredentialResour
     throw azError("az returned output that is not JSON", profile, resource);
   }
   if (!parsed.accessToken) throw azError("no accessToken in az response", profile, resource);
+  registerSecret(parsed.accessToken);
   return {
     header: `Bearer ${parsed.accessToken}`,
     mode: "az",
@@ -169,7 +172,7 @@ function azError(message: string, profile: ResolvedProfile, resource: Credential
 export async function identityOf(profile: ResolvedProfile): Promise<Identity> {
   let stdout: string;
   try {
-    stdout = await runAz(["account", "show", "--output", "json"]);
+    stdout = await runAz(["account", "show", "--output", "json"], undefined, true);
   } catch (err) {
     throw azError(err instanceof Error ? err.message : String(err), profile, "arm");
   }

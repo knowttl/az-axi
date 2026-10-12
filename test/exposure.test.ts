@@ -128,11 +128,11 @@ describe("exposure", () => {
     expect(EXPOSURE_ANY_ANY).toContain("sourceAddressPrefixes");
   });
 
-  it("lets $AZ_AXI_SUBSCRIPTION override a profile management group", async () => {
+  it("ignores env scope fields for a selected file profile", async () => {
     writeFileSync(
       join(dir, "config.json"),
       JSON.stringify({
-        profiles: {
+        version: 1, profiles: {
           work: {
             auth: "az",
             managementGroup: "contoso-root",
@@ -145,8 +145,8 @@ describe("exposure", () => {
     process.env.AZ_AXI_SUBSCRIPTION = SUB_A;
     await run(["--check", "public-ips"]);
     const body = (sendMock.mock.calls[0]?.[1] as { body: { subscriptions?: string[]; managementGroups?: string[] } }).body;
-    expect(body.subscriptions).toEqual([SUB_A]);
-    expect(body.managementGroups).toBeUndefined();
+    expect(body.subscriptions).toBeUndefined();
+    expect(body.managementGroups).toEqual(["contoso-root"]);
   });
 
   it("degrades one failed check with a hint instead of failing", async () => {

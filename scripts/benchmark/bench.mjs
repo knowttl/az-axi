@@ -25,7 +25,7 @@ try {
   const config = join(scratch, "config.json");
   const subscription = "00000000-0000-0000-0000-000000000001";
   const workspace = "00000000-0000-0000-0000-000000000010";
-  writeFileSync(config, JSON.stringify({ defaultProfile: "benchmark", profiles: { benchmark: {
+  writeFileSync(config, JSON.stringify({ defaultProfile: "benchmark", version: 1, profiles: { benchmark: {
     auth: "token", subscriptions: [subscription],
     workspaces: { benchmark: workspace },
   } } }), { mode: 0o600 });

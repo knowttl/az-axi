@@ -239,12 +239,6 @@ async function resolveSubscriptionIds(
     ]);
   }
   const flagSubs = flagList(args, "subscription");
-  const envSubs = uniqueIds(
-    (process.env.AZ_AXI_SUBSCRIPTION ?? "")
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean),
-  );
 
   if (flagMg) {
     return { ids: await subscriptionsInManagementGroup(profile, flagMg), label: `in management group ${flagMg}` };
@@ -253,10 +247,6 @@ async function resolveSubscriptionIds(
     const ids = uniqueIds(flagSubs);
     assertSubscriptionIds(ids);
     return { ids, label: `for ${ids.length} subscription${ids.length === 1 ? "" : "s"}` };
-  }
-  if (envSubs.length > 0) {
-    assertSubscriptionIds(envSubs);
-    return { ids: envSubs, label: `for ${envSubs.length} subscription${envSubs.length === 1 ? "" : "s"}` };
   }
   if (profile.managementGroup) {
     return {

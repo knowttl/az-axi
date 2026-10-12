@@ -213,6 +213,7 @@ describe("command effect registry", () => {
       effects[name] = meta.effect;
     }
     expect(effects).toEqual({
+      auth: "read",
       group: "read", resource: "read",
       account: "read", monitor: "read",
       home: "read",

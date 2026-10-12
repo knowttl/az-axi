@@ -13,7 +13,7 @@ describe("built CLI sentinel incident related reads offline", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-sentinel-related-cli-"));
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
       ci: { auth: "token", subscriptions: [SUB_A] },
       alias: { auth: "token", subscriptions: [SUB_A], workspaces: { sentinel: WORKSPACE } },
     } }));

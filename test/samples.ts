@@ -577,8 +577,8 @@ export const sampleIdentity = { name: "analyst@contoso.com", type: "user", tenan
 // Profiles shown by `config list` in the budget fixture.
 export const configListProfiles = {
   defaultProfile: "work",
-  profiles: {
-    work: { auth: "az", tenant: TENANT, managementGroup: "contoso-root", description: "Daily analyst profile" },
+  version: 1, profiles: {
+    work: { auth: "az", tenantId: TENANT, managementGroup: "contoso-root", description: "Daily analyst profile" },
     sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true, description: "Writes enabled, sandbox only" },
     ci: { auth: "token" },
   },

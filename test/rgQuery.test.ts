@@ -88,7 +88,7 @@ describe("rg query", () => {
     writeFileSync(
       join(dir, "config.json"),
       JSON.stringify({
-        profiles: {
+        version: 1, profiles: {
           work: { auth: "az", managementGroup: "mg-profile", subscriptions: [SUB_B] },
         },
       }),
@@ -103,7 +103,7 @@ describe("rg query", () => {
     await run(["query", "Resources | take 1", "--profile", "work"]);
     expect(lastBody()).toMatchObject({ managementGroups: ["mg-profile"] });
 
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { s: { auth: "az", subscriptions: [SUB_B] } } }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { s: { auth: "az", subscriptions: [SUB_B] } } }));
     sendMock.mockClear();
     await run(["query", "Resources | take 1", "--profile", "s"]);
     expect(lastBody()).toMatchObject({ subscriptions: [SUB_B] });

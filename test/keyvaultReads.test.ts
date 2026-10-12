@@ -13,7 +13,7 @@ let dir: string;
 const args = ["secret", "list", "--vault-name", "kvexample"];
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-keyvault-"));
-  writeFileSync(join(dir, "config.json"), JSON.stringify({ profiles: { ci: { auth: "token" } } }));
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: { ci: { auth: "token" } } }));
   vi.stubEnv("AZ_AXI_CONFIG", join(dir, "config.json"));
   vi.stubEnv("AZ_AXI_PROFILE", "ci");
   read.mockReset().mockResolvedValue({ rows: [{ name: "example-secret", enabled: true, expiresOn: "2026-11-03T00:00:00.000Z" }], truncated: false });

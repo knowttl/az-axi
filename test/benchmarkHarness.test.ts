@@ -65,7 +65,7 @@ describe("benchmark preload", () => {
     const scrubbed = scrub(body, { leakCheck: [SUB_A, "contoso", "rg-demo", "agdemo"] });
     writeFileSync(file, JSON.stringify({ responses: [{ method: "GET", host: "management.azure.com", status: 200, body: scrubbed }] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
-    writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token", subscriptions: [SUB_A] } } }));
+    writeFileSync(config, JSON.stringify({ version: 1, profiles: { benchmark: { auth: "token", subscriptions: [SUB_A] } } }));
     const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
       "dist/bin/az-axi.js", ...argv], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
@@ -114,7 +114,7 @@ describe("benchmark preload", () => {
     } });
     writeFileSync(file, JSON.stringify(recording));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
-    writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token", subscriptions: [sub] } } }));
+    writeFileSync(config, JSON.stringify({ version: 1, profiles: { benchmark: { auth: "token", subscriptions: [sub] } } }));
     const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
       "dist/bin/az-axi.js", "policy", kind, "list"], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
@@ -148,9 +148,9 @@ describe("benchmark preload", () => {
       { method: "GET", host: "management.azure.com", status: 200, body: { value: [] } },
     ] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
-    writeFileSync(config, JSON.stringify({ profiles: { benchmark: { auth: "token" } } }));
+    writeFileSync(config, JSON.stringify({ version: 1, profiles: { benchmark: { auth: "token" } } }));
     const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
-      "dist/bin/az-axi.js", group, verb], {
+      "dist/bin/az-axi.js", group, verb, ...(verb === "show" ? ["--subscription", sub] : [])], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
         AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: verb === "show" ? sub : "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
         AZ_AXI_READ_ONLY: "1", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
@@ -460,7 +460,7 @@ describe("benchmark surface", () => {
     expect(result.skill.frontmatter).toBeLessThan(100);
     expect(result.skill.body).toBeGreaterThan(0);
     expect(result.help.topLevel).toBeGreaterThan(0);
-    expect(Object.keys(result.help)).toHaveLength(33);
+    expect(Object.keys(result.help)).toHaveLength(34);
     expect(JSON.parse(readFileSync(join(root, "benchmark/tool-surface.json"), "utf8"))).toEqual(result);
   }, 20_000);
 

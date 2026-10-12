@@ -2,6 +2,7 @@ import { AxiError } from "axi-sdk-js";
 import { resolveCredential } from "./auth.js";
 import type { ResolvedProfile } from "./config.js";
 import { assertEffectAllows } from "./registry.js";
+import { registerSecret } from "./redact.js";
 
 export type AcrOp = "repository-list" | "tag-list" | "manifest-show";
 
@@ -92,6 +93,7 @@ async function exchangeToken(loginServer: string, entra: string, signal: AbortSi
       "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_REGISTRY_TOKEN",
     ]);
   }
+  registerSecret(json.refresh_token);
   return json.refresh_token;
 }
 
@@ -103,6 +105,7 @@ async function accessToken(loginServer: string, refresh: string, scope: string, 
       "The identity needs AcrPull on the registry; admin-user passwords are never used",
     ]);
   }
+  registerSecret(json.access_token);
   return json.access_token;
 }
 
