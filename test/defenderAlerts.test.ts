@@ -74,6 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   for (const key of ENV_KEYS) {
     if (saved[key] === undefined) delete process.env[key];
     else process.env[key] = saved[key];
@@ -118,6 +119,8 @@ describe("defender alerts", () => {
   });
 
   it("filters by severity and since", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-01T00:00:00.000Z"));
     expect((await run(["alerts", "--subscription", SUB_A, "--severity", "High"])).total).toBe(1);
     expect((await run(["alerts", "--subscription", SUB_A, "--severity", "High,Medium"])).total).toBe(1);
     expect((await run(["alerts", "--subscription", SUB_A, "--severity", "Low"])).total).toBe(0);
