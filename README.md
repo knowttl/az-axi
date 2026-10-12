@@ -66,6 +66,7 @@ az-axi setup hooks
 ```
 
 This registers the local-only `az-axi-hook` entry point for Claude Code and Codex, plus an OpenCode ambient plugin.
+Hook setup requires a persistent installation and refuses targets in temporary directories, git worktrees or pipeline builds, including symlinks to those targets.
 Restart the agent session after installation.
 The hook reads local configuration and environment only, with no network, Azure request or `az` subprocess.
 It reports profile, scope, write posture, version and a next step; unconfigured machines report `not configured` and exit 0.
