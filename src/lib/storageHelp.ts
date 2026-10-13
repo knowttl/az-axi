@@ -7,7 +7,7 @@ export function storageLeafHelp(path: string): string {
     `az-axi ${path} ${target}`,
     "Required: --account-name; blob commands also require --container-name; show requires --name / -n.",
     "Entra bearer auth only, equivalent to --auth-mode login (the only accepted mode). No key, SAS, connection-string or anonymous fallback.",
-    "Auth: profile az requests https://storage.azure.com/; token profiles use $AZ_AXI_STORAGE_TOKEN or tokenEnv.storage. Azure storage auth defaults and credentials are never used.",
+    "Auth: profile az requests https://storage.azure.com/; token profiles use the storageToken SecretRef (defaults to $AZ_AXI_STORAGE_TOKEN). Azure storage auth defaults and credentials are never used.",
     "Public Azure Blob endpoint only. Subscription selectors do not filter data-plane results; --account-name selects the account.",
     list ? "--limit defaults to 50 (1-1000); one service page, --marker continues, --prefix filters names. Total is unknown while nextMarker is present." : "show uses HEAD for service properties only, never downloads blob content.",
     "--fields selects safe properties only; --full keeps the same safe schema and page limit. User metadata, tags, content, keys and secret values are excluded.",

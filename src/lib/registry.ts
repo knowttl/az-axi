@@ -321,6 +321,9 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
     "Short flags where accepted: -h help, -s subscription, -g resource-group, -n name, -w workspace, -t timespan.",
     leaf.path === "tag update" ? "--tags accepts individual k=v arguments or repeated flags; commas remain part of values. List selectors such as --subscription accept comma-separated values." : leaf.positionalInput && !canonical ? "Lists accept comma-separated and repeated values; each flag consumes one token to preserve positional input." : "Lists accept comma-separated, space-separated and repeated values after the leaf path.",
     "Booleans accept bare flags or true/false. Conflicting scalar values are refused.",
+    ...(leaf.handlerPath ? [
+      `Query input differs by path: ${leaf.path} requires ${leaf.path === "graph query" ? "--graph-query / -q" : "--analytics-query"} <kql>; ${leaf.handlerPath} accepts positional \"<kql>\". Both accept --file or stdin.`,
+    ] : []),
     ...(path === "role assignment list" ? ["--assignee aliases --principal; inherited assignments are always included."] : []),
     ...(path === "monitor activity-log list" ? ["--offset aliases --since (default 24h)."] : []),
     "",
@@ -485,6 +488,7 @@ const HELP_TEXT = {
     'az-axi rg query "<kql>" [--subscription a,b] [--management-group mg] [--limit 50] [--skip-token <t>]',
     "az-axi rg query --file query.kql          # multi-line KQL from a file",
     "cat query.kql | az-axi rg query            # multi-line KQL from stdin",
+    "For flag input use `az-axi graph query --graph-query <kql>` (or -q); rg query accepts positional KQL, --file or stdin.",
     "",
     "POST /providers/Microsoft.ResourceGraph/resources (api-version 2024-04-01). The query is sent unchanged.",
     "Scope: --subscription/--management-group flags, then profile managementGroup, then profile subscriptions.",
@@ -546,6 +550,7 @@ const HELP_TEXT = {
     "az-axi logs query \"<kql>\" --workspace <alias|guid> [--timespan P1D] [--limit 50]",
     "az-axi logs query --file hunt.kql --workspace sentinel",
     "cat hunt.kql | az-axi logs query --workspace sentinel   # multi-line KQL from stdin",
+    "For flag input use `az-axi monitor log-analytics query --analytics-query <kql> --workspace <alias|guid>`; logs query accepts positional KQL, --file or stdin.",
     "",
     "POST /v1/workspaces/{id}/query on api.loganalytics.io. Surrounding query whitespace is trimmed; no row limits or time filters are added to the KQL.",
     "--workspace takes an alias from the profile or the workspace ID GUID; ARM resource IDs are rejected with the rg query that finds the GUID.",
@@ -602,6 +607,8 @@ export const TOP_LEVEL_HELP = [
   ...commandNames.map((name) => HELP_OVERVIEWS[name]),
   ...COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.handlerPath).map((leaf) => `az-axi ${leaf.path}  # canonical query path`),
   ...COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => (leaf.aliases ?? []).map((alias) => `az-axi ${alias}  # alias of ${leaf.path}`)),
+  'Query input: graph query --graph-query / -q <kql>; rg query "<kql>". Both accept --file or stdin.',
+  'Query input: monitor log-analytics query --analytics-query <kql>; logs query "<kql>". Both accept --file or stdin.',
   ...HELP_FOOTER,
 ].join("\n");
 

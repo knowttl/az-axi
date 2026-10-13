@@ -920,6 +920,18 @@ async function runNsgRuleCreate(
       }
       const properties = { ...objOf(current.properties) };
       delete properties.provisioningState;
+      // Azure adds empty counterparts for the singular/plural selectors.
+      for (const [singular, plural] of [
+        ["sourcePortRange", "sourcePortRanges"],
+        ["destinationPortRange", "destinationPortRanges"],
+        ["sourceAddressPrefix", "sourceAddressPrefixes"],
+        ["destinationAddressPrefix", "destinationAddressPrefixes"],
+      ] as const) {
+        if (!Object.hasOwn(body.properties, plural) && Array.isArray(properties[plural]) && properties[plural].length === 0) {
+          delete properties[plural];
+        }
+        if (!Object.hasOwn(body.properties, singular) && properties[singular] === "") delete properties[singular];
+      }
       if (!diffResource({ name: current.name, properties }, body, "PUT").noop) {
         throw new AxiError("Rule PUT was sent, but the rule read back does not match the rule sent", "CONFLICT", [
           `Run \`${showCommand}\` to inspect the rule; a concurrent change may have occurred`,

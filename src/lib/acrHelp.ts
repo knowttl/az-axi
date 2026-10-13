@@ -11,7 +11,7 @@ export function acrLeafHelp(path: string): string {
       ? "Required: --registry and --name / -n (repository:tag or repository@digest, never a login-server-qualified ID)."
       : "Required: --name / -n (the registry name); show-tags also requires --repository.",
     "Entra bearer auth only, through token exchange for a pull-scoped access token. No admin-user password, docker login, credential export or key fallback.",
-    "Auth: profile az requests https://containerregistry.azure.net/; token profiles use $AZ_AXI_REGISTRY_TOKEN or tokenEnv.registry. Azure container-registry passwords and ambient credentials are never used.",
+    "Auth: profile az requests https://containerregistry.azure.net/; token profiles use the registryToken SecretRef (defaults to $AZ_AXI_REGISTRY_TOKEN). Azure container-registry passwords and ambient credentials are never used.",
     "Public Azure login server only (<registry>.azurecr.io, built from the validated registry name). Subscription selectors do not filter data-plane results; --name/--registry selects the registry.",
     manifest
       ? "show-metadata reads one manifest document and projects digest, mediaType, config and layer descriptors only. Blob content is never fetched and no local file is written."

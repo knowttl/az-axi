@@ -66,6 +66,31 @@ describe("built CLI exact-leaf routing with fake transport", () => {
     expect(newResult.stderr).toContain('"url":');
   });
 
+  it.each([
+    { path: ["storage", "blob", "list"], token: "storageToken" },
+    { path: ["keyvault", "secret", "list"], token: "vaultToken" },
+    { path: ["acr", "repository", "list"], token: "registryToken" },
+  ])("documents the $token SecretRef in data-plane help", ({ path, token }) => {
+    const help = run([...path, "--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain(`${token} SecretRef`);
+    expect(help.stdout).not.toContain("tokenEnv.");
+    expect(help.stderr).toBe("");
+  });
+
+  it.each([
+    { path: ["graph", "query"], flag: "--graph-query / -q", alias: "rg query" },
+    { path: ["monitor", "log-analytics", "query"], flag: "--analytics-query", alias: "logs query" },
+  ])("explains query input differences in $alias and canonical help", ({ path, flag, alias }) => {
+    const canonical = run([...path, "--help"]);
+    const legacy = run([...alias.split(" "), "--help"]);
+    expect(canonical.status).toBe(0);
+    expect(legacy.status).toBe(0);
+    expect(canonical.stdout).toContain(`requires ${flag} <kql>`);
+    expect(legacy.stdout).toContain(`${alias} accepts positional`);
+    expect(canonical.stderr + legacy.stderr).toBe("");
+  });
+
   it("keeps profile scope and the 50-row Graph default instead of az's all-accessible default", () => {
     const result = run(["graph", "query", "--graph-query", "Resources"]);
     expect(result.status).toBe(0);

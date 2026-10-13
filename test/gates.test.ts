@@ -43,7 +43,11 @@ describe("gate 1: AZ_AXI_READ_ONLY=1", () => {
     try {
       enforceGates(writer(), request("arm", "PATCH", RG), "write", { execute: true });
     } catch (err) {
-      expect(err).toMatchObject({ code: "WRITES_DISABLED" });
+      expect(err).toMatchObject({
+        code: "WRITES_DISABLED",
+        message: "blocked: AZ_AXI_READ_ONLY=1 forces read-only mode (PATCH request)",
+        suggestions: ["Writes are forced read-only by the environment", "A human can find the details in README.md#writes"],
+      });
       return;
     }
     throw new Error("expected WRITES_DISABLED");
@@ -218,7 +222,7 @@ describe("gate hints never explain how to enable writes", () => {
     for (const err of errors) {
       const text = [String((err as Error).message), ...((err as { suggestions?: string[] }).suggestions ?? [])].join("\n");
       expect(text).toContain("README.md#writes");
-      expect(text).not.toMatch(/allowWrites|AZ_AXI_READ_ONLY|config file|--execute/i);
+      expect(text).not.toMatch(/allowWrites|unset|config file|--execute/i);
     }
   });
 });

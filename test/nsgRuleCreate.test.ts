@@ -149,6 +149,18 @@ describe("built NSG deny-rule create, offline only", () => {
     expect(readFileSync(join(dir, "writes.log"), "utf8")).not.toMatch(/offline-nsg-token|"body"|"headers"|"properties"/);
   });
 
+  it.each([
+    { selectors: "singular", extra: [] },
+    { selectors: "plural", extra: ["--source-port-ranges", "1024", "2048", "--destination-port-ranges", "23", "80",
+      "--source-address-prefixes", "10.0.0.0/8", "192.0.2.0/24", "--destination-address-prefixes", "10.0.0.0/8", "192.0.2.0/24"] },
+  ])("accepts Azure's empty counterparts for $selectors selectors in the read-back", ({ extra }) => {
+    const result = cli([...extra, "--execute", "--confirm", RULE], { scenario: "nsg-readback-normalized" });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("result: done");
+    expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PUT", "GET"]);
+    expect(records("writes.log")).toEqual([expect.objectContaining({ outcome: "success" })]);
+  });
+
   it("sends plural selectors when several values are given", () => {
     const result = cli(["--destination-port-ranges", "23", "80-90", "--source-address-prefixes", "10.0.0.0/8", "192.0.2.0/24",
       "--execute", "--confirm", RULE]);
@@ -208,6 +220,7 @@ describe("built NSG deny-rule create, offline only", () => {
   it.each([
     { scenario: "nsg-readback-mismatch", extra: [] },
     { scenario: "nsg-readback-extra-property", extra: [] },
+    { scenario: "nsg-readback-nonempty-counterpart", extra: [] },
     { scenario: "nsg-readback-name", extra: [] },
     { scenario: "nsg-async-readback-mismatch", extra: ["--no-wait"] },
   ])("reports $scenario after the PUT", ({ scenario, extra }) => {

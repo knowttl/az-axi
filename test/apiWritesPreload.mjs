@@ -89,7 +89,13 @@ const nsgGet = (pathname) => {
     if (!rule || ["nsg-readback-missing", "nsg-async-readback-missing", "nsg-location-readback-missing"].includes(scenario)) return json({ error: { code: "ResourceNotFound", message: "no such rule" } }, 404);
     return json({ id: `https://management.azure.com${pathname}`, etag: '"rule1"', ...rule,
       name: scenario === "nsg-readback-name" ? "operator-rule" : rule.name,
-      properties: { ...rule.properties, provisioningState: "Succeeded" } }, 200, { etag: '"rule1"' });
+      properties: { ...rule.properties,
+        ...(scenario === "nsg-readback-normalized" ? {
+          sourcePortRange: "", destinationPortRange: "", sourceAddressPrefix: "", destinationAddressPrefix: "",
+          sourcePortRanges: [], destinationPortRanges: [], sourceAddressPrefixes: [], destinationAddressPrefixes: [],
+          ...rule.properties,
+        } : {}),
+        provisioningState: "Succeeded" } }, 200, { etag: '"rule1"' });
   }
   return json(nsgState, 200, scenario === "nsg-no-etag" ? {} : { etag: nsgState.etag });
 };
@@ -98,6 +104,7 @@ const nsgRulePut = (body) => {
   const rule = ["nsg-readback-mismatch", "nsg-async-readback-mismatch", "nsg-created-readback-mismatch"].includes(scenario)
     ? { ...body, properties: { ...body.properties, access: "Allow" } } : body;
   if (scenario === "nsg-readback-extra-property") rule.properties.description = "operator change";
+  if (scenario === "nsg-readback-nonempty-counterpart") rule.properties.destinationPortRanges = ["22"];
   nsgState.properties.securityRules.push(rule);
   writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
   if (["async", "nsg-async-readback-mismatch", "nsg-async-readback-missing"].includes(scenario)) return json({}, 202, { "azure-asyncoperation": operationUrl, "retry-after": "0" });

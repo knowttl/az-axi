@@ -77,9 +77,9 @@ export function enforceGates(
   // Gate 1: $AZ_AXI_READ_ONLY=1 overrides every profile.
   if (readOnlyForced()) {
     throw new AxiError(
-      `blocked: writes are disabled for profile '${profile.name}' (${method} request)`,
+      `blocked: AZ_AXI_READ_ONLY=1 forces read-only mode (${method} request)`,
       "WRITES_DISABLED",
-      WRITES_DISABLED_HINTS,
+      ["Writes are forced read-only by the environment", "A human can find the details in README.md#writes"],
     );
   }
 

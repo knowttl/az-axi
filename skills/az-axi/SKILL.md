@@ -180,6 +180,8 @@ With no config file at all, az-axi uses an implicit `az` profile, so it works ri
 - Discovery lists default to 50 compact rows with full IDs, counts and explicit empty states. `--fields a,b` selects columns, `--full` expands truncated content and shows every fetched row, `--limit N` caps rows.
 - Resource Graph: `npx -y @knowttl/az-axi rg query --file query.kql` (or piped stdin); without `--full`, `--limit` maps to `$top` (default 50, maximum 1000). When a skip token is returned, `help[]` carries the exact command for the next page.
 - Log Analytics: `npx -y @knowttl/az-axi logs query --file hunt.kql --workspace sentinel`; `--workspace` takes a profile alias or workspace GUID, `--timespan` defaults to `P1D`.
+- Query input differs by path: `graph query --graph-query <kql>` (or `-q`) and `monitor log-analytics query --analytics-query <kql>` require flags; `rg query "<kql>"` and `logs query "<kql>"` accept positional KQL.
+  All four accept `--file` or stdin.
 - Exposure: `npx -y @knowttl/az-axi exposure --check mgmt-ports`; default `--check all` returns per-check counts plus the first rows of each.
 - Escape hatch: `npx -y @knowttl/az-axi api /subscriptions --api-version 2022-12-01`; lists with a `value[]` array return `count` plus `value`, `--all` follows `nextLink`. `npx -y @knowttl/az-axi op status '<operation-url>'` checks a long-running operation.
 - Per-command selectors, projections, paging limits and exclusions live in each leaf's `--help` and [README.md#use](../../README.md#use).
