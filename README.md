@@ -195,7 +195,7 @@ Unknown flags, short clusters, abbreviations and missing values fail before requ
 
 Structured errors appear on stdout with `error`, `code` and available `help` suggestions.
 Exit 0 means the command succeeded, exit 2 covers usage and access errors, and exit 1 covers other failures.
-Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, `WRITES_DISABLED`, `PRECONDITION_FAILED`, `OPERATION_TIMEOUT`, `UNKNOWN_OUTCOME` and `API_ERROR`.
+Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, `WRITES_DISABLED`, `PRECONDITION_FAILED`, `OPERATION_TIMEOUT`, `UNKNOWN_OUTCOME`, `PROVIDER_NOT_REGISTERED` and `API_ERROR`.
 `WRITES_DISABLED` identifies either the forced `AZ_AXI_READ_ONLY` override or the profile write opt-in in its message.
 `READ_ONLY` blocks credential-returning actions; `PROVIDER_NOT_REGISTERED` asks the subscription owner to register the provider namespace named by Azure.
 

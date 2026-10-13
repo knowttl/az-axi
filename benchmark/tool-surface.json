@@ -2,11 +2,11 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 44,
-    "body": 3468,
-    "total": 3511
+    "body": 3541,
+    "total": 3584
   },
   "help": {
-    "topLevel": 1116,
+    "topLevel": 1183,
     "auth": 51,
     "home": 244,
     "setup": 128,
@@ -18,20 +18,20 @@
     "group": 178,
     "resource": 327,
     "tag": 428,
-    "rg": 186,
+    "rg": 220,
     "rbac": 208,
     "activity": 172,
     "defender": 262,
     "security": 1095,
     "sentinel": 2137,
     "exposure": 311,
-    "logs": 296,
+    "logs": 336,
     "api": 533,
     "op": 98,
     "az": 308,
-    "storage": 359,
-    "keyvault": 359,
-    "acr": 342,
+    "storage": 363,
+    "keyvault": 362,
+    "acr": 346,
     "network": 577,
     "policy": 472,
     "lock": 448,
@@ -41,5 +41,5 @@
     "vmss": 1259,
     "disk": 806
   },
-  "helpTotal": 17811
+  "helpTotal": 17963
 }
