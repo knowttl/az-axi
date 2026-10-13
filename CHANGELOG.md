@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.6](https://github.com/knowttl/az-axi/compare/v0.1.5...v0.1.6) (2026-10-13)
+
+
+### Bug Fixes
+
+* never retry writes with unknown outcomes ([#81](https://github.com/knowttl/az-axi/issues/81)) ([4cf5a5d](https://github.com/knowttl/az-axi/commit/4cf5a5df91ad567b37ee1eb58917c2db058f03dd))
+
 ## [0.1.5](https://github.com/knowttl/az-axi/compare/v0.1.4...v0.1.5) (2026-10-12)
 
 
