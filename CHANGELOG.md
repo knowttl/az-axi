@@ -3,6 +3,18 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.5](https://github.com/knowttl/az-axi/compare/v0.1.4...v0.1.5) (2026-10-12)
+
+
+### Features
+
+* adopt the AXI credential standard ([#80](https://github.com/knowttl/az-axi/issues/80)) ([32aef10](https://github.com/knowttl/az-axi/commit/32aef10ca350a7180660aa4c49da2fadc2c02330))
+
+
+### Bug Fixes
+
+* reject disposable startup hook targets and isolate validation ([#78](https://github.com/knowttl/az-axi/issues/78)) ([de6846f](https://github.com/knowttl/az-axi/commit/de6846f56b819d62df36d641234abfc28e76f0da))
+
 ## [0.1.4](https://github.com/knowttl/az-axi/compare/v0.1.3...v0.1.4) (2026-10-05)
 
 
