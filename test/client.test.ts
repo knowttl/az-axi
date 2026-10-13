@@ -218,7 +218,8 @@ describe("client execution backstop", () => {
     fetchMock.mockResolvedValueOnce(response);
     const error = await failure(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }));
     expect(error).toBeInstanceOf(ApiRequestError);
-    expect(error).toMatchObject({ code: "NETWORK_ERROR", httpStatus: status, requestId: "req-body", correlationId: "corr-body" });
+    expect(error).toMatchObject({ code: status === 400 || status === 429 ? "NETWORK_ERROR" : "UNKNOWN_OUTCOME",
+      httpStatus: status, requestId: "req-body", correlationId: "corr-body" });
     expect(render(error)).not.toContain(TOKEN);
     expect(fetchMock).toHaveBeenCalledOnce();
   });
@@ -502,6 +503,69 @@ describe("error translation", () => {
 });
 
 describe("retry", () => {
+  const sub = "00000000-0000-0000-0000-000000000021";
+  const path = `/subscriptions/${sub}/resourceGroups/rg-demo`;
+  const writer = () => profile({ allowWrites: true, subscriptions: [sub], writeSubscriptions: [sub] });
+
+  it.each(["PUT", "PATCH", "POST", "DELETE"])("does not repeat %s after a sent request times out", async (method) => {
+    fetchMock.mockRejectedValue(Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_HEADERS_TIMEOUT" } }));
+    const error = await failure(sendRequest(writer(), { method, path, apiVersion: "1", execute: true, confirm: "rg-demo" }));
+    expect(error.code).toBe("UNKNOWN_OUTCOME");
+    expect(error.message).toContain(`${method} ${path}`);
+    expect(error.suggestions.join("\n")).toContain("Check current state before trying again");
+    expect(error.suggestions.join("\n")).toContain("az-axi api GET");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("retries a read after a transport timeout", async () => {
+    fetchMock.mockRejectedValueOnce(Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_HEADERS_TIMEOUT" } }))
+      .mockResolvedValueOnce(json({ ok: true }));
+    expect(await request(profile(), { path, apiVersion: "1" })).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["ECONNREFUSED", "ENOTFOUND", "UND_ERR_CONNECT_TIMEOUT"])("reports %s as a known pre-send write failure", async (code) => {
+    fetchMock.mockRejectedValue(Object.assign(new TypeError("fetch failed"), { cause: { code } }));
+    await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }))
+      .rejects.toMatchObject({ code: "NETWORK_ERROR" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("checks the parent resource after an action loses its connection", async () => {
+    const target = `${path}/providers/Microsoft.Compute/virtualMachines/vm1`;
+    fetchMock.mockRejectedValue(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } }));
+    const error = await failure(sendRequest(writer(), { method: "POST", path: `${target}/restart`, apiVersion: "1",
+      execute: true, confirm: "vm1" }));
+    expect(error.code).toBe("UNKNOWN_OUTCOME");
+    expect(error.suggestions.join("\n")).toContain(`az-axi api GET 'https://management.azure.com${target}?api-version=1'`);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("reports unknown outcome when a dispatched write is aborted", async () => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation(async () => {
+      controller.abort(new Error("deadline"));
+      throw controller.signal.reason;
+    });
+    await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true, signal: controller.signal }))
+      .rejects.toMatchObject({ code: "UNKNOWN_OUTCOME" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not repeat a throttled write even with Retry-After", async () => {
+    fetchMock.mockImplementation(async () => json({}, 429, { "retry-after": "0" }));
+    await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }))
+      .rejects.toMatchObject({ code: "RATE_LIMITED" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each([500, 503, 504, 408])("does not repeat a write after ambiguous HTTP %i", async (status) => {
+    fetchMock.mockImplementation(async () => json({}, status, { "retry-after": "0" }));
+    await expect(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }))
+      .rejects.toMatchObject({ code: "UNKNOWN_OUTCOME", httpStatus: status });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it.each([429, 503])("retries once on %i when Retry-After is 10 seconds or less", async (status) => {
     fetchMock
       .mockImplementationOnce(async () => json({}, status, { "retry-after": "0" }))
