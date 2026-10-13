@@ -3,6 +3,14 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.8](https://github.com/knowttl/az-axi/compare/v0.1.7...v0.1.8) (2026-10-13)
+
+
+### Bug Fixes
+
+* classify missing storage metadata as not found ([#87](https://github.com/knowttl/az-axi/issues/87)) ([de6021e](https://github.com/knowttl/az-axi/commit/de6021e1ec101dfb99bd18abb8241c4ead08e9fb))
+* **network:** accept Azure-normalized NSG read-backs and clarify diagnostics ([#85](https://github.com/knowttl/az-axi/issues/85)) ([876ec0c](https://github.com/knowttl/az-axi/commit/876ec0c79beaf5495a399954c6e328313f6a9239))
+
 ## [0.1.7](https://github.com/knowttl/az-axi/compare/v0.1.6...v0.1.7) (2026-10-13)
 
 
