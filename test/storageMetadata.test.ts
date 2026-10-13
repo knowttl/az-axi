@@ -66,6 +66,15 @@ describe("storage metadata transport", () => {
     await expect(requestStorageMetadata(profile, { kind: "blob", verb: "list", account: "stexample", container: "example", limit: 50 })).rejects.toMatchObject({ code: "API_ERROR", message: "invalid storage metadata XML" });
   });
 
+  it.each(["show", "list"] as const)("missing blob %s target returns NOT_FOUND with a name hint", async (verb) => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
+    await expect(requestStorageMetadata(profile, { kind: "blob", verb, account: "stexample", container: "nocontainer", name: "nope.txt", limit: 50 })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "storage metadata request returned HTTP 404",
+      suggestions: ["Check the account, container and blob names"],
+    });
+  });
+
   it.each([401, 403, 404, 302])( "HTTP %s never falls back or reads an error body", async (status) => {
     fetchMock.mockResolvedValue(new Response("credential-value", { status, headers: { location: "https://evil.example.com" } }));
     await expect(requestStorageMetadata(profile, { kind: "container", verb: "list", account: "stexample", limit: 50 })).rejects.toMatchObject({ message: `storage metadata request returned HTTP ${status}` });

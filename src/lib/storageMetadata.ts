@@ -64,8 +64,11 @@ export async function requestStorageMetadata(profile: ResolvedProfile, read: Sto
   if (!response.ok) {
     await response.body?.cancel();
     throw new AxiError(`storage metadata request returned HTTP ${response.status}`,
-      response.status === 401 ? "AUTH_REQUIRED" : response.status === 403 ? "FORBIDDEN" : "API_ERROR",
-      ["Use an Entra token for https://storage.azure.com/ and check Blob data RBAC permissions; key fallback is disabled"]);
+      response.status === 401 ? "AUTH_REQUIRED" : response.status === 403 ? "FORBIDDEN" : response.status === 404 ? "NOT_FOUND" : "API_ERROR",
+      [response.status === 403 ? "Use an Entra token for https://storage.azure.com/ and check Blob data RBAC permissions; key fallback is disabled"
+        : response.status === 404 ? "Check the account, container and blob names"
+          : response.status === 401 ? "Use an Entra token for https://storage.azure.com/; key fallback is disabled"
+            : "Retry the storage metadata read"]);
   }
   if (!list) {
     await response.body?.cancel();
