@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.7](https://github.com/knowttl/az-axi/compare/v0.1.6...v0.1.7) (2026-10-13)
+
+
+### Bug Fixes
+
+* correct API help example and deduplicate tokenEnv warning ([#83](https://github.com/knowttl/az-axi/issues/83)) ([0dd52e4](https://github.com/knowttl/az-axi/commit/0dd52e43e94aa21f2cd9160a895462eeef994c70))
+
 ## [0.1.6](https://github.com/knowttl/az-axi/compare/v0.1.5...v0.1.6) (2026-10-13)
 
 
