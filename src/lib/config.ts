@@ -12,6 +12,7 @@ export type SecretRef = { env: string } | { file: string } | { stored: true };
 export const CREDENTIAL_RESOURCES: CredentialResource[] = ["arm", "logs", "graph", "storage", "vault", "registry"];
 export const PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 export const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+let tokenEnvWarningPrinted = false;
 
 /** Default token references for the original three API audiences. */
 export const DEFAULT_TOKEN_ENV: Record<Resource, string> = {
@@ -230,7 +231,10 @@ export function validateProfile(name: string, profile: Profile): void {
       if (!CREDENTIAL_RESOURCES.includes(resource as CredentialResource) || typeof variable !== "string" || !ENV_NAME.test(variable)) fail("invalid tokenEnv reference", "Use valid resource names and environment variable names");
       if (profile[`${resource as CredentialResource}Token`] !== undefined) fail("conflicting token references", "Remove tokenEnv when using the corresponding SecretRef");
     }
-    process.stderr.write("az-axi: tokenEnv is deprecated for one minor release; use resource Token SecretRef fields\n");
+    if (!tokenEnvWarningPrinted) {
+      process.stderr.write("az-axi: tokenEnv is deprecated for one minor release; use resource Token SecretRef fields\n");
+      tokenEnvWarningPrinted = true;
+    }
   }
   if (profile.auth !== "az" && profile.auth !== "token") {
     fail(`'auth' must be "az" or "token"`, 'Set "auth": "az" in the config file');

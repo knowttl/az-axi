@@ -281,7 +281,7 @@ const HELP_OVERVIEWS = {
   sentinel: "az-axi sentinel incident list|show|list-alert|list-entity|update|comment create  # Sentinel incidents and related alerts/entities in one Log Analytics workspace\naz-axi sentinel alert-rule list|show  # Sentinel analytics rules in one Log Analytics workspace\naz-axi sentinel data-connector list|show  # Sentinel data connectors in one Log Analytics workspace",
   exposure: "az-axi exposure [--check all]             # internet-exposed resources",
   logs: "az-axi logs query \"<kql>\" --workspace <alias|guid>  # Log Analytics KQL query",
-  api: "az-axi api GET /subscriptions            # escape hatch for any read or query request",
+  api: 'az-axi api GET "/subscriptions?api-version=2022-12-01"  # escape hatch for any read or query request',
   op: "az-axi op status <operation-url>         # check a long-running operation",
   az: "az-axi az group show -n <name> --subscription <uuid>  # reviewed Azure CLI read",
   storage: "az-axi storage container|blob list|show   # Entra-only Blob service properties",

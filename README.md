@@ -146,7 +146,7 @@ az-axi monitor metrics list --resource '<resource-ARM-id>'
 # Resource Graph, logs and REST
 az-axi graph query --file inventory.kql --subscriptions '<subscription-id>'
 az-axi monitor log-analytics query --file hunt.kql --workspace '<workspace-guid>' --timespan P7D
-az-axi api GET /subscriptions --api-version 2022-12-01
+az-axi api GET "/subscriptions?api-version=2022-12-01"
 ```
 
 ### Queries and request bodies

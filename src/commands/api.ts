@@ -83,7 +83,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     path = args.positionals[1];
     if (!path) {
       throw new AxiError(`missing path for \`api ${method}\``, "VALIDATION_ERROR", [
-        "Example: `az-axi api GET /subscriptions --api-version 2022-12-01`",
+        'Example: `az-axi api GET "/subscriptions?api-version=2022-12-01"`',
         "Or: `az-axi api /subscriptions --api-version 2022-12-01`",
       ]);
     }

@@ -121,6 +121,19 @@ describe("end to end with a stubbed network", () => {
     expect(forced.stdout).toContain("disabled (AZ_AXI_READ_ONLY)");
   }, 30_000);
 
+  it("warns about tokenEnv only once per process across profile validations", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
+      ci: { auth: "token", tokenEnv: { arm: "AZ_AXI_ARM_TOKEN" } },
+      other: { auth: "token", tokenEnv: { arm: "AZ_AXI_ARM_TOKEN" } },
+    } }));
+    const first = runStubbed(["doctor"], 200, { value: [] });
+    const second = runStubbed(["doctor"], 200, { value: [] });
+    expect(first.status).toBe(0);
+    expect(second.status).toBe(0);
+    expect(first.stderr.match(/tokenEnv is deprecated/g)).toHaveLength(1);
+    expect(second.stderr.match(/tokenEnv is deprecated/g)).toHaveLength(1);
+  }, 30_000);
+
   it("exits 2 for an unknown flag, with a rename hint", () => {
     const result = runStubbed(["sub", "list", "--top", "5"], 200, {});
     expect(result.status).toBe(2);
@@ -156,7 +169,7 @@ describe("end to end with a stubbed network", () => {
   }, 30_000);
 
   it("reads through the api escape hatch and blocks writes", () => {
-    const read = runStubbed(["api", "/subscriptions", "--api-version", "2022-12-01"], 200, {
+    const read = runStubbed(["api", "GET", "/subscriptions?api-version=2022-12-01"], 200, {
       value: [{ subscriptionId: SUB, displayName: "Sandbox" }],
     });
     expect(read.status).toBe(0);
