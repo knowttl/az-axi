@@ -447,6 +447,26 @@ describe("error translation", () => {
     expect((await failure(request(profile(), { path: "/x", apiVersion: "1" }))).suggestions.join(" ")).toContain("--api-version");
   });
 
+  it("identifies missing provider registration without suggesting a concurrency retry", async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: { code: "MissingSubscriptionRegistration",
+      message: "The subscription is not registered to use namespace 'Microsoft.OperationalInsights'." } }, 409));
+    const error = await failure(request(profile(), { path: "/x", apiVersion: "1" }));
+    expect(error.code).toBe("PROVIDER_NOT_REGISTERED");
+    expect(error.suggestions.join(" ")).toContain("subscription owner");
+    expect(error.message).toContain("Microsoft.OperationalInsights");
+    expect(error.suggestions.join(" ")).not.toContain("Re-read");
+  });
+
+  it("preserves supported locations without suggesting an unsupported leaf flag", async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: { code: "NoRegisteredProviderFound",
+      message: "No registered resource provider found for location 'eastus'. Supported locations are 'centralus,westeurope'." } }, 400));
+    const error = await failure(request(profile(), { path: "/x", apiVersion: "1" }));
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.message).toContain("centralus,westeurope");
+    expect(error.suggestions.join(" ")).toContain("--location");
+    expect(error.suggestions.join(" ")).not.toContain("--api-version");
+  });
+
   it("surfaces the Log Analytics syntax error hidden in innererror", async () => {
     fetchMock.mockImplementation(async () =>
       json(

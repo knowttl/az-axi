@@ -413,13 +413,22 @@ function translateError(ctx: ErrorContext): AxiError {
         ? "The KQL query or --timespan was rejected: fix the syntax and retry"
         : armCode === "InvalidQuery"
           ? "The KQL query is invalid: fix its syntax"
-          : armCode === "InvalidApiVersionParameter" || armCode === "NoRegisteredProviderFound"
-            ? "The api-version is not supported for this resource type: pass a different --api-version"
-            : "Check the flag values and the request body",
+          : armCode === "NoRegisteredProviderFound"
+            ? "Check the supported locations and API versions in the Azure error above; for security alerts, select a supported --location"
+            : armCode === "InvalidApiVersionParameter"
+              ? "The api-version is not supported for this resource type; use a supported version with `az-axi api GET <path> --api-version <version>`"
+              : "Check the flag values and the request body",
       ...codes,
     ]);
   }
   if (status === 409) {
+    if (armCode === "MissingSubscriptionRegistration") {
+      return fail(message, "PROVIDER_NOT_REGISTERED", [
+        "Ask the subscription owner to register the provider namespace named in the Azure error, then retry",
+        "az-axi does not register resource providers",
+        ...codes,
+      ]);
+    }
     return fail(message || "conflict", "CONFLICT", [
       "The resource changed concurrently or the request conflicts with its current state",
       "Re-read the resource before retrying",
