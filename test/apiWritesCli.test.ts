@@ -65,13 +65,17 @@ describe("built API CLI, offline only", () => {
     const result = cli(scenario, ["--timeout", scenario === "timeout" ? "0.01" : "600", "--if-match", '"reviewed"']);
     expect(result.status, result.stdout + result.stderr).toBe(1);
     const code = scenario === "precondition" ? "PRECONDITION_FAILED" : scenario === "failure" ? "OPERATION_FAILED" :
-      scenario === "timeout" ? "OPERATION_TIMEOUT" : "NETWORK_ERROR";
+      scenario === "timeout" ? "OPERATION_TIMEOUT" : "UNKNOWN_OUTCOME";
     expect(result.stdout).toContain(`code: ${code}`);
     expect(result.stdout).toContain("result: failed");
     expect(result.stdout).toContain("durationSec:");
     expect(result.stdout).toContain("az-axi api GET");
     if (scenario === "precondition") expect(result.stdout).toContain("re-run the dry run");
     if (scenario === "timeout") expect(result.stdout).toContain("az-axi op status");
+    if (scenario === "network") {
+      expect(result.stdout).toContain("Check current state before trying again");
+      expect(requests().map((request) => request.method)).toEqual(["GET", "PATCH"]);
+    }
     expect(entries()).toEqual([expect.objectContaining({ outcome: code })]);
   });
 

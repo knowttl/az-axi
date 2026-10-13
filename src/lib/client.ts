@@ -9,6 +9,7 @@ import { assertEffectAllows } from "./registry.js";
 import { workspaceCustomerIdCommand } from "./queries.js";
 import { REDACTED } from "./redact.js";
 import { packageInfo } from "./version.js";
+import { formatFlagValue, quoteFlagValue } from "./shell.js";
 
 export type { Resource } from "./config.js";
 export { requestStorageMetadata } from "./storageMetadata.js";
@@ -72,6 +73,12 @@ const TLS_ERROR_CODES = new Set([
 
 const MAX_RETRY_AFTER_MS = 10_000;
 const DEFAULT_MAX_PAGES = 10;
+const PRE_SEND_ERROR_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "UND_ERR_CONNECT_TIMEOUT", ...TLS_ERROR_CODES]);
+const TRANSIENT_READ_ERROR_CODES = new Set(["ETIMEDOUT", "ECONNRESET", "EPIPE", "UND_ERR_SOCKET", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_CONNECT_TIMEOUT"]);
+
+function transportCode(err: unknown): string | undefined {
+  return (err as { cause?: { code?: string }; code?: string })?.cause?.code ?? (err as { code?: string })?.code;
+}
 
 export function buildUrl(options: RequestOptions): string {
   const resource = options.resource ?? "arm";
@@ -118,6 +125,7 @@ export async function sendRequest<T = unknown>(
   const url = buildUrl(options);
   const shape = { resource, method, path: new URL(url).pathname };
   const cls = classifyRequest(shape);
+  const isWrite = cls !== "read" && cls !== "query";
   assertReadOnlyBoundary(shape, cls);
   assertEffectAllows(cls);
   const execute = enforceGates(profile, shape, cls, options);
@@ -130,6 +138,19 @@ export async function sendRequest<T = unknown>(
   const credential = await resolveCredential(profile, resource, options.signal);
   const token = credential.header.replace(/^Bearer /, "");
   const scrub = (text: string) => (token ? text.split(token).join(REDACTED) : text);
+  const unknownOutcome = (requestId: string): AxiError => {
+    const target = new URL(url);
+    if (method === "POST") target.pathname = target.pathname.replace(/\/[^/]+\/?$/, "");
+    const command = `az-axi api GET ${quoteFlagValue(target.toString())}` +
+      (resource !== "arm" ? ` ${formatFlagValue("resource", resource)}` : "") +
+      (profile.configPath ? ` ${formatFlagValue("config", profile.configPath)} ${formatFlagValue("profile", profile.name)}` : "") +
+      (profile.tenant ? ` ${formatFlagValue("tenant", profile.tenant)}` : "");
+    return new AxiError(scrub(`unknown outcome for ${method} ${shape.path}`), "UNKNOWN_OUTCOME", [
+      "The request may have reached the service and changed the resource; it was not retried",
+      scrub(`Check current state before trying again: \`${command}\``),
+      `requestId: ${requestId}`,
+    ]);
+  };
 
   let body: string | undefined;
   if (options.body !== undefined) {
@@ -152,7 +173,12 @@ export async function sendRequest<T = unknown>(
     try {
       response = await fetch(url, { method, headers, body, signal: options.signal });
     } catch (err) {
+      const code = transportCode(err);
+      if (isWrite && !PRE_SEND_ERROR_CODES.has(code ?? "")) {
+        throw new ApiRequestError(unknownOutcome(clientRequestId), 0, clientRequestId);
+      }
       options.signal?.throwIfAborted();
+      if (!isWrite && attempt === 0 && TRANSIENT_READ_ERROR_CODES.has(code ?? "")) continue;
       throw new ApiRequestError(networkError(err, resource, clientRequestId, scrub), 0, clientRequestId);
     }
 
@@ -163,14 +189,19 @@ export async function sendRequest<T = unknown>(
     const requestId = responseHeaders["x-ms-request-id"];
     const correlationId = responseHeaders["x-ms-correlation-request-id"];
     const retryMs = retryDelayMs(response.headers.get("retry-after"));
-    const retry = attempt === 0 && (response.status === 429 || response.status === 503) &&
+    const retry = !isWrite && attempt === 0 && (response.status === 429 || response.status === 503) &&
       retryMs !== undefined && retryMs <= MAX_RETRY_AFTER_MS;
     let text = "";
     try {
       if (retry) await response.arrayBuffer();
       else text = await response.text();
     } catch (err) {
-      throw new ApiRequestError(networkError(err, resource, clientRequestId, scrub), response.status,
+      if (!isWrite) {
+        options.signal?.throwIfAborted();
+        if (attempt === 0 && TRANSIENT_READ_ERROR_CODES.has(transportCode(err) ?? "")) continue;
+      }
+      throw new ApiRequestError(isWrite && (response.ok || response.status >= 500 || response.status === 408)
+        ? unknownOutcome(requestId ?? clientRequestId) : networkError(err, resource, clientRequestId, scrub), response.status,
         requestId ?? clientRequestId, correlationId);
     }
     if (retry) {
@@ -179,6 +210,10 @@ export async function sendRequest<T = unknown>(
       continue;
     }
     if (!response.ok) {
+      if (isWrite && (response.status >= 500 || response.status === 408)) {
+        throw new ApiRequestError(unknownOutcome(requestId ?? clientRequestId), response.status,
+          requestId ?? clientRequestId, correlationId);
+      }
       throw new ApiRequestError(translateError({
         status: response.status,
         headers: responseHeaders,
