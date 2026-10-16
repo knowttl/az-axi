@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { SKILL_INSTALL_COMMAND, skillHintLine, systemSkillPaths } from "../src/lib/skillHint.js";
+import { SKILL_INSTALL_COMMAND, skillHintLine } from "../src/lib/skillHint.js";
 
 const HINT = `Run \`${SKILL_INSTALL_COMMAND}\` to install the az-axi skill`;
 
@@ -137,11 +137,18 @@ describe("skillHintLine", () => {
     }
   });
 
-  it("lists the documented enterprise path only for claude-code", () => {
-    for (const host of ["codex", "pi", "opencode"] as const) expect(systemSkillPaths(host), host).toEqual([]);
-    const linux = systemSkillPaths("claude-code", "linux");
-    expect(linux).toHaveLength(1);
-    expect(linux[0].endsWith(join(".claude", "skills", "az-axi", "SKILL.md"))).toBe(true);
-    expect(linux[0].startsWith("/etc/claude-code")).toBe(true);
+  it("applies the main-checkout fallback only inside a linked worktree", () => {
+    const main = mkdtempSync(join(tmpdir(), "az-axi-skill-main-"));
+    dirs.push(main);
+    putSkill(main, ".claude", "skills", "az-axi");
+    const { homeDir } = freshDirs();
+    const linked = mkdtempSync(join(tmpdir(), "az-axi-skill-wt-"));
+    dirs.push(linked);
+    writeFileSync(join(linked, ".git"), `gitdir: ${join(main, ".git", "worktrees", "wt1")}\n`);
+    expect(skillHintLine({ env: { CLAUDECODE: "1" }, homeDir, cwd: linked }), "linked worktree").toBeNull();
+    const plain = mkdtempSync(join(tmpdir(), "az-axi-skill-plain-"));
+    dirs.push(plain);
+    mkdirSync(join(plain, ".git"), { recursive: true });
+    expect(skillHintLine({ env: { CLAUDECODE: "1" }, homeDir, cwd: plain }), "plain repo").toBe(HINT);
   });
 });
