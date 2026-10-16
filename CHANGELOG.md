@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.9](https://github.com/knowttl/az-axi/compare/v0.1.8...v0.1.9) (2026-10-16)
+
+
+### Features
+
+* add skill-install hint to no-argument home view ([#91](https://github.com/knowttl/az-axi/issues/91)) ([531e764](https://github.com/knowttl/az-axi/commit/531e76402b46b22d093fd9eee47692b333aacc57))
+
 ## [0.1.8](https://github.com/knowttl/az-axi/compare/v0.1.7...v0.1.8) (2026-10-13)
 
 
