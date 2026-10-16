@@ -10,18 +10,21 @@ import { dirname, join } from "node:path";
  * naming the exact install command. No hint once installed, no hint outside
  * a detected host, and the check never throws or changes the exit code.
  *
- * Install locations were confirmed with the real `skills` CLI (v1.7.2):
- * user level (`-g`) keeps Claude Code skills under
- * `$CLAUDE_CONFIG_DIR/skills` (default `~/.claude/skills`) while Codex, Pi
- * and OpenCode share `~/.agents/skills`; project level keeps Claude Code
- * skills under `<project>/.claude/skills` (usually a symlink to the shared
- * store) and everything else under `<project>/.agents/skills`.
- * Host markers were verified against the real hosts, not from memory:
- * `CLAUDECODE` (Claude Code binary reads it for session state),
- * `CODEX_THREAD_ID`/`CODEX_SESSION_ID` (codex `shell_environment.rs`
- * publishes them to child processes), `PI_CODING_AGENT` (Pi documents it
- * for child-process detection and sets it), `OPENCODE` (the opencode
- * binary exports `OPENCODE=1` to its children).
+ * The installed check looks only at the detected host's own row: one host's
+ * copy never hides another host's hint. Every folder below was confirmed
+ * against the real host, not from memory:
+ *
+ * | host        | user level                                                        | project level (walk-up to repo root) | system level | config override |
+ * |-------------|-------------------------------------------------------------------|--------------------------------------|--------------|-----------------|
+ * | claude-code | `~/.claude/skills` (skills CLI install target)                   | `.claude/skills` (skills CLI + docs) | enterprise `<sysDir>/.claude/skills` | `CLAUDE_CONFIG_DIR/skills` (skills CLI honors it) |
+ * | codex       | `~/.agents/skills` (skills CLI install target)                   | `.agents/skills` (skills CLI)        | none         | none |
+ * | pi          | `~/.pi/agent/skills` (binary agentRoots) + `~/.agents/skills`    | `.pi/skills` (binary projectRoots) + `.agents/skills` | none | `PI_CODING_AGENT_DIR/skills` (binary ENV_AGENT_DIR) |
+ * | opencode    | `<cfg>/opencode/skills` (docs + binary) + `~/.claude/skills` + `~/.agents/skills` | `.opencode/skills` + `.claude/skills` + `.agents/skills` (docs) | none | `XDG_CONFIG_HOME` selects `<cfg>` (binary) |
+ *
+ * Sources: skills CLI v1.7.2 runs into temp HOME/project dirs; Claude Code
+ * skills + managed-settings docs; Pi binary resource-loader.js + skills.md;
+ * OpenCode skills doc + binary XDG handling; Codex binary (no own/system
+ * skills folder found, so Codex reads the shared Agent Skills store only).
  */
 
 export const SKILL_NAME = "az-axi";
@@ -62,15 +65,52 @@ function isRepoRoot(dir: string): boolean {
   }
 }
 
-/** User-level (`-g`) candidate SKILL.md paths for one host. */
+/** User-level candidate SKILL.md paths: only folders the host loads. */
 export function userSkillPaths(host: SkillHost, homeDir: string, env: NodeJS.ProcessEnv = process.env): string[] {
-  if (host === "claude-code") {
-    const configured = env.CLAUDE_CONFIG_DIR?.trim();
-    const primary = configured ? join(configured, "skills", SKILL_NAME, "SKILL.md") : join(homeDir, ".claude", "skills", SKILL_NAME, "SKILL.md");
-    const fallback = join(homeDir, ".claude", "skills", SKILL_NAME, "SKILL.md");
-    return primary === fallback ? [primary] : [primary, fallback];
+  switch (host) {
+    case "claude-code": {
+      const configured = env.CLAUDE_CONFIG_DIR?.trim();
+      const fallback = join(homeDir, ".claude", "skills", SKILL_NAME, "SKILL.md");
+      if (!configured) return [fallback];
+      const primary = join(configured, "skills", SKILL_NAME, "SKILL.md");
+      return primary === fallback ? [primary] : [primary, fallback];
+    }
+    case "pi": {
+      const agentDir = env.PI_CODING_AGENT_DIR?.trim();
+      const own = agentDir
+        ? join(agentDir, "skills", SKILL_NAME, "SKILL.md")
+        : join(homeDir, ".pi", "agent", "skills", SKILL_NAME, "SKILL.md");
+      return [own, join(homeDir, ".agents", "skills", SKILL_NAME, "SKILL.md")];
+    }
+    case "opencode": {
+      const xdg = env.XDG_CONFIG_HOME?.trim();
+      const fallbackBase = join(homeDir, ".config");
+      const ownBases = xdg && xdg !== fallbackBase ? [xdg, fallbackBase] : [xdg || fallbackBase];
+      return [
+        ...ownBases.map((base) => join(base, "opencode", "skills", SKILL_NAME, "SKILL.md")),
+        join(homeDir, ".claude", "skills", SKILL_NAME, "SKILL.md"),
+        join(homeDir, ".agents", "skills", SKILL_NAME, "SKILL.md"),
+      ];
+    }
+    case "codex":
+      return [join(homeDir, ".agents", "skills", SKILL_NAME, "SKILL.md")];
   }
-  return [join(homeDir, ".agents", "skills", SKILL_NAME, "SKILL.md")];
+}
+
+/** Project-level relative SKILL.md paths: only folders the host loads. */
+export function projectSkillRelPaths(host: SkillHost): string[] {
+  const agents = join(".agents", "skills", SKILL_NAME, "SKILL.md");
+  const claude = join(".claude", "skills", SKILL_NAME, "SKILL.md");
+  switch (host) {
+    case "claude-code":
+      return [claude];
+    case "codex":
+      return [agents];
+    case "pi":
+      return [join(".pi", "skills", SKILL_NAME, "SKILL.md"), agents];
+    case "opencode":
+      return [join(".opencode", "skills", SKILL_NAME, "SKILL.md"), claude, agents];
+  }
 }
 
 /**
@@ -78,11 +118,11 @@ export function userSkillPaths(host: SkillHost, homeDir: string, env: NodeJS.Pro
  * repository root (the first ancestor holding `.git`), inclusive.
  */
 export function projectSkillPaths(host: SkillHost, cwd: string): string[] {
+  const rels = projectSkillRelPaths(host);
   const paths: string[] = [];
   let dir = cwd;
   for (;;) {
-    paths.push(join(dir, ".agents", "skills", SKILL_NAME, "SKILL.md"));
-    if (host === "claude-code") paths.push(join(dir, ".claude", "skills", SKILL_NAME, "SKILL.md"));
+    for (const rel of rels) paths.push(join(dir, rel));
     if (isRepoRoot(dir)) break;
     const parent = dirname(dir);
     if (parent === dir) break;
@@ -91,12 +131,34 @@ export function projectSkillPaths(host: SkillHost, cwd: string): string[] {
   return paths;
 }
 
-/** True when SKILL.md exists at user or project level for the host. Never throws. */
+/** Enterprise system base holding `.claude/skills` for file-based delivery, per OS. Null where undocumented. */
+export function claudeSystemBase(platform: NodeJS.Platform = process.platform): string | null {
+  switch (platform) {
+    case "linux":
+      return join("/etc", "claude-code");
+    case "darwin":
+      return join("/Library", "Application Support", "ClaudeCode");
+    case "win32":
+      return join("C:", "Program Files", "ClaudeCode");
+    default:
+      return null;
+  }
+}
+
+/** System-level candidate SKILL.md paths. Only Claude Code documents one (enterprise skills). */
+export function systemSkillPaths(host: SkillHost, platform: NodeJS.Platform = process.platform): string[] {
+  if (host !== "claude-code") return [];
+  const base = claudeSystemBase(platform);
+  return base === null ? [] : [join(base, ".claude", "skills", SKILL_NAME, "SKILL.md")];
+}
+
+/** True when SKILL.md exists in the host's own row. Never throws. */
 export function isSkillInstalled(host: SkillHost, probe: SkillInstallProbe = {}): boolean {
   try {
+    const env = probe.env ?? process.env;
     const homeDir = probe.homeDir ?? homedir();
     const cwd = probe.cwd ?? process.cwd();
-    return [...userSkillPaths(host, homeDir, probe.env ?? process.env), ...projectSkillPaths(host, cwd)].some(exists);
+    return [...userSkillPaths(host, homeDir, env), ...projectSkillPaths(host, cwd), ...systemSkillPaths(host)].some(exists);
   } catch {
     return true;
   }
