@@ -10,6 +10,7 @@ import { collapseHomeDirectory, homeHeader } from "../lib/paths.js";
 import { DEFENDER_ACTIVE_ALERT_COUNTS, DEFENDER_SECURE_SCORES, exposureQuery } from "../lib/queries.js";
 import { commandMeta } from "../lib/registry.js";
 import { resolveWriteLogPath } from "../lib/writeLog.js";
+import { skillHintLine } from "../lib/skillHint.js";
 
 export const meta = commandMeta("home");
 
@@ -160,6 +161,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
         ...error.suggestions,
         "Run `az-axi doctor` to check each profile",
         "Run `az-axi config init --name <name> --auth az` to create a profile",
+        ...appendSkillHint(),
       ],
     };
   }
@@ -297,6 +299,13 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   if (help.length > 0) help.push("Run `az-axi doctor` to diagnose this profile");
   help.push(...next.slice(0, 3));
+  help.push(...appendSkillHint());
 
   return { ...row, help };
+}
+
+/** Zero or one skill-install hint lines for the home `help[]` list. Never throws. */
+function appendSkillHint(): string[] {
+  const hint = skillHintLine();
+  return hint === null ? [] : [hint];
 }

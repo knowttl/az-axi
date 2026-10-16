@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AxiError } from "axi-sdk-js";
@@ -66,6 +66,28 @@ describe("dashboard skeleton", () => {
     });
     expect(allMock).toHaveBeenCalledWith(expect.anything(), { path: "/subscriptions", apiVersion: "2022-12-01" }, 100);
     expect((result.help as string[]).join("\n")).toContain("az-axi sub list");
+  });
+
+  it("appends the skill-install hint only when a host is detected and the skill is missing", async () => {
+    const skillHome = mkdtempSync(join(tmpdir(), "az-axi-skill-home-"));
+    const keys = ["PI_CODING_AGENT", "CLAUDECODE", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "OPENCODE", "HOME", "CLAUDE_CONFIG_DIR"];
+    const savedSkill = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    try {
+      for (const key of ["CLAUDECODE", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "OPENCODE"]) delete process.env[key];
+      delete process.env.CLAUDE_CONFIG_DIR;
+      process.env.PI_CODING_AGENT = "true";
+      process.env.HOME = skillHome;
+      expect((await run([])).help as string[]).toContain("Run `npx skills add knowttl/az-axi --skill az-axi` to install the az-axi skill");
+      mkdirSync(join(skillHome, ".agents", "skills", "az-axi"), { recursive: true });
+      writeFileSync(join(skillHome, ".agents", "skills", "az-axi", "SKILL.md"), "# az-axi\n");
+      expect(JSON.stringify((await run([])).help)).not.toContain("npx skills add");
+    } finally {
+      for (const key of keys) {
+        if (savedSkill[key] === undefined) delete process.env[key];
+        else process.env[key] = savedSkill[key];
+      }
+      rmSync(skillHome, { recursive: true, force: true });
+    }
   });
 
   it("reports configured write scope, environment override and log without write-enablement hints", async () => {
