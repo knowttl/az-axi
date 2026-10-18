@@ -391,7 +391,7 @@ async function listForNumber(
     .sort((a, b) => eventTime(b.properties?.createdTimeUtc) - eventTime(a.properties?.createdTimeUtc))[0];
   if (!match) {
     if (page.nextLink || page.incomplete) {
-      throw new AxiError(`incident number ${incidentNumber} was not found in fetched pages; search is incomplete after ${DEFAULT_NATIVE_LIST_BUDGET.maxPages} pages`, "INCOMPLETE_SEARCH", [
+      throw new AxiError(`incident number ${incidentNumber} was not found in fetched pages; search is incomplete within the fetch budget (${DEFAULT_NATIVE_LIST_BUDGET.maxRows} rows, ${DEFAULT_NATIVE_LIST_BUDGET.maxPages} pages)`, "INCOMPLETE_SEARCH", [
         "Use --name <incident-guid> or --ids <incident-ARM-id> to select the incident directly",
         `Run \`${listHint}\` to list fetched incident numbers`,
       ]);
