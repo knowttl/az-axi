@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { run as homeRun } from "../src/commands/home.js";
+import { COMMAND_LEAVES, TOP_LEVEL_HELP } from "../src/lib/registry.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TSX = join(ROOT, "node_modules/tsx/dist/cli.mjs");
@@ -19,6 +20,28 @@ function run(args: string[]) {
 const INHERITED = ["toString", "valueOf", "hasOwnProperty", "__proto__", "constructor", "toLocaleString", "isPrototypeOf"];
 
 describe("command dispatch", () => {
+  it("prints grouped top-level help with described aliases and write gates", () => {
+    const result = run(["--help"]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout.trim()).toBe(TOP_LEVEL_HELP);
+    expect(result.stdout).toMatch(/^az-axi - Azure inspection/);
+    expect(result.stdout).toContain("Usage: az-axi [selector flags] <command> [arguments] [flags]");
+    expect(result.stdout).toContain("Subscriptions and resources:");
+    expect(result.stdout).toContain("Security and Sentinel:");
+    expect(result.stdout).toContain("Compute and network:");
+    const aliases = result.stdout.split("Supported command aliases")[1]!;
+    for (const leaf of COMMAND_LEAVES) {
+      for (const alias of leaf.aliases ?? []) {
+        expect(aliases).toMatch(new RegExp(`az-axi ${alias}  # alias of ${leaf.path}; [^\\n]+`));
+      }
+    }
+    expect(result.stdout).not.toContain("undefined");
+    expect(result.stdout).toContain("execution requires human approval and --execute");
+    expect(result.stdout).toContain("Destructive execution also requires --confirm <name>");
+    expect(result.stdout.trim()).toMatch(/Deprecated configuration aliases[^]*AZ_AXI_SUBSCRIPTION -> AZ_AXI_SUBSCRIPTIONS; AZ_AXI_TENANT -> AZ_AXI_TENANT_ID; tokenEnv -> resource Token SecretRef fields\.$/);
+  });
+
   it("rejects inherited command names with the unknown-command exit", () => {
     for (const command of INHERITED) {
       for (const args of [[command], [command, "--help"]]) {

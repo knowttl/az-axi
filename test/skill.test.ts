@@ -17,7 +17,7 @@ describe("packaged agent skill", () => {
     expect(match).not.toBeNull();
     expect(parse(match![1]!)).toEqual({
       name: "az-axi",
-      description: "Read-only Azure inspection: subscriptions, resources, RBAC, activity, Defender, Sentinel, network, policy, and Log Analytics.",
+      description: "Inspect Azure subscriptions, resources, RBAC, activity, Defender, Sentinel, network, policy, and Log Analytics. Read-only by default, with gated writes requiring human approval and explicit execution.",
       "user-invocable": false,
     });
   });
