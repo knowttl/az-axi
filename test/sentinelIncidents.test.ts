@@ -292,7 +292,7 @@ describe("sentinel incident show", () => {
   it.each(["name", "incident-id"])("reports incomplete number searches through --%s", async (flag) => {
     mockTransport({ nextLink: "https://management.azure.com/next" });
     await expect(run(["incident", "show", `--${flag}`, "9999", ...SELECTORS]))
-      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("10 pages") });
+      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("100 pages") });
     await expect(run(["incident", "show", `--${flag}`, "3177", ...SELECTORS]))
       .resolves.toMatchObject({ number: 3177 });
   });

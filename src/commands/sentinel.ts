@@ -16,7 +16,7 @@ import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
 import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
-import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
+import { DEFAULT_NATIVE_LIST_BUDGET, nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("sentinel");
 
@@ -385,13 +385,13 @@ async function listForNumber(
   listHint: string,
 ): Promise<Incident> {
   const page = await requestAll<Incident>(profile,
-    { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS });
+    { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS }, DEFAULT_NATIVE_LIST_BUDGET);
   const match = page.items
     .filter((incident) => incident.properties?.incidentNumber === incidentNumber)
     .sort((a, b) => eventTime(b.properties?.createdTimeUtc) - eventTime(a.properties?.createdTimeUtc))[0];
   if (!match) {
-    if (page.nextLink) {
-      throw new AxiError(`incident number ${incidentNumber} was not found in fetched pages; search is incomplete after 10 pages`, "INCOMPLETE_SEARCH", [
+    if (page.nextLink || page.incomplete) {
+      throw new AxiError(`incident number ${incidentNumber} was not found in fetched pages; search is incomplete after ${DEFAULT_NATIVE_LIST_BUDGET.maxPages} pages`, "INCOMPLETE_SEARCH", [
         "Use --name <incident-guid> or --ids <incident-ARM-id> to select the incident directly",
         `Run \`${listHint}\` to list fetched incident numbers`,
       ]);

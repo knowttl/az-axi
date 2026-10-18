@@ -13,6 +13,8 @@ export interface NativeListBudget {
   maxPages: number;
 }
 
+export const DEFAULT_NATIVE_LIST_BUDGET: NativeListBudget = { maxRows: DEFAULT_MAX_ROWS, maxPages: NATIVE_LIST_MAX_PAGES };
+
 export const NATIVE_LIST_HELP = `Fetch budget per subscription: ${DEFAULT_MAX_ROWS} rows by default; --all raises it to ${ALL_MAX_ROWS}. --max-rows <1..${MAX_ROWS}> overrides either row budget. Every walk stops at ${NATIVE_LIST_MAX_PAGES} pages. Budgets count rows before local filters. --limit controls display only (default 50); --full shows every fetched row and expands display only, never bypassing fetch budgets. Incomplete totals are lower bounds; narrow the scope or raise --max-rows to search further.`;
 export const NATIVE_LIST_INCOMPLETE = "Fetch budget reached; counts are lower bounds. Narrow the scope or raise --max-rows (or use --all). --full changes display only.";
 
