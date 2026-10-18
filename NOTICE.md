@@ -6,7 +6,7 @@ az-axi includes portions of ado-axi, which is distributed under the MIT License.
 - Source: https://github.com/jeffreyhaen/ado-axi
 - Commit: `1a381cbbafc5b9127e1381fbd2c404f591ada881`
 
-The vendored files are listed in `UPSTREAM.md`.
+The vendored files are listed in [UPSTREAM.md](UPSTREAM.md).
 
 ```
 MIT License

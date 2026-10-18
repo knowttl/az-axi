@@ -45,6 +45,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit",
     "catalogue:generate": "node scripts/az-read-catalogue.mjs",
     "catalogue:check": "node scripts/az-read-catalogue.mjs --check",
     "skill:generate": "npm run build && node scripts/skill.mjs",

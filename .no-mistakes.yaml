@@ -1,16 +1,21 @@
 # no-mistakes repository configuration
 # Run the gate on the pi harness; model/effort come from host global config.
 agent: pi
+no_ci: true
 commands:
   prepare: 'corepack pnpm install --frozen-lockfile --ignore-scripts --config.confirm-modules-purge=false'
   test: 'node scripts/isolated-run.mjs corepack pnpm run build && corepack pnpm test'
-  lint: 'corepack pnpm exec tsc --noEmit -p tsconfig.json'
+  lint: 'corepack pnpm run lint'
 document:
   instructions: |
     README.md owns the product introduction, installation, usage, and behavior reference.
     skills/az-axi/SKILL.md is the packaged agent skill surface and must stay
     consistent with the CLI help and commands; update both together.
-    PLAN.md is design history, not a behavior specification; do not treat it as normative.
+    CONTRIBUTING.md owns local validation, benchmarks, live-smoke rules, and releases.
+    SECURITY.md owns vulnerability reporting and security testing boundaries.
+    Historical design and benchmark notes are preserved on archive/internal-docs;
+    they are not behavior specifications. README.md and leaf help describe the
+    implemented session hooks, Key Vault metadata reads, and Sentinel commands.
     This repository has no AGENTS.md or CLAUDE.md.
 review:
   path_instructions:
