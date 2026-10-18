@@ -603,13 +603,46 @@ export const COMMAND_HELP: Record<string, string> = Object.assign(
   Object.fromEntries(commandNames.map((name) => [name, HELP_TEXT[name]])),
 );
 
+const HELP_GROUPS: readonly [string, readonly CommandName[]][] = [
+  ["Orientation and configuration", ["home", "auth", "setup", "doctor", "config"]],
+  ["Subscriptions and resources", ["sub", "account", "group", "resource", "tag", "rg"]],
+  ["Identity and governance", ["rbac", "role", "policy", "lock", "deny-assignment"]],
+  ["Security and Sentinel", ["defender", "security", "sentinel", "exposure"]],
+  ["Monitoring and logs", ["monitor", "activity", "logs"]],
+  ["Compute and network", ["vm", "vmss", "disk", "network"]],
+  ["Storage, Key Vault and registries", ["storage", "keyvault", "acr"]],
+  ["REST and operations", ["api", "op", "az"]],
+];
+
+const ALIAS_DESCRIPTIONS: Record<string, string> = {
+  "config list": "list configured profiles",
+  "graph query": "Resource Graph KQL query",
+  "rbac list": "role assignments with principal names",
+  "activity list": "activity log across subscriptions",
+  "defender alerts": "Defender for Cloud alerts",
+  "security alert update": "gated Defender alert status update",
+  "defender score": "Defender secure scores by subscription",
+  "monitor log-analytics query": "Log Analytics KQL query",
+};
+
 export const TOP_LEVEL_HELP = [
-  ...commandNames.map((name) => HELP_OVERVIEWS[name]),
-  ...COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.handlerPath).map((leaf) => `az-axi ${leaf.path}  # canonical query path`),
-  ...COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => (leaf.aliases ?? []).map((alias) => `az-axi ${alias}  # alias of ${leaf.path}`)),
+  "az-axi - Azure inspection for agents, read-only by default with gated writes",
+  "Usage: az-axi [selector flags] <command> [arguments] [flags]",
+  "Run az-axi with no command for the dashboard; use <complete-leaf-path> --help for flags and examples.",
+  ...HELP_GROUPS.flatMap(([title, names]) => ["", `${title}:`, ...names.map((name) => HELP_OVERVIEWS[name])]),
+  "",
+  "Query paths:",
+  ...COMMAND_LEAVES.filter((leaf: CommandLeaf) => leaf.handlerPath).map((leaf) => `az-axi ${leaf.path}  # ${ALIAS_DESCRIPTIONS[leaf.path]}; canonical query path`),
   'Query input: graph query --graph-query / -q <kql>; rg query "<kql>". Both accept --file or stdin.',
   'Query input: monitor log-analytics query --analytics-query <kql>; logs query "<kql>". Both accept --file or stdin.',
+  "",
+  "Supported command aliases (same handler and write gates as the target):",
+  ...COMMAND_LEAVES.flatMap((leaf: CommandLeaf) => (leaf.aliases ?? []).map((alias) => `az-axi ${alias}  # alias of ${leaf.path}; ${ALIAS_DESCRIPTIONS[leaf.path]}`)),
   ...HELP_FOOTER,
+  "Writes preview first; execution requires human approval and --execute. Destructive execution also requires --confirm <name>.",
+  "",
+  "Deprecated configuration aliases (retained for one minor release):",
+  "AZ_AXI_SUBSCRIPTION -> AZ_AXI_SUBSCRIPTIONS; AZ_AXI_TENANT -> AZ_AXI_TENANT_ID; tokenEnv -> resource Token SecretRef fields.",
 ].join("\n");
 
 /** Static agent command list, checked against the committed skill by the offline suite. */
