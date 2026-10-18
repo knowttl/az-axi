@@ -92,6 +92,23 @@ function sentMethods(): unknown[] {
 }
 
 describe("vm list", () => {
+  it("preserves fetch flags in the display expansion hint", async () => {
+    const result = await runVm(["list", "--all", "--max-rows", "2000", "--limit", "1"]);
+    expect(result.help).toEqual(expect.arrayContaining([expect.stringContaining("--all true --max-rows 2000 --full")]));
+  });
+
+  it("gives each subscription a separate fetch budget and preserves lower bounds", async () => {
+    useProfile("ci", { auth: "token", subscriptions: [SUB_A, SUB_B] });
+    allMock.mockResolvedValue({ items: computeVms, incomplete: true });
+    const result = await runVm(["list", "--max-rows", "2", "--limit", "1", "--full"]);
+    expect(result.total).toBe("2+");
+    expect(result.rows).toHaveLength(2);
+    expect(result.help).toEqual(expect.arrayContaining([expect.stringContaining("lower bounds")]));
+    expect(allMock).toHaveBeenCalledTimes(2);
+    expect(allMock).toHaveBeenNthCalledWith(1, expect.anything(), expect.objectContaining({ path: expect.stringContaining(SUB_A) }), { maxRows: 2, maxPages: 100 });
+    expect(allMock).toHaveBeenNthCalledWith(2, expect.anything(), expect.objectContaining({ path: expect.stringContaining(SUB_B) }), { maxRows: 2, maxPages: 100 });
+  });
+
   it("lists compact rows with location aggregates and a detail hint", async () => {
     const result = await runVm(["list", "--resource-group", "rg-demo"]);
     expect(result).toMatchObject({
@@ -424,6 +441,9 @@ describe("compute validation", () => {
     ["vm", ["start"]],
     ["vm", ["list", "--bogus", "x"]],
     ["vm", ["list", "--limit", "0"]],
+    ["vm", ["list", "--max-rows", "0"]],
+    ["vm", ["list", "--max-rows"]],
+    ["vm", ["list", "--all=invalid"]],
     ["vm", ["list", "--fields", "properties"]],
     ["vmss", ["show", "--name", "vmss-demo"]],
     ["vmss", ["show", "--ids", computeVm.id]],

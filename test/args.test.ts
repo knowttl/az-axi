@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { GLOBAL_FLAGS, assertKnownFlags, flagList, parseArgs } from "../src/lib/args.js";
 import { normalizeArgv } from "../src/lib/argv.js";
+import { nativeListBudget } from "../src/lib/nativePaging.js";
+
+describe("native fetch budgets", () => {
+  it.each(["0", "-1", "1.5", "Infinity", "NaN", "100001", "1e3", "", "9007199254740993"])("rejects --max-rows %j", (value) => {
+    expect(() => nativeListBudget({ flags: { "max-rows": value }, positionals: [] })).toThrow();
+  });
+
+  it.each([true, false])("rejects a missing row budget %j", (value) => {
+    expect(() => nativeListBudget({ flags: { "max-rows": value }, positionals: [] })).toThrow();
+  });
+
+  it("rejects malformed --all", () => {
+    expect(() => nativeListBudget(parseArgs(["--all=invalid"]))).toThrow("--all expects true or false");
+  });
+
+  it("accepts the maximum and explicit false without changing display controls", () => {
+    expect(nativeListBudget(parseArgs(["--all=false", "--max-rows", "100000", "--limit", "1", "--full"])))
+      .toEqual({ maxRows: 100000, maxPages: 100 });
+    expect(nativeListBudget(parseArgs(["--all=false"]))).toEqual({ maxRows: 1000, maxPages: 100 });
+  });
+});
 
 function unknownFlag(argv: string[], known: string[] = []) {
   try {

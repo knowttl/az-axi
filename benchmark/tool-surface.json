@@ -2,8 +2,8 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 56,
-    "body": 3541,
-    "total": 3596
+    "body": 3619,
+    "total": 3674
   },
   "help": {
     "topLevel": 1419,
@@ -23,7 +23,7 @@
     "activity": 172,
     "defender": 262,
     "security": 1095,
-    "sentinel": 2137,
+    "sentinel": 2398,
     "exposure": 311,
     "logs": 336,
     "api": 533,
@@ -37,9 +37,9 @@
     "lock": 448,
     "deny-assignment": 514,
     "role": 449,
-    "vm": 1306,
-    "vmss": 1259,
-    "disk": 806
+    "vm": 1312,
+    "vmss": 1265,
+    "disk": 843
   },
-  "helpTotal": 18199
+  "helpTotal": 18509
 }

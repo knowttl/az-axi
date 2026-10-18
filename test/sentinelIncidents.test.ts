@@ -24,7 +24,7 @@ let dir: string;
 const ENV_KEYS = ["AZ_AXI_CONFIG", "AZ_AXI_PROFILE", "AZ_AXI_SUBSCRIPTION", "AZ_AXI_TENANT"];
 let saved: Record<string, string | undefined>;
 
-function mockTransport(options: { incidents?: unknown[]; nextLink?: string; workspaces?: unknown[]; workspaceNextLink?: string } = {}) {
+function mockTransport(options: { incidents?: unknown[]; nextLink?: string; incomplete?: boolean; workspaces?: unknown[]; workspaceNextLink?: string } = {}) {
   const incidents = options.incidents ?? sentinelIncidents;
   allMock.mockImplementation(async (_profile: unknown, requestOptions: Record<string, unknown>) => {
     const path = String(requestOptions["path"] ?? "");
@@ -39,7 +39,7 @@ function mockTransport(options: { incidents?: unknown[]; nextLink?: string; work
       ...(options.workspaceNextLink ? { nextLink: options.workspaceNextLink } : {}),
     };
     if (/\/incidents$/i.test(path)) {
-      return { items: incidents, ...(options.nextLink ? { nextLink: options.nextLink } : {}) };
+      return { items: incidents, ...(options.nextLink ? { nextLink: options.nextLink } : {}), ...(options.incomplete ? { incomplete: true } : {}) };
     }
     throw new Error(`unexpected offline path: ${path}`);
   });
@@ -292,8 +292,16 @@ describe("sentinel incident show", () => {
   it.each(["name", "incident-id"])("reports incomplete number searches through --%s", async (flag) => {
     mockTransport({ nextLink: "https://management.azure.com/next" });
     await expect(run(["incident", "show", `--${flag}`, "9999", ...SELECTORS]))
-      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("10 pages") });
+      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("fetch budget") });
     await expect(run(["incident", "show", `--${flag}`, "3177", ...SELECTORS]))
+      .resolves.toMatchObject({ number: 3177 });
+  });
+
+  it("reports a row-budget stop in fetch-budget terms", async () => {
+    mockTransport({ incomplete: true });
+    await expect(run(["incident", "show", "--name", "9999", ...SELECTORS]))
+      .rejects.toMatchObject({ code: "INCOMPLETE_SEARCH", message: expect.stringContaining("1000 rows, 100 pages") });
+    await expect(run(["incident", "show", "--name", "3177", ...SELECTORS]))
       .resolves.toMatchObject({ number: 3177 });
   });
 

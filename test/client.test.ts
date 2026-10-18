@@ -5,6 +5,8 @@ import { clearCredentialCache } from "../src/lib/auth.js";
 import { ApiRequestError, buildUrl, request, requestAll, sendRequest } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { redact } from "../src/lib/redact.js";
+import { nativeListBudget } from "../src/lib/nativePaging.js";
+import { parseArgs } from "../src/lib/args.js";
 
 const TOKEN = "tok-9f3c1d7a-distinctive-secret";
 
@@ -655,6 +657,39 @@ describe("network and TLS errors", () => {
 });
 
 describe("nextLink paging", () => {
+  it.each([
+    [[], 1000, 2],
+    [["--all"], 10000, 20],
+    [["--all", "--max-rows", "750"], 750, 2],
+  ])("bounds native walks for %j", async (argv, rows, pages) => {
+    fetchMock.mockImplementation(async () => json({ value: Array.from({ length: 500 }, (_, i) => i),
+      nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=more" }));
+    const result = await requestAll<number>(profile(), { path: "/subscriptions", apiVersion: "2022-12-01" }, nativeListBudget(parseArgs(argv)));
+    expect(result.items).toHaveLength(rows);
+    expect(result.incomplete).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(pages);
+  });
+
+  it("does not offer a continuation that skips a partially consumed page", async () => {
+    fetchMock.mockResolvedValueOnce(json({ value: [1, 2, 3], nextLink: "https://management.azure.com/subscriptions?$skiptoken=next" }));
+    const result = await requestAll<number>(profile(), { path: "/subscriptions", apiVersion: "2022-12-01" }, nativeListBudget(parseArgs(["--max-rows", "2"])));
+    expect(result).toEqual({ items: [1, 2], incomplete: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a complete total when the last page ends exactly at the row cap", async () => {
+    fetchMock.mockResolvedValueOnce(json({ value: [1, 2] }));
+    expect(await requestAll<number>(profile(), { path: "/subscriptions", apiVersion: "2022-12-01" }, nativeListBudget(parseArgs(["--max-rows", "2"]))))
+      .toEqual({ items: [1, 2] });
+  });
+
+  it.each([{ argv: [] }, { argv: ["--all"] }])("enforces the same native page cap for $argv, including empty pages", async ({ argv }) => {
+    fetchMock.mockImplementation(async () => json({ value: [], nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=more" }));
+    const result = await requestAll(profile(), { path: "/subscriptions", apiVersion: "2022-12-01" }, nativeListBudget(parseArgs(argv)));
+    expect(result).toEqual({ items: [], nextLink: expect.stringContaining("skiptoken=more"), incomplete: true });
+    expect(fetchMock).toHaveBeenCalledTimes(100);
+  });
+
   it("follows nextLink across pages on the same host", async () => {
     fetchMock
       .mockImplementationOnce(async () => json({ value: [1, 2], nextLink: "https://management.azure.com/subscriptions?api-version=2022-12-01&$skiptoken=p2" }))
