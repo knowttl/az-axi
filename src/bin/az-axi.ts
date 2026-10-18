@@ -12,8 +12,8 @@ if (!tryFastPath(process.argv.slice(2), { version })) {
   const { AxiError, runAxiCli } = await import("axi-sdk-js");
   const { normalizeArgv } = await import("../lib/argv.js");
   const { routeArgv } = await import("../lib/router.js");
-  const { WriteExecutionError } = await import("../lib/execute.js");
-  const { redact, redactText } = await import("../lib/redact.js");
+  const { formatError } = await import("../lib/errors.js");
+  const { redactText } = await import("../lib/redact.js");
   for (const stream of [process.stdout, process.stderr]) {
     const write = stream.write.bind(stream);
     stream.write = ((chunk: string | Uint8Array, ...args: unknown[]) =>
@@ -21,30 +21,6 @@ if (!tryFastPath(process.argv.slice(2), { version })) {
   }
   const { COMMANDS, runCommand } = await import("../lib/registry.js");
   const { DESCRIPTION, TOP_LEVEL_HELP } = await import("../help.js");
-
-  const USAGE_CODES = new Set([
-    "VALIDATION_ERROR",
-    "UNKNOWN_FLAG",
-    "AUTH_REQUIRED",
-    "NOT_FOUND",
-    "FORBIDDEN",
-    "READ_ONLY",
-    "WRITES_DISABLED",
-    "SUBSCRIPTION_NOT_WRITABLE",
-    "CONFIRM_REQUIRED",
-    "CONFIRM_MISMATCH",
-  ]);
-
-  function formatError(error: unknown): { output: string; exitCode: number } {
-    if (error instanceof AxiError) {
-      const out: Record<string, unknown> = { error: error.message, code: error.code,
-        ...(error instanceof WriteExecutionError ? error.output : {}) };
-      if (error.suggestions.length > 0) out.help = error.suggestions;
-      return { output: `${encode(redact(out))}\n`, exitCode: USAGE_CODES.has(error.code) ? 2 : 1 };
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return { output: `${encode({ error: message, code: "UNKNOWN" })}\n`, exitCode: 1 };
-  }
 
   function leadingFlagError(flag: string): string {
     return `${encode({
@@ -105,7 +81,11 @@ if (!tryFastPath(process.argv.slice(2), { version })) {
     home: homeHandler,
     commands: Object.assign(
       Object.create(null),
-      Object.fromEntries(Object.keys(COMMANDS).map((name) => [name, (args: string[]) => runCommand(name, args)])),
+      Object.fromEntries(Object.keys(COMMANDS).map((name) => [name, async (args: string[]) => {
+        const output = await runCommand(name, args);
+        if (name === "doctor" && output.status === "failed") process.exitCode = 1;
+        return output;
+      }])),
       {
         update: async () => {
           throw new AxiError("unknown command `update`", "VALIDATION_ERROR", [

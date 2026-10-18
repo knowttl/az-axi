@@ -34,15 +34,16 @@ export function routeArgv(argv: readonly string[]): { argv: string[]; help?: str
   }
   const { leaf, path, words } = selected;
   const help = leafHelp(leaf, path);
+  const remedy = `Run \`az-axi ${path} --help\` for usage`;
   const canonical = path === leaf.path && leaf.handlerPath !== undefined;
   const flagAliases = path === leaf.path ? { ...leaf.canonicalFlagAliases, ...(path === "graph query" ? { subscription: "subscriptions" } : {}) } : leaf.aliasFlags;
   const schema = { ...GLOBAL_FLAG_SCHEMA, ...leaf.flags, ...(canonical ? leaf.canonicalFlags : {}) };
-  const args = parseLeafArgs(argv.slice(words.length), schema, path, help, flagAliases, leaf.positionalInput && !canonical);
+  const args = parseLeafArgs(argv.slice(words.length), schema, path, remedy, flagAliases, leaf.positionalInput && !canonical);
   if (flagBool(args, "help")) return { argv: [...argv], help };
   if (canonical) {
     const queryFlag = path === "graph query" ? "graph-query" : "analytics-query";
     if (args.positionals.length || args.flags[queryFlag] && args.flags.file) {
-      throw new AxiError(`use exactly one query source: --${queryFlag}, --file or stdin`, "VALIDATION_ERROR", [help]);
+      throw new AxiError(`use exactly one query source: --${queryFlag}, --file or stdin`, "VALIDATION_ERROR", [remedy]);
     }
     if (args.flags[queryFlag]) {
       args.positionals.push(String(args.flags[queryFlag]));
@@ -53,7 +54,7 @@ export function routeArgv(argv: readonly string[]): { argv: string[]; help?: str
       delete args.flags.subscriptions;
     }
     if ((args.flags["management-groups"] || args.flags["management-group"]) && args.flags.subscription || args.flags["management-groups"] && args.flags["management-group"]) {
-      throw new AxiError("explicit subscription and management-group scope flags are mutually exclusive", "VALIDATION_ERROR", [help]);
+      throw new AxiError("explicit subscription and management-group scope flags are mutually exclusive", "VALIDATION_ERROR", [remedy]);
     }
   }
   const legacy = (leaf.handlerPath ?? leaf.path).split(" ");

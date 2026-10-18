@@ -33,14 +33,17 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   const rows: Record<string, unknown>[] = [];
   const help: string[] = [];
+  let healthy = true;
   for (const name of names.length > 0 ? names : [undefined]) {
     const result = await inspect(name, explicit, args);
     rows.push(result.row);
     help.push(...result.help);
+    healthy &&= result.healthy;
   }
 
   const pkg = packageInfo();
   return {
+    status: healthy ? "ok" : "failed",
     package: `${pkg.name} ${pkg.version}`,
     config: config ? collapseHomeDirectory(path) : `${collapseHomeDirectory(path)} (not found; using the implicit az profile)`,
     readOnly: { set: process.env.AZ_AXI_READ_ONLY !== undefined, forced: readOnlyForced() },
@@ -54,7 +57,7 @@ async function inspect(
   name: string | undefined,
   explicit: string | undefined,
   args: ReturnType<typeof parseArgs>,
-): Promise<{ row: Record<string, unknown>; help: string[] }> {
+): Promise<{ row: Record<string, unknown>; help: string[]; healthy: boolean }> {
   let profile: ResolvedProfile;
   try {
     profile = resolveProfile({
@@ -67,6 +70,7 @@ async function inspect(
   } catch (err) {
     const error = err as AxiError;
     return {
+      healthy: false,
       row: {
         name: name ?? "az",
         auth: "-",
@@ -158,6 +162,7 @@ async function inspect(
   }
 
   return {
+    healthy: blocking.length === 0,
     row: {
       name: profile.name,
       auth: profile.auth,

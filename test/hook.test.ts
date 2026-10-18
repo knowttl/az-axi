@@ -154,7 +154,17 @@ describe("hook entry point", () => {
     const result = runBin(["dist/bin/az-axi-hook.js"], { AZ_AXI_CONFIG: join(dir, "config.json") });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("error:");
+    expect(result.stderr).toBe("");
   }, 30_000);
+
+  it("returns a quiet redacted usage error for unusable arguments", () => {
+    const result = runBin(["dist/bin/az-axi-hook.js", "--bogus=AccountKey=synthetic-hook-secret"]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("code: UNKNOWN_FLAG");
+    expect(result.stdout).toContain("***redacted***");
+    expect(result.stdout).not.toContain("synthetic-hook-secret");
+    expect(result.stderr).toBe("");
+  });
 
   it("finishes the built binary well under a second", () => {
     writeConfig({ version: 1, profiles: { work: { auth: "az", subscriptions: [SUB] } } });
