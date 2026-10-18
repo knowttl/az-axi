@@ -1,7 +1,6 @@
 <h1 align="center">az-axi</h1>
 
 <p align="center">
-  <a href="https://github.com/knowttl/az-axi/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/knowttl/az-axi/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
   <a href="https://www.npmjs.com/package/@knowttl/az-axi">npm</a> ·
   <a href="https://github.com/kunchenguid/axi">AXI</a> ·
   <a href="./LICENSE">MIT</a>
@@ -13,17 +12,13 @@ az-axi inspects Azure resources, access permissions, activity, security posture 
 It is read-only by default and emits compact TOON on stdout with contextual next-step suggestions.
 Run the dashboard for orientation, use a focused command, or inspect REST endpoints through `api`.
 
-## Benchmarks & Agent Ergonomics
+## Agent Ergonomics
 
 - Compact list schemas, counts and aggregates keep results actionable.
 - Empty and incomplete results are disclosed explicitly.
 - `--fields`, `--limit` and `--full` control output where supported by the command.
 - Errors use structured TOON with a code and available recovery hints.
 - Writes require profile permission and subscription scope; permitted writes preview before execution.
-
-The [benchmark method](BENCHMARK.md) compares complete CLI output with REST JSON using offline replay of owner-made captures.
-It also documents skill and help token measurements, privacy constraints and measurement limitations.
-Live scenario results remain unfilled until owner captures exist; no fixed token-saving percentage is claimed here.
 
 ## Quick Start
 
@@ -497,38 +492,13 @@ The Microsoft Azure CLI and its existing `~/.azure` login remain the ambient cre
 The `storage`, `vault` and `registry` audiences apply only to their native metadata commands, not `api --resource`.
 For TLS trust failures (`TLS_ERROR`), provide your organization's root CA through `NODE_EXTRA_CA_CERTS` and re-run `doctor`.
 
-## Development & Testing
+## Contributing and Security
 
-From a source checkout, use the pnpm version declared in `package.json`:
-
-```sh
-git clone https://github.com/knowttl/az-axi.git
-cd az-axi
-pnpm install --frozen-lockfile
-pnpm run build
-pnpm run typecheck
-pnpm test
-node dist/bin/az-axi.js --help
-```
-
-`typecheck` is the TypeScript no-emit check; no separate style linter is configured.
-Tests use offline fakes rather than a real Azure tenant.
-The packaged skill is generated from [src/lib/skill.ts](src/lib/skill.ts) and the leaf registry; use `pnpm skill:generate` to regenerate it and `pnpm skill:check` to check drift.
-`pnpm catalogue:generate` and `pnpm catalogue:check` maintain the pinned read catalogue from reviewed source snapshots without Azure access.
-New passthrough commands require explicit provenance and code review; catalogue generation never discovers or promotes commands dynamically.
-
-Use `pnpm bench` for offline capture replay and `pnpm bench:surface` for skill/help token counts after building.
-The benchmark harness and source scripts are not packaged with the CLI.
-Only the owner runs `pnpm bench:capture` or [live smoke checks](scripts/live-smoke.mjs); agents and CI must not run them.
-Live write smoke checks modify sandbox tags and leave the test tag in place; the optional storage-account deletion check is destructive and requires an owner-created throwaway target.
-Benchmark targets and captures must remain local and gitignored; never commit or upload recordings, even scrubbed.
-Follow [BENCHMARK.md](BENCHMARK.md) for strict scrubbing and leak checks before any fixture is written.
-
-### <a id="releases"></a>Releases
-
-Conventional commits on `main` produce a release-please PR with the version and `CHANGELOG.md` changes.
-Merging a release PR creates its tag and GitHub release, then builds, typechecks, and tests that tag and publishes it to npm with OIDC provenance unless the version is already published.
-`release-please` owns the changelog and GitHub release notes; `scripts/release-notes.mjs` remains available to extract a version's changelog section locally (`node scripts/release-notes.mjs v0.2.0`).
+Changes are validated locally with build, TypeScript checks, offline tests and a generated-skill drift check.
+GitHub test CI is not required by the local validation gate; no current CI status is claimed here.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development, benchmark, live-smoke and release procedures, and [SECURITY.md](SECURITY.md) for vulnerability reporting.
+Current behavior is documented above and in command help, including session hooks, Key Vault metadata reads and Sentinel incident management.
+Historical design and benchmark notes are preserved on [archive/internal-docs](https://github.com/knowttl/az-axi/tree/archive/internal-docs) and do not define the supported surface.
 
 ## License
 

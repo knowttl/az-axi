@@ -8,7 +8,7 @@ import { countTokens } from "./tokens.mjs";
 import { scrub } from "./scrub.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-if (process.argv.length !== 2) throw new Error("Usage: pnpm bench (see BENCHMARK.md)");
+if (process.argv.length !== 2) throw new Error("Usage: pnpm bench (see CONTRIBUTING.md#benchmarks)");
 const replayScenarios = scenarios.filter((scenario) => {
   if (scenario.ownerTarget && !existsSync(new URL(`../../benchmark/fixtures/${scenario.name}.json`, import.meta.url))) {
     process.stderr.write(`Skipped ${scenario.name}: optional capture is absent\n`);

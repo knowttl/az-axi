@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { scenarios } from "../../benchmark/scenarios.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-if (process.argv.length !== 2) throw new Error("Usage: pnpm bench:capture (owner only; see BENCHMARK.md)");
+if (process.argv.length !== 2) throw new Error("Usage: pnpm bench:capture (owner only; see CONTRIBUTING.md#benchmarks)");
 const targets = JSON.parse(readFileSync(new URL("../../benchmark/targets.json", import.meta.url), "utf8"));
 for (const name of ["profile", "subscription", "workspace"]) {
   if (typeof targets[name] !== "string" || !targets[name].trim()) throw new Error(`targets.json requires ${name}`);

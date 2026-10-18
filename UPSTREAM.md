@@ -3,7 +3,7 @@
 Vendored from ado-axi (https://github.com/jeffreyhaen/ado-axi) at commit `1a381cbbafc5b9127e1381fbd2c404f591ada881`.
 
 Update the row of a file in the same commit that changes it.
-`NOTICE.md` carries the upstream MIT notice.
+[NOTICE.md](NOTICE.md) carries the upstream MIT notice.
 
 ## Vendored source files
 
@@ -30,11 +30,12 @@ Update the row of a file in the same commit that changes it.
 | `.github/workflows/ci.yml` | `.github/workflows/ci.yml` | smoke test runs `dist/bin/az-axi.js` |
 | `scripts/release-notes.mjs` | `scripts/release-notes.mjs` | Also recognizes unlinked release-please version headings |
 | `test/release-notes.test.ts` | `test/release-notes.test.ts` | Coverage for unlinked release-please version headings |
-| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`, including the hosted credential profile schema; no-emit `typecheck` script; read-catalogue maintenance scripts (see [README.md](README.md#pinned-azure-cli-read-catalogue)); skill generation and drift-check scripts (see [README.md](README.md#use)), YAML parser for skill frontmatter tests; benchmark scripts adapted for Azure (see [BENCHMARK.md](BENCHMARK.md)) |
+| `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`, including the hosted credential profile schema; no-emit `typecheck` and `lint` scripts; read-catalogue maintenance scripts (see [README.md](README.md#pinned-azure-cli-read-catalogue)); skill generation and drift-check scripts (see [README.md](README.md#use)), YAML parser for skill frontmatter tests; benchmark scripts adapted for Azure (see [CONTRIBUTING.md](CONTRIBUTING.md#benchmarks)) |
 
-The copied `.github/workflows/release.yml` was replaced by the local release workflow described in [README.md#releases](README.md#releases).
+The copied `.github/workflows/release.yml` was replaced by the local release workflow described in [CONTRIBUTING.md](CONTRIBUTING.md#releases).
 
 ## Patterns reimplemented, not vendored
 
 `src/bin/az-axi.ts`, `src/help.ts` and `src/commands/*.ts` follow the structure of their ado-axi counterparts and are written for az-axi.
-The write-framework hooks (`policy.ts`, `gates.ts`, `registry.ts`, `redact.ts`) and `version.ts` have no ado-axi counterpart.
+The local write-framework modules (`policy.ts`, `gates.ts`, `registry.ts`, `redact.ts`) define Azure request classification, command effects, write gates and secret redaction.
+Shared CLI infrastructure comes from `axi-sdk-js`; [src/lib/version.ts](src/lib/version.ts) reads the package version locally.
