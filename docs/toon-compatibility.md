@@ -2,7 +2,7 @@
 
 This review covers the dependency update in https://github.com/knowttl/az-axi/pull/89.
 It uses synthetic data and offline service fakes only.
-The dependency commit is reused from that pull request on main at `c3d48c5`.
+The dependency commit is reused from that pull request on main at `4838a04`.
 
 ## Retained corpus and method
 
