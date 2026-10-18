@@ -74,7 +74,7 @@ help[1]: Run \`az-axi\` for the live dashboard
 exports[`TOON output compatibility > renders hook usage error 1`] = `
 "error: unknown flag --no-such-flag for \`hook\`
 code: UNKNOWN_FLAG
-help[2]: "Valid flags for \`hook\`: --profile, --tenant, --subscription, --management-group, --config, --help, --full, --fields, --limit",Run \`az-axi-hook\` with no arguments for the session summary
+help[2]: "Valid flags for \`hook\`: --profile, --tenant, --subscription, --management-group, --config",Run \`az-axi-hook\` with no arguments for the session summary
 "
 `;
 

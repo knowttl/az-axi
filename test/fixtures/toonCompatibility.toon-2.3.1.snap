@@ -1,0 +1,122 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TOON output compatibility > renders CLI empty list 1`] = `
+"profile: demo
+subscriptions: 0 subscriptions found visible to this identity
+help[1]: Run \`az login\` (or \`az login --tenant <tenant-id>\`) and check the signed-in account with \`az-axi doctor\`
+"
+`;
+
+exports[`TOON output compatibility > renders CLI nested redaction 1`] = `
+"status: 200
+properties:
+  message: "first\\nsecond"
+  password: ***redacted***
+values: []
+"
+`;
+
+exports[`TOON output compatibility > renders CLI service error 1`] = `
+"error: not authorized for arm (profile 'demo')
+code: AUTH_REQUIRED
+help[4]: "The token in $AZ_AXI_ARM_TOKEN is missing, expired, or for the wrong audience (needs https://management.azure.com/)",Run \`az-axi doctor\` to verify authentication for this profile,"error code: InvalidAuthenticationToken","requestId: synthetic-request"
+"
+`;
+
+exports[`TOON output compatibility > renders CLI table 1`] = `
+"profile: demo
+count: 1 subscriptions
+subscriptions[1]{name,id,state,inScope}:
+  "Sandbox, demo",00000000-0000-0000-0000-000000000001,Enabled,yes
+"
+`;
+
+exports[`TOON output compatibility > renders CLI usage error 1`] = `
+"error: unknown command \`no-such-command\`
+code: VALIDATION_ERROR
+help[2]: Run \`az-axi --help\` for the full command surface,Run \`az-axi\` with no arguments for the dashboard
+"
+`;
+
+exports[`TOON output compatibility > renders empty arrays 1`] = `
+"resources: []
+nested:
+  values: []
+mixed[2]:
+  - [0]:
+  -
+"
+`;
+
+exports[`TOON output compatibility > renders error envelope 1`] = `
+"error: "request failed: \\"retry\\"\\nnext line"
+code: VALIDATION_ERROR
+help[2]: Run \`az-axi sub list\`,"first\\nsecond"
+"
+`;
+
+exports[`TOON output compatibility > renders escaping 1`] = `
+"values[13]: "a,b","say \\"hello\\"","C:\\\\demo","a:b","[item]","true","001",""," leading","trailing ",# comment,"---","﻿start"
+"key:colon": value
+key.dot: literal
+"
+`;
+
+exports[`TOON output compatibility > renders hook summary 1`] = `
+"profile: demo
+scope: for 1 subscription
+writes: disabled (AZ_AXI_READ_ONLY)
+version: <version>
+help[1]: Run \`az-axi\` for the live dashboard
+"
+`;
+
+exports[`TOON output compatibility > renders hook usage error 1`] = `
+"error: unknown flag --no-such-flag for \`hook\`
+code: UNKNOWN_FLAG
+help[2]: "Valid flags for \`hook\`: --profile, --tenant, --subscription, --management-group, --config, --help, --full, --fields, --limit",Run \`az-axi-hook\` with no arguments for the session summary
+"
+`;
+
+exports[`TOON output compatibility > renders multiline 1`] = `
+"message: "line one\\nline two\\r\\nlast\\tcolumn"
+rows[2]{name,body}:
+  first,"a\\nb"
+  second,"c\\td"
+"
+`;
+
+exports[`TOON output compatibility > renders nested records 1`] = `
+"resource:
+  name: vm-demo
+  properties:
+    enabled: true
+    tags:
+      env: test
+rows[2]:
+  - name: a
+    nested:
+      count: 2
+  - name: b
+    nested:
+      count: 0
+"
+`;
+
+exports[`TOON output compatibility > renders redaction 1`] = `
+"password: ***redacted***
+nested:
+  connectionString: ***redacted***
+  url: ***redacted***
+keys[1]{keyName,value}:
+  primary,***redacted***
+name: visible
+"
+`;
+
+exports[`TOON output compatibility > renders table 1`] = `
+"resources[2]{name,state,count}:
+  vm-demo,running,1
+  vm-other,stopped,0
+"
+`;
