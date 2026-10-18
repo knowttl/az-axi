@@ -56,7 +56,7 @@ help[2]: Run \`az-axi sub list\`,"first\\nsecond"
 `;
 
 exports[`TOON output compatibility > renders escaping 1`] = `
-"values[13]: "a,b","say \\"hello\\"","C:\\\\demo","a:b","[item]","true","001",""," leading","trailing ",# comment,"---","﻿start"
+"values[13]: "a,b","say \\"hello\\"","C:\\\\demo","a:b","[item]","true","001",""," leading","trailing ","# comment","---",﻿start
 "key:colon": value
 key.dot: literal
 "
@@ -93,13 +93,9 @@ exports[`TOON output compatibility > renders nested records 1`] = `
     enabled: true
     tags:
       env: test
-rows[2]:
-  - name: a
-    nested:
-      count: 2
-  - name: b
-    nested:
-      count: 0
+rows[2]{name,nested{count}}:
+  a,2
+  b,0
 "
 `;
 

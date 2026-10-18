@@ -170,6 +170,8 @@ Paging hints preserve body-file paths; for stdin input, replace the hint's `<bod
 
 ### <a id="behavior"></a>TOON output behavior
 
+The [TOON dependency compatibility review](docs/toon-compatibility.md) records the synthetic output corpus, exact format changes and CLI/hook rendering boundaries for the 4.4.0 update.
+
 | Control | Behavior |
 | --- | --- |
 | `--fields a,b` | Selects fields supported by that leaf; typed metadata views reject arbitrary provider properties |

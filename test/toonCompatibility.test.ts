@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { encode } from "@toon-format/toon";
+import { decode, encode } from "@toon-format/toon";
 import { describe, expect, it } from "vitest";
 import { redact } from "../src/lib/redact.js";
 import { packageInfo } from "../src/lib/version.js";
@@ -21,6 +21,10 @@ const corpus = [
 describe("TOON output compatibility", () => {
   it.each(corpus)("renders %s", (_name, value) => {
     expect(`${encode(redact(value))}\n`).toMatchSnapshot();
+  });
+
+  it.each(corpus)("preserves the redacted data in %s", (_name, value) => {
+    expect(decode(encode(redact(value)))).toEqual(redact(value));
   });
 
   it.each([
