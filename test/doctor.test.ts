@@ -175,7 +175,9 @@ describe("doctor", () => {
       if (resource === "graph") throw new AxiError("no graph token", "AUTH_REQUIRED", ["Set $AZ_AXI_GRAPH_TOKEN"]);
       return { header: "Bearer x", mode: "az" };
     });
-    expect((await rows())[0]?.status).toBe("ok (graph token unavailable)");
+    const result = await run([]);
+    expect(result.status).toBe("ok");
+    expect((result.profiles as Array<Record<string, unknown>>)[0]?.status).toBe("ok (graph token unavailable)");
   });
 
   it("flags a TLS failure when ARM is unreachable", async () => {

@@ -190,6 +190,9 @@ Unknown flags, short clusters, abbreviations and missing values fail before requ
 
 Structured errors appear on stdout with `error`, `code` and available `help` suggestions.
 Exit 0 means the command succeeded, exit 2 covers usage and access errors, and exit 1 covers other failures.
+`AUTH_REQUIRED` intentionally remains exit 2 for compatibility, including missing authentication.
+`doctor` prints every selected profile and exits 1 if any profile has a required check failure or cannot be resolved; healthy profiles and optional Graph-token failures exit 0.
+Unknown flags list valid flags or a targeted replacement; other argument errors give a concise remedy, with full leaf help available through `--help`.
 Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, `WRITES_DISABLED`, `PRECONDITION_FAILED`, `OPERATION_TIMEOUT`, `UNKNOWN_OUTCOME`, `PROVIDER_NOT_REGISTERED` and `API_ERROR`.
 `WRITES_DISABLED` identifies either the forced `AZ_AXI_READ_ONLY` override or the profile write opt-in in its message.
 `READ_ONLY` blocks credential-returning actions; `PROVIDER_NOT_REGISTERED` asks the subscription owner to register the provider namespace named by Azure.

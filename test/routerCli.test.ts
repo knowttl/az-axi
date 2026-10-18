@@ -16,7 +16,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  function run(args: string[], input = "", graphPage: Record<string, unknown> = resourceGraphPage) {
+  function run(args: string[], input = "", graphPage: Record<string, unknown> = resourceGraphPage, transportError = "") {
     const payloads = { activityEvents, defenderAlerts, defenderScores, graphNames, logsResponse, rbacAssignments, resourceGraphPage: graphPage, subscriptionList };
     const stub = `
       const data = ${JSON.stringify(payloads)};
@@ -26,6 +26,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
         static now() { return RealDate.parse('2026-10-03T12:00:00Z'); }
       };
       globalThis.fetch = async (url, options) => {
+        if (${JSON.stringify(transportError)}) throw new Error(${JSON.stringify(transportError)});
         const body = options.body ? JSON.parse(options.body) : undefined;
         process.stderr.write(JSON.stringify({url, method: options.method, body}) + '\\n');
         const query = body?.query || '';
@@ -44,6 +45,7 @@ describe("built CLI exact-leaf routing with fake transport", () => {
       encoding: "utf8", input, env: {
         ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "ci",
         AZ_AXI_ARM_TOKEN: "router-token", AZ_AXI_GRAPH_TOKEN: "router-token", AZ_AXI_LOGS_TOKEN: "router-token",
+        AZ_AXI_TEST_MISSING_TOKEN: "",
         AZ_AXI_SUBSCRIPTION: "", AZ_AXI_READ_ONLY: "1",
       },
     });
@@ -234,6 +236,60 @@ describe("built CLI exact-leaf routing with fake transport", () => {
     const result = run(["config", "init", "-n", "added", "--auth", "token"]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("added");
+    expect(result.stderr).toBe("");
+  });
+
+  it("returns exit 1 while preserving the full doctor report when one profile fails", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
+      ci: { auth: "token" },
+      broken: { auth: "token", armToken: { env: "AZ_AXI_TEST_MISSING_TOKEN" } },
+    } }));
+    const result = run(["doctor"]);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("ci,token");
+    expect(result.stdout).toContain("broken,token");
+    expect(result.stdout).toContain("failed: arm token");
+  });
+
+  it("returns exit 0 when all doctor profiles are healthy", () => {
+    const result = run(["doctor"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("ci,token");
+    expect(result.stdout).not.toContain("failed:");
+  });
+
+  it("returns exit 1 when the selected doctor profile cannot be resolved", () => {
+    const result = run(["doctor", "--profile", "missing"]);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("invalid:");
+    expect(result.stderr).toBe("");
+  });
+
+  it("keeps missing authentication at exit 2", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
+      ci: { auth: "token", armToken: { env: "AZ_AXI_TEST_MISSING_TOKEN" } },
+    } }));
+    const result = run(["sub", "list"]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("code: AUTH_REQUIRED");
+    expect(result.stderr).toBe("");
+  });
+
+  it("returns exit 1 with redacted structured output for a transport failure", () => {
+    const result = run(["sub", "list"], "", resourceGraphPage, "AccountKey=synthetic-runtime-secret");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("code:");
+    expect(result.stdout).not.toContain("synthetic-runtime-secret");
+    expect(result.stderr).toBe("");
+  });
+
+  it("keeps unknown-flag guidance concise and specific to the leaf", () => {
+    const result = run(["security", "alert", "list", "--bogus"]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("Valid flags for `security alert list`:");
+    expect(result.stdout).toContain("--severity");
+    expect(result.stdout).not.toContain("Examples:");
+    expect(result.stdout.split("\n").length).toBeLessThan(10);
     expect(result.stderr).toBe("");
   });
 

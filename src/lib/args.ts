@@ -30,14 +30,17 @@ export function parseLeafArgs(argv: readonly string[], schema: FlagSchema, comma
     }
     const [raw, ...inline] = arg.replace(/^--?/, "").split("=");
     if (!arg.startsWith("--") && !Object.hasOwn(SHORT_FLAGS, raw!)) {
-      throw new AxiError(`unknown or ambiguous short flag ${arg} for \`${command}\``, "UNKNOWN_FLAG", [help]);
+      throw new AxiError(`unknown or ambiguous short flag ${arg} for \`${command}\``, "UNKNOWN_FLAG", [validFlags(Object.keys(schema), command), help]);
     }
     const expanded = arg.startsWith("--") ? raw! : Object.hasOwn(SHORT_FLAGS, raw!) ? SHORT_FLAGS[raw!]! : raw!;
     const name = Object.hasOwn(aliases, expanded) ? aliases[expanded]! : expanded;
     const kind = Object.hasOwn(schema, name) ? schema[name] : undefined;
     if (!kind) {
-      assertKnownFlags({ flags: { [name]: true }, positionals: [] }, Object.keys(schema), command, help);
-      throw new AxiError(`unknown flag ${arg} for \`${command}\``, "UNKNOWN_FLAG", [help]);
+      const replacement = RENAMED[name];
+      throw new AxiError(`unknown flag ${arg} for \`${command}\``, "UNKNOWN_FLAG", [
+        replacement ? `--${name} is not a flag here; use --${replacement} instead` : validFlags(Object.keys(schema), command),
+        help,
+      ]);
     }
     let value: string | boolean | string[];
     if (kind === "boolean") {
@@ -178,6 +181,10 @@ const RENAMED: Record<string, string> = {
   ws: "workspace",
 };
 
+function validFlags(known: readonly string[], command: string): string {
+  return `Valid flags for \`${command}\`: ${known.map((key) => `--${key}`).join(", ")}`;
+}
+
 export function assertKnownFlags(
   args: ParsedArgs,
   known: readonly string[],
@@ -190,7 +197,7 @@ export function assertKnownFlags(
     const replacement = RENAMED[key];
     const suggestions = replacement
       ? [`--${key} is not a flag here; use --${replacement} instead`]
-      : [`Valid flags for \`${commandName}\`: ${[...knownSet].map((k) => `--${k}`).join(", ")}`];
+      : [validFlags([...knownSet], commandName)];
     if (helpText) suggestions.push(helpText);
     throw new AxiError(`unknown flag --${key} for \`${commandName}\``, "UNKNOWN_FLAG", suggestions);
   }

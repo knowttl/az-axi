@@ -7,13 +7,8 @@ import { assertOperationUrl, operationUrls, opStatusCommand, pollOperation } fro
 import { shortenResourceId } from "./scope.js";
 import { quoteFlagValue } from "./shell.js";
 import { appendWriteLog } from "./writeLog.js";
-
-/** Structured write outcome carried alongside the standard error contract. */
-export class WriteExecutionError extends AxiError {
-  constructor(error: AxiError, readonly output: Record<string, unknown>, help: string[]) {
-    super(error.message, error.code, [...error.suggestions, ...help]);
-  }
-}
+import { WriteExecutionError } from "./errors.js";
+export { WriteExecutionError } from "./errors.js";
 
 /** Execute only after gates 1-5 pass; the client repeats them before sending. */
 export async function executeWrite(options: {
