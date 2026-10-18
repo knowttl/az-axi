@@ -52,6 +52,32 @@ describe("built CLI sentinel incident reads offline", () => {
   }
   const selectors = ["--resource-group", "rg-demo", "--workspace-name", "logs-demo"];
 
+  it("preserves fetch flags when suggesting --full", () => {
+    const result = run(["sentinel", "incident", "list", ...selectors, "--all", "--max-rows", "2000", "--limit", "1"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ help: expect.arrayContaining([expect.stringContaining("--all true --max-rows 2000 --full")]) });
+  });
+
+  it("keeps fetch-truncated incidents partial with --all and --full", () => {
+    const result = run(["sentinel", "incident", "list", ...selectors, "--all", "--max-rows", "1", "--limit", "1", "--full"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ total: "1+", rows: [expect.objectContaining({ number: 3177 })],
+      help: expect.arrayContaining([expect.stringContaining("lower bounds")]) });
+  });
+
+  it("does not claim an empty filtered search is complete at the row budget", () => {
+    const result = run(["sentinel", "incident", "list", ...selectors, "--max-rows", "1", "--owner", "no-matching-owner"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ total: "0+", rows: expect.stringContaining("search is incomplete") });
+  });
+
+  it.each(["--max-rows=0", "--max-rows=100001", "--all=invalid"])("rejects %s before transport", (flag) => {
+    const result = run(["sentinel", "incident", "list", ...selectors, flag]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("VALIDATION_ERROR");
+    expect(result.stderr).not.toContain("url");
+  });
+
   it("lists incidents and shows one by GUID, number and ARM ID", () => {
     const list = run(["sentinel", "incident", "list", ...selectors]);
     expect(list.status, list.stdout).toBe(0);

@@ -178,9 +178,12 @@ The [TOON dependency compatibility review](docs/toon-compatibility.md) records t
 | `--limit N` | Caps displayed rows; most inspection lists default to 50 |
 | `--full` | Expands shortened values and usually removes display limits; Graph retains its page cap, while logs and `api` honor `--limit` |
 | `api --all` | Follows ARM `nextLink` for up to 10 pages; `api` has no default display row cap |
+| Compute (`vm`, `vmss`, `disk`) and Sentinel incident/rule/connector lists | Fetch at most 1,000 rows per subscription by default; `--all` raises this to 10,000; `--max-rows N` overrides either budget (1 to 100,000). Every walk stops at 100 pages. `--limit` and `--full` affect display only and never bypass fetch budgets. |
 
 Metadata data-plane commands retain their safe projections and bounds even with `--full`.
 Counts disclose incomplete pagination as lower bounds; an incomplete empty result does not prove that no matching objects exist.
+Compute and Sentinel fetch budgets count rows before local filters; each selected subscription receives its own budget.
+When a budget is reached, narrow the scope or increase `--max-rows`; rerunning with `--full` only expands the fetched data.
 Use leaf help for supported fields and paging limits.
 
 Command paths must be complete and contiguous.

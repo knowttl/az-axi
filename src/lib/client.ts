@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { NativeListBudget } from "./nativePaging.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { AxiError } from "axi-sdk-js";
 import { resolveCredential } from "./auth.js";
@@ -251,23 +252,30 @@ export async function requestList<T>(profile: ResolvedProfile, options: RequestO
 }
 
 /**
- * Follows `nextLink` for up to `maxPages` pages. `nextLink` is set on the result when
- * the cap stopped paging early, so callers can say the list is incomplete.
+ * Follows nextLink within a page cap and, for native lists, a row budget.
+ * Incomplete results may expose a nextLink only after consuming the entire page.
  */
 export async function requestAll<T>(
   profile: ResolvedProfile,
   options: RequestOptions,
-  maxPages = DEFAULT_MAX_PAGES,
-): Promise<{ items: T[]; nextLink?: string }> {
+  budget: number | NativeListBudget = DEFAULT_MAX_PAGES,
+): Promise<{ items: T[]; nextLink?: string; incomplete?: boolean }> {
+  const maxPages = typeof budget === "number" ? budget : budget.maxPages;
+  const maxRows = typeof budget === "number" ? Infinity : budget.maxRows;
   const items: T[] = [];
   let page = options;
   for (let i = 0; i < maxPages; i++) {
     const body = await request<ListResponse<T>>(profile, page);
-    items.push(...(body?.value ?? []));
+    const rows = body?.value ?? [];
+    const remaining = maxRows - items.length;
+    items.push(...rows.slice(0, remaining));
+    // A next-page link would skip the unconsumed tail of this page.
+    if (rows.length > remaining) return { items, incomplete: true };
     if (!body?.nextLink) return { items };
     page = { method: options.method, resource: options.resource, path: body.nextLink };
+    if (items.length === maxRows) return { items, nextLink: page.path, incomplete: true };
   }
-  return { items, nextLink: page.path };
+  return { items, nextLink: page.path, ...(typeof budget === "number" ? {} : { incomplete: true }) };
 }
 
 function parseBody(text: string): unknown {

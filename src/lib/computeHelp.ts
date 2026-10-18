@@ -1,3 +1,5 @@
+import { NATIVE_LIST_HELP } from "./nativePaging.js";
+
 const SELECTORS: Record<string, string> = {
   "vm list": "--resource-group / -g scopes the list; --name / -n filters one exact VM name.",
   "vm show": "--name / -n with --resource-group / -g in one subscription, or --ids <vm-ARM-id> alone.",
@@ -37,7 +39,8 @@ export function computeLeafHelp(path: string): string {
     `Command: az-axi ${path}`,
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only ARM GETs against Microsoft.Compute: virtual machines and scale sets use api-version 2024-11-01; managed disks use api-version 2024-03-02. VM/VMSS/disk actions (start, stop, restart, deallocate, grant-access) and image, snapshot, restore-point, gallery and host resources stay out of scope.",
-    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. Lists follow up to 100 pages per subscription and disclose incomplete counts as lower bounds.",
+    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering.",
+    ...(show ? [] : [NATIVE_LIST_HELP]),
     "Show by name needs exactly one subscription; --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when no scope is configured. --management-group scope is unsupported; select subscriptions explicitly.",
     DETAIL[path] ?? "",
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, zones, provisioning state) and shows every fetched row. No view returns secrets, keys, passwords, custom data, user data, SAS URIs or credential fields.",

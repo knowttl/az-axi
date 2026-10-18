@@ -12,6 +12,7 @@ import { securityReadLeafHelp } from "./securityHelp.js";
 import { parseSubscriptionId, shortenResourceId } from "./scope.js";
 import { formatFlagValue } from "./shell.js";
 import { redact } from "./redact.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "./nativePaging.js";
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 1000;
@@ -108,13 +109,13 @@ export function strArr(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
 
-async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOptions[]): Promise<FetchedPage> {
+async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOptions[], budget?: NativeListBudget): Promise<FetchedPage> {
   const items: GovernanceItem[] = [];
   let incomplete = false;
   for (const target of targets) {
-    const page = await requestAll<GovernanceItem>(profile, target, LIST_MAX_PAGES);
+    const page = await requestAll<GovernanceItem>(profile, target, budget ?? LIST_MAX_PAGES);
     items.push(...page.items);
-    incomplete ||= !!page.nextLink;
+    incomplete ||= !!page.nextLink || !!page.incomplete;
   }
   const unique = new Map<string, GovernanceItem>();
   for (const item of items) {
@@ -163,14 +164,17 @@ export async function runGovernanceList(
     governanceInvalid(`${path} --fields supports only: ${collection.fields.join(", ")}`, path);
   }
   const limit = governanceLimit(args, path);
+  const budget = ["vm", "vmss", "disk"].includes(collection.top) ? nativeListBudget(args) : undefined;
   const groupFlag = flagText(args, "resource-group");
   const group = groupFlag ? governanceSegment(groupFlag, "resource-group", path) : undefined;
   const name = flagText(args, "name");
   const subs = await subscriptions(profile);
-  const suffix = selectorSuffix(args);
-  const fetch = collection.fetchTargets ?? defaultFetchTargets;
+  const suffix = selectorSuffix(args) + (budget ? nativeListFetchFlags(args) : "");
   const targets = subs.flatMap((sub) => collection.listTargets(sub, group, path));
-  const fetched = redact(await fetch(profile, targets));
+  const fetched = redact(await (collection.fetchTargets
+    ? collection.fetchTargets(profile, targets)
+    : defaultFetchTargets(profile, targets, budget)));
+  const incompleteHelp = budget ? NATIVE_LIST_INCOMPLETE : "More pages exist; paging stopped early. Counts are lower bounds. Narrow the subscription or resource-group scope.";
   const kept = fetched.items.filter((item) => {
     const keepName = !name ||
       (collection.matchName ? collection.matchName(item, name) : item.name.toLowerCase() === name.toLowerCase());
@@ -189,7 +193,7 @@ export async function runGovernanceList(
       rows: emptyState(collection.noun, fetched.incomplete ? `${context} in fetched pages; listing is incomplete` : context),
       help: [
         `Run \`az-axi ${path}${suffix} --full\` to show every fetched row`,
-        ...(fetched.incomplete ? ["More pages exist; paging stopped early. Counts are lower bounds. Narrow the subscription or resource-group scope."] : []),
+        ...(fetched.incomplete ? [incompleteHelp] : []),
       ],
     };
   }
@@ -208,7 +212,7 @@ export async function runGovernanceList(
     help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
   }
   if (fetched.incomplete) {
-    help.push("More pages exist; paging stopped early. Counts are lower bounds. Narrow the subscription or resource-group scope.");
+    help.push(incompleteHelp);
   }
   return {
     profile: profile.name,

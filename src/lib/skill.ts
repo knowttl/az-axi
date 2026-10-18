@@ -80,6 +80,7 @@ export function skillBody(): string {
     "## Reads",
     "",
     "- Discovery lists default to 50 compact rows with full IDs, counts and explicit empty states. `--fields a,b` selects columns, `--full` expands truncated content and shows every fetched row, `--limit N` caps rows.",
+    "- Compute and Sentinel incident/rule/connector lists fetch 1,000 rows per subscription by default, 10,000 with `--all`, or 1 to 100,000 with `--max-rows N`, always within 100 pages. These budgets apply before local filters. `--limit` and `--full` control display only; incomplete totals are lower bounds.",
     `- Resource Graph: \`${npx} rg query --file query.kql\` (or piped stdin); without \`--full\`, \`--limit\` maps to \`$top\` (default 50, maximum 1000). When a skip token is returned, \`help[]\` carries the exact command for the next page.`,
     `- Log Analytics: \`${npx} logs query --file hunt.kql --workspace sentinel\`; \`--workspace\` takes a profile alias or workspace GUID, \`--timespan\` defaults to \`P1D\`.`,
     "- Query input differs by path: `graph query --graph-query <kql>` (or `-q`) and `monitor log-analytics query --analytics-query <kql>` require flags; `rg query \"<kql>\"` and `logs query \"<kql>\"` accept positional KQL.",

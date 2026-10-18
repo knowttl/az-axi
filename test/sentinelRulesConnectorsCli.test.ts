@@ -12,6 +12,14 @@ const RULE_B = sentinelAlertRules[1]!;
 const CONNECTOR_A = sentinelDataConnectors[0]!;
 
 describe("built CLI sentinel alert-rule and data-connector reads offline", () => {
+  it.each(["alert-rule", "data-connector"])("bounds %s fetching with --all and --full", (collection) => {
+    const result = run(["sentinel", collection, "list", "--resource-group", "rg-demo", "--workspace-name", "logs-demo",
+      "--all", "--max-rows", "1", "--limit", "1", "--full"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ total: "1+", rows: [expect.anything()],
+      help: expect.arrayContaining([expect.stringContaining("lower bounds")]) });
+  });
+
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-sentinel-4c-cli-"));

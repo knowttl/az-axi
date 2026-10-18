@@ -12,6 +12,15 @@ import {
 } from "./samples.js";
 
 describe("built CLI compute reads offline", () => {
+  it.each(["vm", "vmss", "disk"])("enforces %s fetch budgets even with --full", (command) => {
+    const result = run([command, "list", "--max-rows", "1", "--limit", "1", "--full"]);
+    expect(result.status).toBe(0);
+    const output = decode(result.stdout) as Record<string, unknown>;
+    expect(output.total).toBe("1+");
+    expect(output.rows).toHaveLength(1);
+    expect(output.help).toEqual(expect.arrayContaining([expect.stringContaining("lower bounds")]));
+  });
+
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "az-axi-compute-cli-"));

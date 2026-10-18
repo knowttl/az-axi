@@ -16,6 +16,7 @@ import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
 import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("sentinel");
 
@@ -280,6 +281,7 @@ function selectorSuffix(args: ReturnType<typeof parseArgs>, subscription: string
 }
 
 async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const budget = nativeListBudget(args);
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (fields?.some((field) => !FIELD_ALLOWLIST.includes(field))) {
@@ -311,7 +313,8 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 
   const page = await requestAll<Incident>(profile,
-    { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS });
+    { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS }, budget);
+  const incomplete = !!page.nextLink || !!page.incomplete;
   let collected = page.items.filter((incident) => {
     const properties = incident.properties ?? {};
     if (statuses?.length && !statuses.includes((properties.status ?? "").toLowerCase())) return false;
@@ -328,13 +331,13 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     return {
       profile: profile.name,
       workspace: target.workspaceName,
-      total: page.nextLink ? "0+" : 0,
+      total: incomplete ? "0+" : 0,
       count: countLine(0, 0, "incidents"),
-      rows: emptyState("incidents", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
+      rows: emptyState("incidents", incomplete ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
         `Widen the window: \`az-axi sentinel incident list${suffix}${filterSuffix} --since 30d\``,
         `Drop a filter: \`az-axi sentinel incident list${suffix}\``,
-        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --status, --severity, --owner or --since."] : []),
+        ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
       ],
     };
   }
@@ -358,15 +361,15 @@ async function runList(profile: ResolvedProfile, args: ReturnType<typeof parseAr
     `Run \`az-axi sentinel incident show ${firstSelector}${suffix}\` for the newest incident in detail`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel incident list${suffix}${filterSuffix}${sinceRaw ? ` ${formatFlagValue("since", sinceRaw)}` : ""} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi sentinel incident list${suffix}${filterSuffix}${sinceRaw ? ` ${formatFlagValue("since", sinceRaw)}` : ""}${nativeListFetchFlags(args)} --full\` to show every fetched row`);
   }
-  if (page.nextLink) {
-    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds. Narrow with --status, --severity, --owner or --since.");
+  if (incomplete) {
+    help.push(NATIVE_LIST_INCOMPLETE);
   }
   return {
     profile: profile.name,
     workspace: target.workspaceName,
-    total: page.nextLink ? `${collected.length}+` : collected.length,
+    total: incomplete ? `${collected.length}+` : collected.length,
     count: countLine(shown.length, collected.length, "incidents"),
     bySeverity,
     byStatus,
@@ -917,6 +920,7 @@ function enabledLabel(enabled: boolean | undefined): string {
 }
 
 async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const budget = nativeListBudget(args);
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (fields?.some((field) => !RULE_FIELD_ALLOWLIST.includes(field))) {
@@ -929,7 +933,8 @@ async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeo
   const { target, suffix } = await resolveCollectionScope(profile, args, "alert-rule list");
 
   const page = await requestAll<AlertRule>(profile,
-    { method: "GET", path: collectionBase(target, "alertRules"), apiVersion: SENTINEL_ALERT_RULES });
+    { method: "GET", path: collectionBase(target, "alertRules"), apiVersion: SENTINEL_ALERT_RULES }, budget);
+  const incomplete = !!page.nextLink || !!page.incomplete;
   const collected = page.items
     .sort((a, b) => (a.properties?.displayName ?? a.name ?? "").localeCompare(b.properties?.displayName ?? b.name ?? ""));
 
@@ -938,12 +943,12 @@ async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeo
     return {
       profile: profile.name,
       workspace: target.workspaceName,
-      total: page.nextLink ? "0+" : 0,
+      total: incomplete ? "0+" : 0,
       count: countLine(0, 0, "alert rules"),
-      rows: emptyState("alert rules", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
+      rows: emptyState("alert rules", incomplete ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
         `Run \`az-axi sentinel alert-rule show --name <rule-id>${suffix}\` for a rule in detail`,
-        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds."] : []),
+        ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
       ],
     };
   }
@@ -964,15 +969,15 @@ async function runAlertRuleList(profile: ResolvedProfile, args: ReturnType<typeo
     `Run \`az-axi sentinel alert-rule show --name ${first.name ?? ""}${suffix}\` for the first rule in detail`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel alert-rule list${suffix} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi sentinel alert-rule list${suffix}${nativeListFetchFlags(args)} --full\` to show every fetched row`);
   }
-  if (page.nextLink) {
-    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds.");
+  if (incomplete) {
+    help.push(NATIVE_LIST_INCOMPLETE);
   }
   return {
     profile: profile.name,
     workspace: target.workspaceName,
-    total: page.nextLink ? `${collected.length}+` : collected.length,
+    total: incomplete ? `${collected.length}+` : collected.length,
     count: countLine(shown.length, collected.length, "alert rules"),
     byKind,
     byEnabled,
@@ -1059,6 +1064,7 @@ async function runAlertRuleShow(profile: ResolvedProfile, args: ReturnType<typeo
 }
 
 async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const budget = nativeListBudget(args);
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (fields?.some((field) => !CONNECTOR_FIELD_ALLOWLIST.includes(field))) {
@@ -1071,7 +1077,8 @@ async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<t
   const { target, suffix } = await resolveCollectionScope(profile, args, "data-connector list");
 
   const page = await requestAll<DataConnector>(profile,
-    { method: "GET", path: collectionBase(target, "dataConnectors"), apiVersion: SENTINEL_DATA_CONNECTORS });
+    { method: "GET", path: collectionBase(target, "dataConnectors"), apiVersion: SENTINEL_DATA_CONNECTORS }, budget);
+  const incomplete = !!page.nextLink || !!page.incomplete;
   const collected = page.items
     .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
@@ -1080,12 +1087,12 @@ async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<t
     return {
       profile: profile.name,
       workspace: target.workspaceName,
-      total: page.nextLink ? "0+" : 0,
+      total: incomplete ? "0+" : 0,
       count: countLine(0, 0, "data connectors"),
-      rows: emptyState("data connectors", page.nextLink ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
+      rows: emptyState("data connectors", incomplete ? `${scopeHint} in fetched pages; search is incomplete` : scopeHint),
       help: [
         `Run \`az-axi sentinel data-connector show --name <connector-id>${suffix}\` for a connector in detail`,
-        ...(page.nextLink ? ["More pages exist; paging stopped at 10 pages. Counts are lower bounds."] : []),
+        ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
       ],
     };
   }
@@ -1103,15 +1110,15 @@ async function runDataConnectorList(profile: ResolvedProfile, args: ReturnType<t
     `Run \`az-axi sentinel data-connector show --name ${first.name ?? ""}${suffix}\` for the first connector in detail`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel data-connector list${suffix} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi sentinel data-connector list${suffix}${nativeListFetchFlags(args)} --full\` to show every fetched row`);
   }
-  if (page.nextLink) {
-    help.push("More pages exist; paging stopped at 10 pages. Counts are lower bounds.");
+  if (incomplete) {
+    help.push(NATIVE_LIST_INCOMPLETE);
   }
   return {
     profile: profile.name,
     workspace: target.workspaceName,
-    total: page.nextLink ? `${collected.length}+` : collected.length,
+    total: incomplete ? `${collected.length}+` : collected.length,
     count: countLine(shown.length, collected.length, "data connectors"),
     byKind,
     rows: picked,
