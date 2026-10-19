@@ -321,11 +321,11 @@ describe("policy state list", () => {
     expect(filtered).toMatchObject({ total: 1, rows: [expect.objectContaining({ resource: "resource-149" })] });
   });
 
-  it("stops service pagination at the page cap and reports lower bounds", async () => {
+  it("stops service pagination on repeated tokens and reports lower bounds", async () => {
     requestMock.mockResolvedValue(policyStateEnvelope([policyStates[0]], 1,
       "https://management.azure.com/queryResults?$skiptoken=next-page") as never);
-    expect(await runPolicy(["state", "list"])).toMatchObject({ total: "10+", count: "10 of 10+ policy states" });
-    expect(requestMock).toHaveBeenCalledTimes(10);
+    expect(await runPolicy(["state", "list"])).toMatchObject({ total: "2+", count: "2 of 2+ policy states" });
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 
   it.each([

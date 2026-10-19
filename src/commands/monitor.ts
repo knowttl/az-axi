@@ -23,6 +23,7 @@ import { redact } from "../lib/redact.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("monitor");
 
@@ -338,25 +339,26 @@ async function runDiagnosticSettingsList(
     invalid(`${path} --fields supports only: ${SETTING_FIELDS.join(", ")}`, path);
   }
   const limit = limitValue(args, path);
+  const budget = nativeListBudget(args);
   const resource = resourceScope(flagText(args, "resource"), "resource", path);
   const subs = await resourceSubscriptions(profile, resource, path);
   const scopeSuffix = ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
-  const suffix = `${scopeSuffix} ${formatFlagValue("resource", resource)}`;
+  const suffix = `${scopeSuffix} ${formatFlagValue("resource", resource)}${nativeListFetchFlags(args)}`;
   const fetched = redact(await requestAll<DiagnosticSetting>(profile,
-    { method: "GET", path: `${resource}/providers/Microsoft.Insights/diagnosticSettings`, apiVersion: DIAGNOSTIC_SETTINGS }, 100));
+    { method: "GET", path: `${resource}/providers/Microsoft.Insights/diagnosticSettings`, apiVersion: DIAGNOSTIC_SETTINGS }, budget));
   const items = fetched.items;
-  const total = fetched.nextLink ? `${items.length}+` : items.length;
-  const pagingHelp = fetched.nextLink
-    ? ["More pages exist; paging stopped early. Counts are lower bounds. Narrow the target resource."] : [];
+  const total = (fetched.incomplete || fetched.nextLink) ? `${items.length}+` : items.length;
+  const pagingHelp = (fetched.incomplete || fetched.nextLink)
+    ? [NATIVE_LIST_INCOMPLETE] : [];
   const context = scopeLabel(subs.length, resource);
   if (items.length === 0) {
     return {
       profile: profile.name,
       total,
-      count: fetched.nextLink ? `0 of ${total} diagnostic settings` : countLine(0, 0, "diagnostic settings"),
-      rows: emptyState("diagnostic settings", fetched.nextLink ? `${context} in fetched pages; listing is incomplete` : context),
+      count: (fetched.incomplete || fetched.nextLink) ? `0 of ${total} diagnostic settings` : countLine(0, 0, "diagnostic settings"),
+      rows: emptyState("diagnostic settings", (fetched.incomplete || fetched.nextLink) ? `${context} in fetched pages; listing is incomplete` : context),
       help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`, ...pagingHelp],
     };
   }
@@ -373,7 +375,7 @@ async function runDiagnosticSettingsList(
   return {
     profile: profile.name,
     total,
-    count: fetched.nextLink ? `${shown.length} of ${total} diagnostic settings` : countLine(shown.length, items.length, "diagnostic settings"),
+    count: (fetched.incomplete || fetched.nextLink) ? `${shown.length} of ${total} diagnostic settings` : countLine(shown.length, items.length, "diagnostic settings"),
     rows: picked,
     help,
   };
@@ -506,7 +508,11 @@ async function runMetricsList(
   if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
     invalid("management-group scope is unsupported for Monitor reads; select subscriptions explicitly", path);
   }
+  const budget = nativeListBudget(args);
   const metricNames = flagList(args, "metric");
+  if (metricNames?.length && (args.flags.all !== undefined || args.flags["max-rows"] !== undefined)) {
+    invalid("--all and --max-rows apply to metric definitions only; omit --metric to list definitions", path);
+  }
   if (metricNames !== undefined && metricNames.length === 0) invalid("flag --metric needs a non-empty value", path);
   const aggregationNames = flagList(args, "aggregation");
   const aggregations = aggregationNames?.map((name) => {
@@ -530,20 +536,21 @@ async function runMetricsList(
       .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
 
   if (!metricNames?.length) {
+    const fetchSuffix = suffix + nativeListFetchFlags(args);
     const fetched = redact(await requestAll<MetricDefinition>(profile,
-      { method: "GET", path: `${resource}/providers/Microsoft.Insights/metricDefinitions`, apiVersion: MONITOR_METRICS }, 100));
+      { method: "GET", path: `${resource}/providers/Microsoft.Insights/metricDefinitions`, apiVersion: MONITOR_METRICS }, budget));
     const definitions = fetched.items;
-    const total = fetched.nextLink ? `${definitions.length}+` : definitions.length;
-    const pagingHelp = fetched.nextLink
-      ? ["More pages exist; paging stopped early. Counts are lower bounds. Narrow the target resource."] : [];
+    const total = (fetched.incomplete || fetched.nextLink) ? `${definitions.length}+` : definitions.length;
+    const pagingHelp = (fetched.incomplete || fetched.nextLink)
+      ? [NATIVE_LIST_INCOMPLETE] : [];
     const context = scopeLabel(subs.length, resource);
     if (definitions.length === 0) {
       return {
         profile: profile.name,
         total,
-        count: fetched.nextLink ? `0 of ${total} metric definitions` : countLine(0, 0, "metric definitions"),
-        rows: emptyState("metric definitions", fetched.nextLink ? `${context} in fetched pages; listing is incomplete` : context),
-        help: [`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`, ...pagingHelp],
+        count: (fetched.incomplete || fetched.nextLink) ? `0 of ${total} metric definitions` : countLine(0, 0, "metric definitions"),
+        rows: emptyState("metric definitions", (fetched.incomplete || fetched.nextLink) ? `${context} in fetched pages; listing is incomplete` : context),
+        help: [`Run \`az-axi ${path}${fetchSuffix} --full\` to show every fetched row`, ...pagingHelp],
       };
     }
     const displayed = full ? definitions : definitions.slice(0, limit);
@@ -561,13 +568,13 @@ async function runMetricsList(
       `Run \`az-axi ${path}${suffix} ${formatFlagValue("metric", metricNameOf(displayed[0]!))} ${querySuffix} --full\` for values of the first metric`,
     ];
     if (shown.length < definitions.length) {
-      help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
+      help.push(`Run \`az-axi ${path}${fetchSuffix} --full\` to show every fetched row`);
     }
     help.push(...pagingHelp);
     return {
       profile: profile.name,
       total,
-      count: fetched.nextLink ? `${shown.length} of ${total} metric definitions` : countLine(shown.length, definitions.length, "metric definitions"),
+      count: (fetched.incomplete || fetched.nextLink) ? `${shown.length} of ${total} metric definitions` : countLine(shown.length, definitions.length, "metric definitions"),
       rows: picked,
       help,
     };

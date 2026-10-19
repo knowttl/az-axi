@@ -178,7 +178,7 @@ With no config file at all, az-axi uses an implicit `az` profile, so it works ri
 ## Reads
 
 - Discovery lists default to 50 compact rows with full IDs, counts and explicit empty states. `--fields a,b` selects columns, `--full` expands truncated content and shows every fetched row, `--limit N` caps rows.
-- Native list fetch budgets (`--all`/`--max-rows`) cover compute, Sentinel, resource group/resource, subscription/account, network/DNS and storage/Key Vault/ACR metadata lists; see [README.md#use](../../README.md#use) for budgets and display controls. Fetch budgets apply before local filters; `--limit` and `--full` control display only and incomplete totals are lower bounds.
+- Native list fetch budgets (`--all`/`--max-rows`) cover all native Azure collection lists, including activity, monitoring, security, RBAC, governance and exposure; see [README.md#use](../../README.md#use) for budgets and display controls. Fetch budgets apply before local filters; `--limit` and `--full` control display only and incomplete totals are lower bounds.
 - Resource Graph: `npx -y @knowttl/az-axi rg query --file query.kql` (or piped stdin); without `--full`, `--limit` maps to `$top` (default 50, maximum 1000). When a skip token is returned, `help[]` carries the exact command for the next page.
 - Log Analytics: `npx -y @knowttl/az-axi logs query --file hunt.kql --workspace sentinel`; `--workspace` takes a profile alias or workspace GUID, `--timespan` defaults to `P1D`.
 - Query input differs by path: `graph query --graph-query <kql>` (or `-q`) and `monitor log-analytics query --analytics-query <kql>` require flags; `rg query "<kql>"` and `logs query "<kql>"` accept positional KQL.

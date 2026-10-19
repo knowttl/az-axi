@@ -1,3 +1,4 @@
+import { NATIVE_LIST_HELP } from "./nativePaging.js";
 const SELECTORS: Record<string, string> = {
   "role definition list": "--resource-group / -g scopes the list to one resource group; --name / -n matches one definition GUID or role name (e.g. Reader); --custom-role-only keeps custom roles.",
   "role definition show": "--name / -n takes the definition GUID in one subscription (add --resource-group / -g for resource-group scope), or --ids <definition-ARM-id> alone (built-ins are tenant-scoped: show them with --ids).",
@@ -17,9 +18,10 @@ export function roleLeafHelp(path: string): string {
   const show = path.endsWith(" show");
   return [
     `Command: az-axi ${path}`,
+    ...(path.endsWith(" list") ? [NATIVE_LIST_HELP] : []),
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only role-definition GETs against Microsoft.Authorization at api-version 2022-04-01. The subscription list carries built-in definitions alongside customs. Management-group scope is unsupported; select subscriptions explicitly.",
-    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription; incomplete counts are disclosed as lower bounds.",
+    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow the shared fetch budget (up to 100 pages and the row budget per subscription); incomplete counts are disclosed as lower bounds.",
     "Show by name needs exactly one subscription and takes the definition GUID; resolve a display name to its GUID with `role definition list` first. --ids takes exactly one role-definition ARM ID and uses the ID's subscription when one is present.",
     DETAIL[path] ?? "",
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata and shows every fetched row. No view returns secrets, keys or credential fields.",

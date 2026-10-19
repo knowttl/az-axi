@@ -261,7 +261,7 @@ describe("rbac list", () => {
     const result = await run(["list"]);
     expect(armCalls).toBe(2);
     expect(result.total).toBe(5);
-    expect((result.help as string[]).join("\n")).toMatch(/more assignments/i);
+    expect((result.help as string[]).join("\n")).toContain("--max-rows");
   });
 
   it("prefers flags, then profile management group, then profile subscriptions", async () => {

@@ -91,7 +91,7 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
   const command = kind === "workspace" ? "monitor log-analytics workspace" : kind;
   assertKnownFlags(args, commandFlags(`${command} ${verb}`), `${command} ${verb}`);
   if (args.positionals.length !== 1) invalid("unexpected positional argument");
-  const budget = verb === "list" && kind !== "workspace" ? nativeListBudget(args) : undefined;
+  const budget = verb === "list" ? nativeListBudget(args) : undefined;
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (kind === "workspace" && fields?.some((field) => !WORKSPACE_FIELDS.includes(field))) invalid(`workspace --fields supports only metadata: ${WORKSPACE_FIELDS.join(", ")}`);

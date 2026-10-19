@@ -16,8 +16,6 @@ import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE, type Na
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 1000;
-const STATE_MAX_PAGES = 10;
-const LIST_MAX_PAGES = 100;
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -48,7 +46,7 @@ export interface GovernanceCollection {
   listTargets(subscription: string, group: string | undefined, path: string): RequestOptions[];
   /** Fetches every target; defaults to bounded GET paging. Collections with a
    * different transport or paging contract (policy states) override it. */
-  fetchTargets?(profile: ResolvedProfile, targets: RequestOptions[]): Promise<FetchedPage>;
+  fetchTargets?(profile: ResolvedProfile, targets: RequestOptions[], budget: NativeListBudget): Promise<FetchedPage>;
   /** Keeps an item under `--name` (default: exact case-insensitive name match). */
   matchName?(item: GovernanceItem, name: string): boolean;
   /** List ordering (default: by name, ascending). */
@@ -109,11 +107,11 @@ export function strArr(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
 
-async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOptions[], budget?: NativeListBudget): Promise<FetchedPage> {
+async function defaultFetchTargets(profile: ResolvedProfile, targets: RequestOptions[], budget: NativeListBudget): Promise<FetchedPage> {
   const items: GovernanceItem[] = [];
   let incomplete = false;
   for (const target of targets) {
-    const page = await requestAll<GovernanceItem>(profile, target, budget ?? LIST_MAX_PAGES);
+    const page = await requestAll<GovernanceItem>(profile, target, budget);
     items.push(...page.items);
     incomplete ||= !!page.nextLink || !!page.incomplete;
   }
@@ -164,17 +162,17 @@ export async function runGovernanceList(
     governanceInvalid(`${path} --fields supports only: ${collection.fields.join(", ")}`, path);
   }
   const limit = governanceLimit(args, path);
-  const budget = ["vm", "vmss", "disk"].includes(collection.top) ? nativeListBudget(args) : undefined;
+  const budget = nativeListBudget(args);
   const groupFlag = flagText(args, "resource-group");
   const group = groupFlag ? governanceSegment(groupFlag, "resource-group", path) : undefined;
   const name = flagText(args, "name");
   const subs = await subscriptions(profile);
-  const suffix = selectorSuffix(args) + (budget ? nativeListFetchFlags(args) : "");
+  const suffix = selectorSuffix(args) + nativeListFetchFlags(args);
   const targets = subs.flatMap((sub) => collection.listTargets(sub, group, path));
   const fetched = redact(await (collection.fetchTargets
-    ? collection.fetchTargets(profile, targets)
+    ? collection.fetchTargets(profile, targets, budget)
     : defaultFetchTargets(profile, targets, budget)));
-  const incompleteHelp = budget ? NATIVE_LIST_INCOMPLETE : "More pages exist; paging stopped early. Counts are lower bounds. Narrow the subscription or resource-group scope.";
+  const incompleteHelp = NATIVE_LIST_INCOMPLETE;
   const kept = fetched.items.filter((item) => {
     const keepName = !name ||
       (collection.matchName ? collection.matchName(item, name) : item.name.toLowerCase() === name.toLowerCase());
@@ -299,25 +297,32 @@ export async function runGovernanceShow(
 /** Paging loop for the policy-states `queryResults` POST contract (`value`,
  * `@odata.count`, `@odata.nextLink` with `$skiptoken`; GET on the operation
  * is unsupported, so an unfollowable next link stops paging with disclosure). */
-export async function fetchStatePages(profile: ResolvedProfile, targets: RequestOptions[]): Promise<FetchedPage> {
+export async function fetchStatePages(profile: ResolvedProfile, targets: RequestOptions[], budget: NativeListBudget): Promise<FetchedPage> {
   const items: GovernanceItem[] = [];
   let incomplete = false;
   for (const target of targets) {
     let skipToken: string | undefined;
-    for (let page = 0; page < STATE_MAX_PAGES; page++) {
+    let scanned = 0;
+    const seen = new Set<string>();
+    for (let page = 0; page < budget.maxPages; page++) {
       const body = await request<{ value?: GovernanceItem[]; "@odata.count"?: unknown; "@odata.nextLink"?: unknown }>(profile, {
         ...target,
         method: "POST",
         query: { ...(target.query ?? {}), ...(skipToken ? { $skiptoken: skipToken } : {}) },
       });
-      items.push(...(body?.value ?? []));
+      const rows = body?.value ?? [];
+      const remaining = budget.maxRows - scanned;
+      items.push(...rows.slice(0, remaining));
+      scanned += rows.length;
+      if (rows.length > remaining) { incomplete = true; break; }
       const next = typeof body?.["@odata.nextLink"] === "string" ? body["@odata.nextLink"] : undefined;
       if (!next) break;
       const token = /[?&]\$skiptoken=([^&]*)/i.exec(next)?.[1];
-      if (page === STATE_MAX_PAGES - 1 || !token) {
+      if (page === budget.maxPages - 1 || scanned >= budget.maxRows || !token || seen.has(token)) {
         incomplete = true;
         break;
       }
+      seen.add(token);
       skipToken = decodeURIComponent(token);
     }
   }

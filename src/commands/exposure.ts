@@ -1,7 +1,7 @@
 import { AxiError } from "axi-sdk-js";
-import { RESOURCE_GRAPH_RESOURCES } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
-import { sendRequest } from "../lib/client.js";
+import { nativeGraphList } from "../lib/nativeGraph.js";
+import { nativeListBudget, nativeListFullHint, nativeListFetchFlags, NATIVE_LIST_CAPPED, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 import { graphScope, profileFromArgs, scopeFlags } from "../lib/context.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import {
@@ -18,7 +18,6 @@ export const meta = commandMeta("exposure");
 const KNOWN_FLAGS = commandFlags("exposure");
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 1000;
-const FETCH_TOP = 1000;
 const ALL_CHECK_ROWS = 10;
 const CELL_TRUNCATE = 200;
 
@@ -34,14 +33,6 @@ interface ExposureRow {
   subscriptionId?: string;
   detail?: string;
   id?: string;
-}
-
-interface ResourceGraphResponse {
-  totalRecords?: number;
-  count?: number;
-  data?: ExposureRow[];
-  $skipToken?: string;
-  resultTruncated?: string | boolean;
 }
 
 const EMBEDDED_ARM_ID = /\/subscriptions\/[^\s,]+/gi;
@@ -62,23 +53,10 @@ async function runCheck(
   check: ExposureCheck,
   subscriptions: string[] | undefined,
   managementGroups: string[] | undefined,
-): Promise<{ rows: ExposureRow[]; total?: number; incomplete: boolean }> {
-  const response = await sendRequest<ResourceGraphResponse>(profile, {
-    method: "POST",
-    path: "/providers/Microsoft.ResourceGraph/resources",
-    apiVersion: RESOURCE_GRAPH_RESOURCES,
-    body: {
-      query: exposureQuery(check),
-      ...(subscriptions ? { subscriptions } : {}),
-      ...(managementGroups ? { managementGroups } : {}),
-      options: { $top: FETCH_TOP, resultFormat: "objectArray" },
-    },
-  });
-  const body = response.body ?? {};
-  const rows = body.data ?? [];
-  const total = typeof body.totalRecords === "number" ? body.totalRecords : (body.count ?? rows.length);
-  const incomplete = Boolean(body.$skipToken) || body.resultTruncated === true || body.resultTruncated === "true";
-  return { rows, total, incomplete };
+  budget: NativeListBudget,
+) {
+  const fetched = await nativeGraphList<ExposureRow>(profile, exposureQuery(check), subscriptions, managementGroups, budget);
+  return { ...fetched, total: fetched.totalRecords ?? (fetched.incomplete ? `${fetched.rows.length}+` : fetched.rows.length) };
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
@@ -90,6 +68,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     ]);
   }
 
+  const budget = nativeListBudget(args);
   const profile = profileFromArgs(args);
   if (args.flags["limit"] === true || args.flags["limit"] === "") {
     throw new AxiError("flag --limit needs a number", "VALIDATION_ERROR", ["Example: --limit 20"]);
@@ -113,7 +92,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }
 
   const scope = graphScope(profile, args);
-  const suffix = scopeFlags(args);
+  const suffix = scopeFlags(args) + nativeListFetchFlags(args);
   const subscriptions = scope.subscriptions;
   const managementGroups = scope.managementGroups;
   const scopeLabel = scope.label;
@@ -141,8 +120,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   if (checkRaw !== "all") {
     const check = checkRaw as ExposureCheck;
-    const fetched = await runCheck(profile, check, subscriptions, managementGroups);
-    if (fetched.rows.length === 0) {
+    const fetched = await runCheck(profile, check, subscriptions, managementGroups, budget);
+    if (fetched.rows.length === 0 && !fetched.incomplete) {
       return {
         profile: profile.name,
         check,
@@ -155,16 +134,17 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     const shown = full ? fetched.rows : fetched.rows.slice(0, limit);
     const picked = fields ? pickFields(formatRows(shown), fields) : formatRows(shown);
     const help: string[] = [];
-    if (fetched.incomplete) help.push("Resource Graph truncated this check; narrow the scope with --subscription");
-    else if (!full && (fetched.rows.length > shown.length || (fetched.total ?? 0) > shown.length)) {
-      const nextLimit = Math.min(MAX_LIMIT, Math.max(fetched.rows.length, fetched.total ?? 0));
+    if (shown.length < fetched.rows.length) help.push(nativeListFullHint(args, "exposure"));
+    if (fetched.incomplete) help.push(fetched.totalRecords !== undefined ? NATIVE_LIST_CAPPED : NATIVE_LIST_INCOMPLETE);
+    else if (!full && (fetched.rows.length > shown.length || (fetched.totalRecords ?? 0) > shown.length)) {
+      const nextLimit = Math.min(MAX_LIMIT, Math.max(fetched.rows.length, fetched.totalRecords ?? 0));
       help.push(`More rows exist: re-run with --limit ${nextLimit}${suffix}`);
     }
     return {
       profile: profile.name,
       check,
       total: fetched.total,
-      count: countLine(shown.length, fetched.total, CHECK_LABEL[check]),
+      count: typeof fetched.total === "string" ? `${shown.length} of ${fetched.total} ${CHECK_LABEL[check]}` : countLine(shown.length, fetched.total, CHECK_LABEL[check]),
       rows: picked,
       ...(help.length > 0 ? { help } : {}),
     };
@@ -174,19 +154,22 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const sections: Record<string, unknown> = {};
   let grandTotal = 0;
   let failedChecks = 0;
+  let totalsExact = true;
   const help: string[] = [];
   for (const check of EXPOSURE_CHECKS) {
     try {
-      const fetched = await runCheck(profile, check, subscriptions, managementGroups);
-      grandTotal += fetched.total ?? 0;
+      const fetched = await runCheck(profile, check, subscriptions, managementGroups, budget);
+      grandTotal += fetched.totalRecords ?? fetched.rows.length;
+      totalsExact &&= fetched.totalRecords !== undefined || !fetched.incomplete;
       const shown = fetched.rows.slice(0, perCheck);
       const formatted = fields ? pickFields(formatRows(shown), fields) : formatRows(shown);
       sections[check] = {
         total: fetched.total,
-        count: countLine(shown.length, fetched.total, CHECK_LABEL[check]),
+        count: typeof fetched.total === "string" ? `${shown.length} of ${fetched.total} ${CHECK_LABEL[check]}` : countLine(shown.length, fetched.total, CHECK_LABEL[check]),
         rows: shown.length === 0 ? emptyState(CHECK_LABEL[check], scopeLabel) : formatted,
       };
-      if (fetched.incomplete) help.push(`[${check}] Resource Graph truncated this check; narrow the scope with --subscription`);
+      if (shown.length < fetched.rows.length) help.push(`[${check}] ${nativeListFullHint(args, "exposure")}`);
+      if (fetched.incomplete) help.push(`[${check}] ${fetched.totalRecords !== undefined ? NATIVE_LIST_CAPPED : NATIVE_LIST_INCOMPLETE}`);
     } catch (err) {
       failedChecks++;
       const message = err instanceof Error ? err.message : String(err);
@@ -199,8 +182,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   return {
     profile: profile.name,
-    total: grandTotal,
-    count: `${grandTotal} exposures ${scopeLabel}${failedNote}`,
+    total: failedChecks > 0 || !totalsExact ? `${grandTotal}+` : grandTotal,
+    count: `${grandTotal}${failedChecks > 0 || !totalsExact ? "+" : ""} exposures ${scopeLabel}${failedNote}`,
     checks: sections,
     ...(help.length > 0 ? { help: help.slice(0, 4) } : {}),
   };
