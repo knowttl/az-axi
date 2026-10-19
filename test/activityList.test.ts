@@ -255,7 +255,7 @@ describe("activity list", () => {
       return { status: 200, headers: {}, body: { value: [evt()] }, clientRequestId: "r" } as never;
     });
     const result = await run(["list", "--subscription", `${SUB_A},${SUB_B}`, "--since", "24h"]);
-    expect(result.total).toBe(1);
+    expect(result.total).toBe("1+");
     expect((result.help as string[]).join("\n")).toMatch(/could not query/i);
     expect((result.help as string[]).join("\n")).toContain(SUB_B);
   });

@@ -15,8 +15,8 @@ export interface NativeListBudget {
 
 export const DEFAULT_NATIVE_LIST_BUDGET: NativeListBudget = { maxRows: DEFAULT_MAX_ROWS, maxPages: NATIVE_LIST_MAX_PAGES };
 
-export const NATIVE_LIST_HELP = `Fetch budget per subscription: ${DEFAULT_MAX_ROWS} rows by default; --all raises it to ${ALL_MAX_ROWS} (Key Vault: at most 2500 scanned at 25/page). --max-rows <1..${MAX_ROWS}> overrides either row budget. Every walk stops at ${NATIVE_LIST_MAX_PAGES} pages. Budgets count rows before local filters. --limit controls display only (default 50); --full shows every fetched row and expands display only, never bypassing fetch budgets. Incomplete totals are lower bounds; narrow the scope or raise --max-rows to search further.`;
-export const NATIVE_LIST_INCOMPLETE = "Fetch budget reached; counts are lower bounds. Narrow the scope or raise --max-rows (or use --all). --full changes display only.";
+export const NATIVE_LIST_HELP = `Fetch budget per subscription or collection (Resource Graph: across selected scope, per exposure check): ${DEFAULT_MAX_ROWS} rows by default; --all raises it to ${ALL_MAX_ROWS} (Key Vault: at most 2500 scanned at 25/page). --max-rows <1..${MAX_ROWS}> overrides either row budget. Every walk stops at ${NATIVE_LIST_MAX_PAGES} pages. Budgets count rows before local filters. --limit controls display only (usually 50; Defender assessments 25, exposure overview 10 per check); --full shows every fetched row and expands display only, never bypassing fetch budgets. Incomplete totals are lower bounds; narrow the scope or raise --max-rows to search further.`;
+export const NATIVE_LIST_INCOMPLETE = "Listing incomplete; counts are lower bounds. Narrow the scope, or raise --max-rows (or use --all) if the fetch budget was reached. --full changes display only.";
 
 /** Walk opaque service markers without exposing a marker that skips omitted rows. */
 export async function nativeMarkerList<T>(
@@ -45,6 +45,13 @@ export async function nativeMarkerList<T>(
 export function nativeListFetchFlags(args: ParsedArgs): string {
   return ["all", "max-rows"].filter((key) => args.flags[key] !== undefined)
     .map((key) => ` ${formatFlagValue(key, String(args.flags[key]))}`).join("");
+}
+
+/** Replay display expansion without dropping scope, filters or the fetch budget. */
+export function nativeListFullHint(args: ParsedArgs, path: string): string {
+  const flags = Object.entries(args.flags).filter(([key]) => !["full", "limit", "help", "show-query"].includes(key))
+    .flatMap(([key, value]) => (Array.isArray(value) ? value : [value]).map((entry) => formatFlagValue(key, String(entry))));
+  return `Run \`az-axi ${path}${flags.length ? " " + flags.join(" ") : ""} --full\` to show every fetched row`;
 }
 
 /** Validate before discovery or credentials, independently of display controls. */

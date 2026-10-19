@@ -1,3 +1,4 @@
+import { NATIVE_LIST_HELP } from "./nativePaging.js";
 const SELECTORS: Record<string, string> = {
   "monitor metrics alert list": "--resource-group / -g scopes the list; --name / -n filters one exact rule name.",
   "monitor metrics alert show": "--name / -n takes the rule name with --resource-group / -g in one subscription, or --ids <rule-ARM-id> alone.",
@@ -32,11 +33,13 @@ export function monitorLeafHelp(path: string): string {
   const show = path.endsWith(" show");
   return [
     `Command: az-axi ${path}`,
+    ...(path.endsWith(" list") ? [NATIVE_LIST_HELP] : []),
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only Azure Monitor GETs against Microsoft.Insights: metric alerts use api-version 2026-01-01; action groups use api-version 2023-01-01; diagnostic settings use api-version 2021-05-01-preview (the only version); metrics definitions and values use api-version 2024-02-01. Management-group scope is unsupported; select subscriptions explicitly.",
     "Subscription and resource-group lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. Diagnostic settings and metrics target exactly one --resource <ARM-id>. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription; incomplete counts are disclosed as lower bounds.",
     "Show by name needs exactly one subscription. --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when one is present.",
     DETAIL[path] ?? "",
+    ...(path === "monitor metrics list" ? ["--all and --max-rows apply to metric definitions only; time-series queries with --metric reject these flags."] : []),
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata and shows every fetched row. No view returns secrets, keys, webhook secrets or credential fields.",
     FIELDS[path] ?? "",
     "No native Monitor mutation commands are available; rule, action-group, setting and metric changes stay on generic api writes behind the existing gates. Application Insights data-plane queries stay out.",

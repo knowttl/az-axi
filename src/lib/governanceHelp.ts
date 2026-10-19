@@ -1,3 +1,4 @@
+import { NATIVE_LIST_HELP } from "./nativePaging.js";
 const SELECTORS: Record<string, string> = {
   "policy assignment list": "--resource-group / -g scopes the list to one resource group; --name / -n filters one exact assignment name.",
   "policy assignment show": "--name / -n in one subscription (add --resource-group / -g for resource-group scope), or --ids <assignment-ARM-id> alone.",
@@ -44,6 +45,7 @@ export function governanceLeafHelp(path: string): string {
   const show = path.endsWith(" show");
   return [
     `Command: az-axi ${path}`,
+    ...(path.endsWith(" list") ? [NATIVE_LIST_HELP] : []),
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only governance GETs against Microsoft.Authorization: assignments, definitions and initiatives use api-version 2021-06-01; locks use api-version 2020-05-01; deny assignments use api-version 2022-04-01. Compliance states use the reviewed bodyless queryResults POST at api-version 2024-10-01. Management-group scope is unsupported; select subscriptions explicitly.",
     "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription and compliance queries up to 10 service pages without imposing a query result limit; incomplete counts are disclosed as lower bounds.",

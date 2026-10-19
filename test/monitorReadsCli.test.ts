@@ -191,7 +191,7 @@ describe("built CLI Monitor reads offline", () => {
     const result = run([...argv, "--limit", "1"], mode);
     expect(result.status, result.stdout).toBe(0);
     expect(decode(result.stdout)).toMatchObject({ total, count: `${shown} of ${total} ${noun}`,
-      help: expect.arrayContaining(["More pages exist; paging stopped early. Counts are lower bounds. Narrow the target resource."]),
+      help: expect.arrayContaining([expect.stringContaining("counts are lower bounds"), expect.stringContaining("--max-rows")]),
     });
     expect(result.stderr.match(/"method":"GET"/g)).toHaveLength(100);
   });

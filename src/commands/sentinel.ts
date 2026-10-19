@@ -533,6 +533,7 @@ function relatedBase(identity: IncidentIdentity, target: WorkspaceTarget): strin
 }
 
 async function runAlertList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const budget = nativeListBudget(args);
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (fields?.some((field) => !ALERT_FIELD_ALLOWLIST.includes(field))) {
@@ -549,7 +550,9 @@ async function runAlertList(profile: ResolvedProfile, args: ReturnType<typeof pa
     path: `${relatedBase(identity, target)}/alerts`,
     apiVersion: SENTINEL_INCIDENTS,
   });
-  const collected = body?.value ?? [];
+  const available = body?.value ?? [];
+  const collected = available.slice(0, budget.maxRows);
+  const incomplete = available.length > collected.length;
   const scopeHint = `for incident ${identity.label} in workspace ${target.workspaceName}`;
   if (collected.length === 0) {
     return {
@@ -575,17 +578,18 @@ async function runAlertList(profile: ResolvedProfile, args: ReturnType<typeof pa
   const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullAlertRow : compactAlertRow);
   const picked = pickFields(shown, fields);
   const help: string[] = [
+    ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
     `Run \`az-axi sentinel incident list-entity ${incidentSelector}${suffix}\` for the related entities`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel incident list-alert ${incidentSelector}${suffix} --full\` to show every related alert`);
+    help.push(`Run \`az-axi sentinel incident list-alert ${incidentSelector}${suffix}${nativeListFetchFlags(args)} --full\` to show every related alert`);
   }
   return {
     profile: profile.name,
     workspace: target.workspaceName,
     incident: identity.label,
-    total: collected.length,
-    count: countLine(shown.length, collected.length, "incident alerts"),
+    total: available.length,
+    count: countLine(shown.length, available.length, "incident alerts"),
     bySeverity,
     byStatus,
     rows: picked,
@@ -594,6 +598,7 @@ async function runAlertList(profile: ResolvedProfile, args: ReturnType<typeof pa
 }
 
 async function runEntityList(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  const budget = nativeListBudget(args);
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (fields?.some((field) => !ENTITY_FIELD_ALLOWLIST.includes(field))) {
@@ -610,7 +615,9 @@ async function runEntityList(profile: ResolvedProfile, args: ReturnType<typeof p
     path: `${relatedBase(identity, target)}/entities`,
     apiVersion: SENTINEL_INCIDENTS,
   });
-  const collected = body?.entities ?? [];
+  const available = body?.entities ?? [];
+  const collected = available.slice(0, budget.maxRows);
+  const incomplete = available.length > collected.length;
   const scopeHint = `for incident ${identity.label} in workspace ${target.workspaceName}`;
   if (collected.length === 0) {
     return {
@@ -638,17 +645,18 @@ async function runEntityList(profile: ResolvedProfile, args: ReturnType<typeof p
   const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullEntityRow : compactEntityRow);
   const picked = pickFields(shown, fields);
   const help: string[] = [
+    ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
     `Run \`az-axi sentinel incident list-alert ${incidentSelector}${suffix}\` for the related alerts`,
   ];
   if (shown.length < collected.length) {
-    help.push(`Run \`az-axi sentinel incident list-entity ${incidentSelector}${suffix} --full\` to show every related entity`);
+    help.push(`Run \`az-axi sentinel incident list-entity ${incidentSelector}${suffix}${nativeListFetchFlags(args)} --full\` to show every related entity`);
   }
   return {
     profile: profile.name,
     workspace: target.workspaceName,
     incident: identity.label,
-    total: collected.length,
-    count: countLine(shown.length, collected.length, "incident entities"),
+    total: available.length,
+    count: countLine(shown.length, available.length, "incident entities"),
     byKind,
     rows: picked,
     help,

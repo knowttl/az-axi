@@ -1,7 +1,7 @@
 import { AxiError } from "axi-sdk-js";
-import { RESOURCE_GRAPH_RESOURCES } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
-import { sendRequest } from "../lib/client.js";
+import { nativeGraphList } from "../lib/nativeGraph.js";
+import { nativeListBudget, nativeListFullHint, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
 import { isPrivilegedRole, PRIVILEGED_ROLE_IDS } from "../lib/roles.js";
@@ -17,8 +17,6 @@ const SUBCOMMANDS = ["list"] as const;
 const KNOWN_FLAGS = commandFlags("rbac list");
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 1000;
-const FETCH_TOP = 1000;
-const MAX_PAGES = 10;
 const CELL_TRUNCATE = 200;
 /**
  * Default Resource Graph scope is AtScopeAndBelow, which omits role assignments
@@ -39,14 +37,6 @@ interface AssignmentRow {
   subscriptionId?: string;
 }
 
-interface ResourceGraphResponse {
-  totalRecords?: number;
-  count?: number;
-  data?: AssignmentRow[];
-  $skipToken?: string;
-  resultTruncated?: string | boolean;
-}
-
 function formatCell(value: unknown, full: boolean): unknown {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return full ? value : truncate(value, CELL_TRUNCATE).text;
@@ -57,70 +47,17 @@ function rowKey(row: AssignmentRow): string {
   return row.id || `${row.principalId ?? ""}|${row.roleDefinitionId ?? ""}|${row.scope ?? ""}`;
 }
 
-function truncated(value: string | boolean | undefined): boolean {
-  return value === true || value === "true";
-}
-
 async function fetchAssignments(
   profile: ResolvedProfile,
   query: string,
   subscriptions: string[] | undefined,
   managementGroups: string[] | undefined,
-): Promise<{ rows: AssignmentRow[]; totalRecords?: number; incomplete: boolean; quotaRemaining?: string; quotaReset?: string }> {
-  const rows: AssignmentRow[] = [];
-  const seenIds = new Set<string>();
-  const seenTokens = new Set<string>();
-  let skipToken: string | undefined;
-  let totalRecords: number | undefined;
-  let incomplete = false;
-  let quotaRemaining: string | undefined;
-  let quotaReset: string | undefined;
-
-  for (let page = 0; page < MAX_PAGES; page++) {
-    if (skipToken) {
-      if (seenTokens.has(skipToken)) {
-        incomplete = true;
-        break;
-      }
-      seenTokens.add(skipToken);
-    }
-    const response = await sendRequest<ResourceGraphResponse>(profile, {
-      method: "POST",
-      path: "/providers/Microsoft.ResourceGraph/resources",
-      apiVersion: RESOURCE_GRAPH_RESOURCES,
-      body: {
-        query,
-        ...(subscriptions ? { subscriptions } : {}),
-        ...(managementGroups ? { managementGroups } : {}),
-        options: {
-          $top: FETCH_TOP,
-          ...(skipToken ? { $skipToken: skipToken } : {}),
-          resultFormat: "objectArray",
-          authorizationScopeFilter: AUTHORIZATION_SCOPE_FILTER,
-        },
-      },
-    });
-    const body = response.body ?? {};
-    if (totalRecords === undefined && typeof body.totalRecords === "number") totalRecords = body.totalRecords;
-    quotaRemaining = response.headers?.["x-ms-user-quota-remaining"];
-    quotaReset = response.headers?.["x-ms-user-quota-resets-after"];
-    for (const row of body.data ?? []) {
-      const key = rowKey(row);
-      if (seenIds.has(key)) continue;
-      seenIds.add(key);
-      rows.push(row);
-    }
-    if (truncated(body.resultTruncated)) incomplete = true;
-    const next = body.$skipToken;
-    if (!next) {
-      skipToken = undefined;
-      break;
-    }
-    skipToken = next;
-    if (page === MAX_PAGES - 1) incomplete = true;
-  }
-
-  return { rows, totalRecords, incomplete, quotaRemaining, quotaReset };
+  budget: NativeListBudget,
+) {
+  const fetched = await nativeGraphList<AssignmentRow>(profile, query, subscriptions, managementGroups, budget,
+    { authorizationScopeFilter: AUTHORIZATION_SCOPE_FILTER });
+  const unique = new Map(fetched.rows.map((row) => [rowKey(row), row]));
+  return { ...fetched, rows: [...unique.values()] };
 }
 
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
@@ -138,6 +75,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     ]);
   }
 
+  const budget = nativeListBudget(args);
   const profile = profileFromArgs(args);
   const full = flagBool(args, "full");
   const limit = full ? Number.POSITIVE_INFINITY : (flagNumber(args, "limit") ?? DEFAULT_LIMIT);
@@ -187,7 +125,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   else if (profile.managementGroup) managementGroups = [profile.managementGroup];
   else if (profile.subscriptions?.length) subscriptions = profile.subscriptions;
 
-  const fetched = await fetchAssignments(profile, query, subscriptions, managementGroups);
+  const fetched = await fetchAssignments(profile, query, subscriptions, managementGroups, budget);
   let rows = fetched.rows;
 
   if (principalId) {
@@ -222,18 +160,20 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     .join(", ");
 
   const clientDropped = rows.length !== fetched.rows.length;
-  const total =
+  const knownTotal =
     !clientDropped && fetched.totalRecords !== undefined && fetched.totalRecords >= rows.length
       ? fetched.totalRecords
       : rows.length;
+  const total = fetched.incomplete && (clientDropped || fetched.totalRecords === undefined) ? `${rows.length}+` : knownTotal;
 
   if (rows.length === 0) {
     return {
       profile: profile.name,
-      total: 0,
-      count: countLine(0, 0, "assignments"),
-      rows: emptyState("role assignments", scopeHint),
+      total,
+      count: fetched.incomplete ? `0 of ${total} assignments` : countLine(0, 0, "assignments"),
+      rows: emptyState("role assignments", fetched.incomplete ? `${scopeHint} in fetched pages; listing is incomplete` : scopeHint),
       help: [
+        ...(fetched.incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
         "Run `az-axi sub list` to verify the subscriptions in scope",
         "Run `az-axi rbac list --privileged` to focus on standing admin rights",
       ],
@@ -274,6 +214,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const picked = fields ? pickFields(extended, fields) : pickFields(extended, ["principal", "type", "role", "scope", "created"]);
 
   const help: string[] = [];
+  if (limited.length < rows.length) help.push(nativeListFullHint(args, "rbac list"));
   if (!resolved) {
     help.push("Principal names could not be resolved; showing raw object IDs");
   }
@@ -285,7 +226,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     );
   }
   if (fetched.incomplete || (fetched.totalRecords !== undefined && fetched.totalRecords > rows.length && !clientDropped)) {
-    help.push("More assignments exist; narrow with --principal, --role, --scope or --privileged");
+    help.push(NATIVE_LIST_INCOMPLETE);
   } else if (!privilegedOnly && Object.keys(sortedByRole).length > 1) {
     help.push("Run `az-axi rbac list --privileged` to focus on standing admin rights");
   }
@@ -293,7 +234,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   return {
     profile: profile.name,
     total,
-    count: countLine(extended.length, total, "assignments"),
+    count: typeof total === "string" ? `${extended.length} of ${total} assignments` : countLine(extended.length, total, "assignments"),
     byRole: sortedByRole,
     rows: picked,
     ...(help.length > 0 ? { help } : {}),

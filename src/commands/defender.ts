@@ -21,6 +21,8 @@ import { commandFlags, commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { parseSince } from "../lib/time.js";
 import type { ResolvedProfile } from "../lib/config.js";
+import { nativeListBudget, nativeListFullHint, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
+import { nativeGraphList } from "../lib/nativeGraph.js";
 
 export const meta = commandMeta("defender");
 
@@ -30,7 +32,6 @@ const ASSESSMENT_FLAGS = commandFlags("defender assessments");
 const DEFAULT_ALERTS_LIMIT = 50;
 const DEFAULT_ASSESSMENTS_LIMIT = 25;
 const MAX_LIMIT = 1000;
-const FETCH_TOP = 1000;
 const MAX_PAGES = 10;
 const CONCURRENCY = 4;
 const CELL_TRUNCATE = 200;
@@ -295,6 +296,7 @@ function alertTitle(alert: Alert): string {
 async function fetchSubscriptionAlerts(
   profile: ResolvedProfile,
   subId: string,
+  budget: NativeListBudget,
 ): Promise<{ alerts: Alert[]; error?: unknown; truncated: boolean }> {
   const alerts: Alert[] = [];
   const seenLinks = new Set<string>();
@@ -302,7 +304,7 @@ async function fetchSubscriptionAlerts(
   let pages = 0;
   let truncated = false;
   try {
-    while (path && pages < MAX_PAGES) {
+    while (path && pages < budget.maxPages && alerts.length < budget.maxRows) {
       if (seenLinks.has(path)) {
         truncated = true;
         path = undefined;
@@ -316,7 +318,10 @@ async function fetchSubscriptionAlerts(
         apiVersion: DEFENDER_ALERTS,
       });
       pages++;
-      alerts.push(...(response.body?.value ?? []));
+      const rows = response.body?.value ?? [];
+      const remaining = budget.maxRows - alerts.length;
+      alerts.push(...rows.slice(0, remaining));
+      if (rows.length > remaining) truncated = true;
       path = response.body?.nextLink ?? undefined;
     }
     if (path) truncated = true;
@@ -363,7 +368,7 @@ async function runAlerts(profile: ResolvedProfile, args: ParsedArgs): Promise<Re
     };
   }
 
-  const fetched = await mapPool(scope.ids, CONCURRENCY, (subId) => fetchSubscriptionAlerts(profile, subId));
+  const fetched = await mapPool(scope.ids, CONCURRENCY, (subId) => fetchSubscriptionAlerts(profile, subId, nativeListBudget(args)));
   const failures = fetched.filter((item) => item.error);
   const truncated = fetched.some((item) => item.truncated);
   const seenIds = new Set<string>();
@@ -393,10 +398,11 @@ async function runAlerts(profile: ResolvedProfile, args: ParsedArgs): Promise<Re
   if (collected.length === 0) {
     return {
       profile: profile.name,
-      total: 0,
-      count: countLine(0, 0, "alerts"),
-      rows: emptyState("Defender alerts", scopeHint),
+      total: truncated || failures.length > 0 ? "0+" : 0,
+      count: truncated || failures.length > 0 ? "0 of 0+ alerts" : countLine(0, 0, "alerts"),
+      rows: emptyState("Defender alerts", truncated || failures.length ? `${scopeHint} in fetched pages; listing is incomplete` : scopeHint),
       help: [
+        ...(truncated || failures.length ? [NATIVE_LIST_INCOMPLETE] : []),
         `Widen the window: \`az-axi defender alerts --since 30d${suffix}\``,
         `Include every status: \`az-axi defender alerts --status all${suffix}\``,
       ],
@@ -435,8 +441,9 @@ async function runAlerts(profile: ResolvedProfile, args: ParsedArgs): Promise<Re
   if (failures.length > 0) {
     help.push(`Could not query ${failures.length} subscription${failures.length === 1 ? "" : "s"}; counts cover the rest`);
   }
+  if (shown.length < extended.length) help.push(nativeListFullHint(args, "defender alerts"));
   if (truncated) {
-    help.push("Alert lists were capped at 10 pages per subscription; narrow with --subscription or --since");
+    help.push(NATIVE_LIST_INCOMPLETE);
   }
   if (picked.length > 0 && typeof picked[0] === "object") {
     const firstId = collected[0]?.id;
@@ -445,8 +452,8 @@ async function runAlerts(profile: ResolvedProfile, args: ParsedArgs): Promise<Re
 
   return {
     profile: profile.name,
-    total: collected.length,
-    count: countLine(shown.length, collected.length, "alerts"),
+    total: truncated || failures.length > 0 ? `${collected.length}+` : collected.length,
+    count: truncated || failures.length > 0 ? `${shown.length} of ${collected.length}+ alerts` : countLine(shown.length, collected.length, "alerts"),
     bySeverity: sortedBySeverity,
     rows: picked,
     ...(help.length > 0 ? { help: help.slice(0, 3) } : {}),
@@ -504,57 +511,6 @@ async function runAlertGet(profile: ResolvedProfile, args: ParsedArgs): Promise<
   };
 }
 
-async function fetchAssessmentRows(
-  profile: ResolvedProfile,
-  query: string,
-  subscriptions: string[] | undefined,
-  managementGroups: string[] | undefined,
-): Promise<{ rows: AssessmentRow[]; totalRecords?: number; incomplete: boolean }> {
-  const rows: AssessmentRow[] = [];
-  const seenTokens = new Set<string>();
-  let skipToken: string | undefined;
-  let totalRecords: number | undefined;
-  let incomplete = false;
-
-  for (let page = 0; page < MAX_PAGES; page++) {
-    if (skipToken) {
-      if (seenTokens.has(skipToken)) {
-        incomplete = true;
-        break;
-      }
-      seenTokens.add(skipToken);
-    }
-    const response = await sendRequest<ResourceGraphResponse<AssessmentRow>>(profile, {
-      method: "POST",
-      path: "/providers/Microsoft.ResourceGraph/resources",
-      apiVersion: RESOURCE_GRAPH_RESOURCES,
-      body: {
-        query,
-        ...(subscriptions ? { subscriptions } : {}),
-        ...(managementGroups ? { managementGroups } : {}),
-        options: {
-          $top: FETCH_TOP,
-          ...(skipToken ? { $skipToken: skipToken } : {}),
-          resultFormat: "objectArray",
-        },
-      },
-    });
-    const body = response.body ?? {};
-    if (totalRecords === undefined && typeof body.totalRecords === "number") totalRecords = body.totalRecords;
-    rows.push(...(body.data ?? []));
-    if (body.resultTruncated === true || body.resultTruncated === "true") incomplete = true;
-    const next = body.$skipToken;
-    if (!next) {
-      skipToken = undefined;
-      break;
-    }
-    skipToken = next;
-    if (page === MAX_PAGES - 1) incomplete = true;
-  }
-
-  return { rows, totalRecords, incomplete };
-}
-
 async function runAssessments(profile: ResolvedProfile, args: ParsedArgs): Promise<Record<string, unknown>> {
   if (args.positionals.length > 1) {
     throw new AxiError(`unexpected argument \`${args.positionals[1]}\` for \`defender assessments\``, "VALIDATION_ERROR", [
@@ -591,7 +547,7 @@ async function runAssessments(profile: ResolvedProfile, args: ParsedArgs): Promi
   }
 
   const scope = graphScope(profile, args);
-  const fetched = await fetchAssessmentRows(profile, query, scope.subscriptions, scope.managementGroups);
+  const fetched = await nativeGraphList<AssessmentRow>(profile, query, scope.subscriptions, scope.managementGroups, nativeListBudget(args));
   let rows = fetched.rows;
   const severities = severityFilter?.split(",").map((part) => part.trim().toLowerCase()).filter(Boolean);
   if (severities?.length) {
@@ -623,17 +579,18 @@ async function runAssessments(profile: ResolvedProfile, args: ParsedArgs): Promi
     if (matches.length === 0) {
       return {
         profile: profile.name,
-        total: 0,
-        count: countLine(0, 0, "assessments"),
-        rows: emptyState("assessment results", `matching ${resourceFilter} ${scope.label}`),
-        help: [`Run \`az-axi defender assessments${suffix}\` for one row per recommendation`],
+        total: fetched.incomplete ? "0+" : 0,
+        count: fetched.incomplete ? "0 of 0+ assessments" : countLine(0, 0, "assessments"),
+        rows: emptyState("assessment results", `matching ${resourceFilter} ${scope.label}${fetched.incomplete ? " in fetched pages; listing is incomplete" : ""}`),
+        help: [...(fetched.incomplete ? [NATIVE_LIST_INCOMPLETE] : []), `Run \`az-axi defender assessments${suffix}\` for one row per recommendation`],
       };
     }
     return {
       profile: profile.name,
-      total: matches.length,
-      count: countLine(shown.length, matches.length, "assessments"),
+      total: fetched.incomplete ? `${matches.length}+` : matches.length,
+      count: fetched.incomplete ? `${shown.length} of ${matches.length}+ assessments` : countLine(shown.length, matches.length, "assessments"),
       rows: picked,
+      help: [...(fetched.incomplete ? [NATIVE_LIST_INCOMPLETE] : []), ...(shown.length < extended.length ? [nativeListFullHint(args, "defender assessments")] : [])],
     };
   }
 
@@ -661,10 +618,10 @@ async function runAssessments(profile: ResolvedProfile, args: ParsedArgs): Promi
   if (recommendations.length === 0) {
     return {
       profile: profile.name,
-      total: 0,
-      count: countLine(0, 0, "recommendations"),
-      rows: emptyState("Defender recommendations", scope.label),
-      help: ["Run `az-axi sub list` to verify the subscriptions in scope"],
+      total: fetched.incomplete ? "0+" : 0,
+      count: fetched.incomplete ? "0 of 0+ recommendations" : countLine(0, 0, "recommendations"),
+      rows: emptyState("Defender recommendations", fetched.incomplete ? `${scope.label} in fetched pages; listing is incomplete` : scope.label),
+      help: [...(fetched.incomplete ? [NATIVE_LIST_INCOMPLETE] : []), "Run `az-axi sub list` to verify the subscriptions in scope"],
     };
   }
 
@@ -691,16 +648,17 @@ async function runAssessments(profile: ResolvedProfile, args: ParsedArgs): Promi
     : pickFields(extended, ["recommendation", "severity", "unhealthyCount", "total"]);
 
   const help: string[] = [];
+  if (shown.length < recommendations.length) help.push(nativeListFullHint(args, "defender assessments"));
   if (fetched.incomplete) {
-    help.push(`More assessments exist; narrow with \`az-axi defender assessments --severity High${suffix}\``);
+    help.push(NATIVE_LIST_INCOMPLETE);
   } else if (!severityFilter) {
     help.push(`Run \`az-axi defender assessments --severity High${suffix}\` to triage the worst first`);
   }
 
   return {
     profile: profile.name,
-    total: recommendations.length,
-    count: countLine(shown.length, recommendations.length, "recommendations"),
+    total: fetched.incomplete ? `${recommendations.length}+` : recommendations.length,
+    count: fetched.incomplete ? `${shown.length} of ${recommendations.length}+ recommendations` : countLine(shown.length, recommendations.length, "recommendations"),
     unhealthy: unhealthyTotal,
     bySeverity,
     rows: picked,
@@ -720,27 +678,16 @@ async function runScore(profile: ResolvedProfile, args: ParsedArgs): Promise<Rec
   const scope = graphScope(profile, args);
   const suffix = scopeFlags(args);
 
-  const response = await sendRequest<ResourceGraphResponse<ScoreRow>>(profile, {
-    method: "POST",
-    path: "/providers/Microsoft.ResourceGraph/resources",
-    apiVersion: RESOURCE_GRAPH_RESOURCES,
-    body: {
-      query: DEFENDER_SECURE_SCORES,
-      ...(scope.subscriptions ? { subscriptions: scope.subscriptions } : {}),
-      ...(scope.managementGroups ? { managementGroups: scope.managementGroups } : {}),
-      options: { $top: FETCH_TOP, resultFormat: "objectArray" },
-    },
-  });
-  const body = response.body ?? {};
-  const rows = body.data ?? [];
-  const truncated = Boolean(body.$skipToken) || body.resultTruncated === true || body.resultTruncated === "true";
+  const fetched = await nativeGraphList<ScoreRow>(profile, DEFENDER_SECURE_SCORES, scope.subscriptions, scope.managementGroups, nativeListBudget(args));
+  const rows = fetched.rows;
+  const truncated = fetched.incomplete;
   if (rows.length === 0) {
     return {
       profile: profile.name,
-      total: 0,
-      count: countLine(0, 0, "scores"),
-      rows: emptyState("secure scores", scope.label),
-      help: ["Run `az-axi sub list` to verify the subscriptions in scope"],
+      total: truncated ? "0+" : 0,
+      count: truncated ? "0 of 0+ scores" : countLine(0, 0, "scores"),
+      rows: emptyState("secure scores", truncated ? `${scope.label} in fetched pages; listing is incomplete` : scope.label),
+      help: [...(truncated ? [NATIVE_LIST_INCOMPLETE] : []), "Run `az-axi sub list` to verify the subscriptions in scope"],
     };
   }
 
@@ -773,12 +720,13 @@ async function runScore(profile: ResolvedProfile, args: ParsedArgs): Promise<Rec
 
   return {
     profile: profile.name,
-    total: rows.length,
-    count: countLine(shown.length, rows.length, "scores"),
+    total: truncated ? `${rows.length}+` : rows.length,
+    count: truncated ? `${shown.length} of ${rows.length}+ scores` : countLine(shown.length, rows.length, "scores"),
     rows: picked,
     help: [
       `Run \`az-axi defender assessments --severity High${suffix}\` for what drags the lowest score down`,
-      ...(truncated ? ["Secure scores were truncated; narrow with --subscription"] : []),
+      ...(truncated ? [NATIVE_LIST_INCOMPLETE] : []),
+      ...(shown.length < extended.length ? [nativeListFullHint(args, "defender score")] : []),
     ],
   };
 }
@@ -794,9 +742,10 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     );
   }
   const getting = sub === "alerts" && args.positionals[1] === "get";
-  const known = getting ? [] : sub === "alerts" ? ALERT_FLAGS : sub === "assessments" ? ASSESSMENT_FLAGS : [];
+  const known = getting ? [] : sub === "alerts" ? ALERT_FLAGS : sub === "assessments" ? ASSESSMENT_FLAGS : commandFlags("defender score");
   assertKnownFlags(args, known, getting ? "defender alerts get" : `defender ${sub}`);
 
+  if (!getting) nativeListBudget(args);
   const profile = profileFromArgs(args);
   if (sub === "alerts") return runAlerts(profile, args);
   if (sub === "assessments") return runAssessments(profile, args);

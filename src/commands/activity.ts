@@ -16,6 +16,7 @@ import type { ResolvedProfile } from "../lib/config.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { ageDays, parseSince } from "../lib/time.js";
+import { nativeListBudget, nativeListFullHint, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("activity");
 
@@ -270,7 +271,7 @@ async function fetchSubscription(
   profile: ResolvedProfile,
   subId: string,
   filter: string,
-  target: number,
+  budget: NativeListBudget,
   callerFilter: string | undefined,
   statusFilter: string | undefined,
   operationFilter: string | undefined,
@@ -281,10 +282,11 @@ async function fetchSubscription(
   let path: string | undefined = `/subscriptions/${subId}/providers/Microsoft.Insights/eventtypes/management/values`;
   let firstPage = true;
   let pages = 0;
+  let scanned = 0;
   let truncated = false;
 
   try {
-    while (path && pages < MAX_PAGES && events.length < target) {
+    while (path && pages < budget.maxPages && scanned < budget.maxRows) {
       if (seenLinks.has(path)) {
         truncated = true;
         break;
@@ -305,23 +307,25 @@ async function fetchSubscription(
       firstPage = false;
       pages++;
       const page = Array.isArray(response.body?.value) ? response.body.value : [];
-      for (const event of page) {
+      const remaining = budget.maxRows - scanned;
+      scanned += page.length;
+      if (page.length > remaining) truncated = true;
+      for (const event of page.slice(0, remaining)) {
         const stamped = { ...event, subscriptionId: subId };
         if (!matches(stamped, callerFilter, statusFilter, operationFilter)) continue;
         const key = eventKey(stamped);
         if (seenEvents.has(key)) continue;
         seenEvents.add(key);
         events.push(stamped);
-        if (events.length >= target) break;
       }
       const next: string | undefined = response.body?.nextLink;
-      if (!next || events.length >= target) {
+      if (!next) {
         path = undefined;
         break;
       }
       path = next;
     }
-    if (path && events.length < target) truncated = true;
+    if (path) truncated = true;
     return { subId, events, truncated };
   } catch (err) {
     return { subId, events, truncated, error: err };
@@ -341,6 +345,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError("flag --limit needs a number", "VALIDATION_ERROR", ["Example: --limit 20"]);
   }
 
+  const budget = nativeListBudget(args);
   const profile = profileFromArgs(args);
   const full = flagBool(args, "full");
   const limit = full ? Number.POSITIVE_INFINITY : (flagNumber(args, "limit") ?? DEFAULT_LIMIT);
@@ -385,9 +390,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     };
   }
 
-  const target = limit === Number.POSITIVE_INFINITY ? MAX_LIMIT : limit;
   const fetched = await mapPool(scope.ids, CONCURRENCY, (subId) =>
-    fetchSubscription(profile, subId, filter, target, callerFilter, statusFilter, operationFilter),
+    fetchSubscription(profile, subId, filter, budget, callerFilter, statusFilter, operationFilter),
   );
 
   const failures = fetched.filter((item) => item.error);
@@ -409,10 +413,10 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     if (scope.narrowed) help.push("Omit --subscription to include every subscription in scope");
     return {
       profile: profile.name,
-      total: 0,
-      count: countLine(0, 0, "events"),
-      rows: emptyState("activity events", scopeHint),
-      help: help.slice(0, 3),
+      total: truncated ? "0+" : 0,
+      count: truncated ? "0 of 0+ events" : countLine(0, 0, "events"),
+      rows: emptyState("activity events", truncated ? `${scopeHint} in fetched pages; listing is incomplete` : scopeHint),
+      help: [...(truncated ? [NATIVE_LIST_INCOMPLETE] : []), ...help].slice(0, 4),
     };
   }
 
@@ -451,8 +455,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
       `Could not query ${failures.length} subscription${failures.length === 1 ? "" : "s"} (${listed}: ${errorText(first?.error)})`,
     );
   }
+  if (shown.length < extended.length) help.push(nativeListFullHint(args, "activity list"));
   if (truncated) {
-    help.push("Stopped before every matching event was collected; narrow --since or add --resource-group");
+    help.push(NATIVE_LIST_INCOMPLETE);
   }
   if (!statusFilter && collected.some((event) => textsOf(event.status).some((text) => text.toLowerCase() === "failed"))) {
     help.push("Run `az-axi activity list --since 24h --status Failed` for recent failures");
@@ -464,8 +469,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   return {
     profile: profile.name,
-    total: collected.length,
-    count: countLine(shown.length, collected.length, "events"),
+    total: truncated || failures.length ? `${collected.length}+` : collected.length,
+    count: truncated || failures.length ? `${shown.length} of ${collected.length}+ events` : countLine(shown.length, collected.length, "events"),
     topCallers: top5,
     rows: picked,
     ...(help.length > 0 ? { help: help.slice(0, 3) } : {}),

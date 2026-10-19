@@ -141,7 +141,7 @@ describe("defender alerts", () => {
       return { status: 200, headers: {}, body: { value: [alert()] }, clientRequestId: "r" } as never;
     });
     const result = await run(["alerts", "--subscription", `${SUB_A},${SUB_B}`]);
-    expect(result.total).toBe(1);
+    expect(result.total).toBe("1+");
     expect((result.help as string[]).join("\n")).toMatch(/could not query 1 subscription/i);
   });
 
@@ -233,7 +233,7 @@ describe("defender alerts", () => {
       } as never;
     });
     const result = await run(["alerts", "--subscription", SUB_A]);
-    expect(sendMock.mock.calls.length).toBe(10);
-    expect((result.help as string[]).join("\n")).toContain("capped at 10 pages");
+    expect(sendMock.mock.calls.length).toBe(100);
+    expect((result.help as string[]).join("\n")).toContain("lower bounds");
   });
 });

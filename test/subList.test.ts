@@ -98,7 +98,7 @@ describe("sub list", () => {
     const result = await run(["list"]);
     expect(result.count).toBe("1+ subscriptions");
     const help = (result.help as string[]).join("\n");
-    expect(help).toContain("Fetch budget reached");
+    expect(help).toContain("Listing incomplete");
     expect(help).toContain("--full changes display only");
     expect(help).not.toContain("narrow with --subscription");
   });
@@ -112,7 +112,7 @@ describe("sub list", () => {
     expect(result.count).toBe("1 of 3+ subscriptions");
     expect(result.subscriptions).toHaveLength(1);
     const help = (result.help as string[]).join("\n");
-    expect(help).toContain("Fetch budget reached");
+    expect(help).toContain("Listing incomplete");
     expect(help).toContain("--full changes display only");
     expect(help).not.toContain("narrow with --subscription");
   });
