@@ -21,7 +21,7 @@ import { commandFlags, commandMeta } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
 import { parseSince } from "../lib/time.js";
 import type { ResolvedProfile } from "../lib/config.js";
-import { nativeListBudget, nativeListFullHint, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
+import { nativeListBudget, nativeListFetchFlags, nativeListFullHint, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 import { nativeGraphList } from "../lib/nativeGraph.js";
 
 export const meta = commandMeta("defender");
@@ -355,7 +355,7 @@ async function runAlerts(profile: ResolvedProfile, args: ParsedArgs): Promise<Re
         : statusRaw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   const sinceRaw = flagText(args, "since");
   const sinceMs = sinceRaw ? parseSince(sinceRaw).getTime() : undefined;
-  const suffix = scopeFlags(args);
+  const suffix = scopeFlags(args) + nativeListFetchFlags(args);
 
   const scope = await resolveSubscriptionIds(profile, args);
   if (scope.ids.length === 0) {
@@ -523,7 +523,7 @@ async function runAssessments(profile: ResolvedProfile, args: ParsedArgs): Promi
   const severityFilter = flagText(args, "severity");
   const statusFilter = flagText(args, "status");
   const resourceFilter = flagText(args, "resource");
-  const suffix = scopeFlags(args);
+  const suffix = scopeFlags(args) + nativeListFetchFlags(args);
   const query = defenderAssessmentsQuery({
     ...(severityFilter ? { severity: severityFilter } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
@@ -676,7 +676,7 @@ async function runScore(profile: ResolvedProfile, args: ParsedArgs): Promise<Rec
   const limit = resolveLimit(args, DEFAULT_ALERTS_LIMIT);
   const fields = flagList(args, "fields");
   const scope = graphScope(profile, args);
-  const suffix = scopeFlags(args);
+  const suffix = scopeFlags(args) + nativeListFetchFlags(args);
 
   const fetched = await nativeGraphList<ScoreRow>(profile, DEFENDER_SECURE_SCORES, scope.subscriptions, scope.managementGroups, nativeListBudget(args));
   const rows = fetched.rows;
