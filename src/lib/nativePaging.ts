@@ -17,6 +17,7 @@ export const DEFAULT_NATIVE_LIST_BUDGET: NativeListBudget = { maxRows: DEFAULT_M
 
 export const NATIVE_LIST_HELP = `Fetch budget per subscription or collection (Resource Graph: across selected scope, per exposure check): ${DEFAULT_MAX_ROWS} rows by default; --all raises it to ${ALL_MAX_ROWS} (Key Vault: at most 2500 scanned at 25/page). --max-rows <1..${MAX_ROWS}> overrides either row budget. Every walk stops at ${NATIVE_LIST_MAX_PAGES} pages. Budgets count rows before local filters. --limit controls display only (usually 50; Defender assessments 25, exposure overview 10 per check); --full shows every fetched row and expands display only, never bypassing fetch budgets. Incomplete totals are lower bounds; narrow the scope or raise --max-rows to search further.`;
 export const NATIVE_LIST_INCOMPLETE = "Listing incomplete; counts are lower bounds. Narrow the scope, or raise --max-rows (or use --all) if the fetch budget was reached. --full changes display only.";
+export const NATIVE_LIST_CAPPED = "Listing capped at the fetch budget; total is exact. Raise --max-rows (or use --all) to show more. --full changes display only.";
 
 /** Walk opaque service markers without exposing a marker that skips omitted rows. */
 export async function nativeMarkerList<T>(

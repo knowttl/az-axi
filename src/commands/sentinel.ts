@@ -16,7 +16,7 @@ import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
 import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
-import { DEFAULT_NATIVE_LIST_BUDGET, nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
+import { DEFAULT_NATIVE_LIST_BUDGET, nativeListBudget, nativeListFetchFlags, NATIVE_LIST_CAPPED, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("sentinel");
 
@@ -578,7 +578,7 @@ async function runAlertList(profile: ResolvedProfile, args: ReturnType<typeof pa
   const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullAlertRow : compactAlertRow);
   const picked = pickFields(shown, fields);
   const help: string[] = [
-    ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
+    ...(incomplete ? [NATIVE_LIST_CAPPED] : []),
     `Run \`az-axi sentinel incident list-entity ${incidentSelector}${suffix}\` for the related entities`,
   ];
   if (shown.length < collected.length) {
@@ -645,7 +645,7 @@ async function runEntityList(profile: ResolvedProfile, args: ReturnType<typeof p
   const shown = (full ? collected : collected.slice(0, limit)).map(full || fields ? fullEntityRow : compactEntityRow);
   const picked = pickFields(shown, fields);
   const help: string[] = [
-    ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
+    ...(incomplete ? [NATIVE_LIST_CAPPED] : []),
     `Run \`az-axi sentinel incident list-alert ${incidentSelector}${suffix}\` for the related alerts`,
   ];
   if (shown.length < collected.length) {
