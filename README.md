@@ -61,6 +61,8 @@ az-axi setup hooks
 ```
 
 This registers the local-only `az-axi-hook` entry point for Claude Code and Codex, plus an OpenCode ambient plugin.
+It also installs the packaged Bash approval guard for Claude Code.
+Run setup again after reinstalling or moving the package to repair hook paths; repeated setup preserves unrelated settings and does not duplicate hooks.
 Hook setup requires a persistent installation and refuses targets in temporary directories, git worktrees or pipeline builds, including symlinks to those targets.
 Restart the agent session after installation.
 The hook reads local configuration and environment only, with no network, Azure request or `az` subprocess.
@@ -368,27 +370,17 @@ Request failures use the normal error contract.
 ### Agent approval hook
 
 For read-only agent sessions, set `AZ_AXI_READ_ONLY=1` in the agent's environment.
-For Claude Code sessions intended to execute writes, use the source-checkout [Bash approval hook](scripts/claude-guard.mjs) from a trusted absolute path.
-Merge the following into `~/.claude/settings.json` or project `.claude/settings.json`, replacing the example path:
+For Claude Code sessions intended to execute writes, install the packaged [Bash approval hook](scripts/claude-guard.mjs):
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"/absolute/path/to/az-axi/scripts/claude-guard.mjs\""
-          }
-        ]
-      }
-    ]
-  }
-}
+```sh
+az-axi setup hooks
 ```
 
+Setup installs or repairs `PreToolUse` with the `Bash` matcher in `~/.claude/settings.json` alongside `SessionStart`.
+The guard runs from the installed package without a source checkout, using pinned absolute Node and script paths with shell quoting.
+Setup repairs the documented legacy source-checkout guard command and preserves unrelated hooks and settings.
+Invalid Claude settings stop setup without overwriting them.
+The approval guard is specific to Claude Code; Codex and OpenCode retain their session context integrations.
 The hook requests human approval with the full command when shell text contains a recognizable az-axi invocation and `--execute` evidence.
 It handles quoted words, paths, `env`, `npx` and chained commands, and scans raw/normalized ambiguous shell text without running it.
 Ambiguous assignments, arrays, pipelines, here-documents and escaped/ANSI-quoted text may prompt on unrelated literal text such as `--execute-later`; even `--execute=false` prompts.

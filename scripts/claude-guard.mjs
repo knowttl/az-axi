@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { readFileSync } from "node:fs";
 
 // Verified 2026-10-02: https://code.claude.com/docs/en/hooks#pretooluse-decision-control

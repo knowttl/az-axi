@@ -40,6 +40,15 @@ describe("setup hooks", () => {
     await expect(run(["hooks"])).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("refuses an incomplete package before creating agent configuration", async () => {
+    const home = join(dir, "home");
+    const entry = join(dir, "pkg/dist/bin/az-axi-hook.js");
+    mkdirSync(dirname(entry), { recursive: true });
+    writeFileSync(entry, "");
+    await expect(installHooks({ homeDir: home, execPath: entry })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(existsSync(home)).toBe(false);
+  });
+
   it("installs the hook entry point for every agent and is idempotent", async () => {
     const home = join(dir, "home");
     // A dist-shaped path, as installed: the SDK install policy only accepts
@@ -47,13 +56,19 @@ describe("setup hooks", () => {
     const entry = join(dir, "pkg/dist/bin/az-axi-hook.js");
     mkdirSync(dirname(entry), { recursive: true });
     writeFileSync(entry, "");
+    mkdirSync(join(dir, "pkg/scripts"), { recursive: true });
+    writeFileSync(join(dir, "pkg/scripts/claude-guard.mjs"), "");
     const first = await installHooks({ homeDir: home, execPath: entry });
     expect(first).toMatchObject({
-      hooks: { status: "installed", claude: true, codex: true, opencode: true },
+      hooks: { status: "installed", claude: true, codex: true, opencode: true, claudeGuard: true },
       help: ["Restart your agent session to receive az-axi ambient context"],
     });
     // Absolute fallback: the entry is not on PATH in this test.
     expect(claudeHooks(home)).toContainEqual({ type: "command", command: entry, timeout: 10 });
+    const settings = JSON.parse(readFileSync(join(home, ".claude/settings.json"), "utf8"));
+    expect(settings.hooks.PreToolUse).toEqual([
+      { matcher: "Bash", hooks: [{ type: "command", command: `${process.execPath} ${join(dir, "pkg/scripts/claude-guard.mjs")}`, timeout: 10 }] },
+    ]);
     const snapshot = (path: string) => readFileSync(path, "utf8");
     const files = [
       join(home, ".claude/settings.json"),
@@ -75,6 +90,8 @@ describe("setup hooks", () => {
     const entry = join(dir, "pkg/dist/bin/az-axi-hook.js");
     mkdirSync(dirname(entry), { recursive: true });
     writeFileSync(entry, "");
+    mkdirSync(join(dir, "pkg/scripts"), { recursive: true });
+    writeFileSync(join(dir, "pkg/scripts/claude-guard.mjs"), "");
     symlinkSync(entry, join(bin, "az-axi-hook"));
     process.env.PATH = `${bin}${process.env.PATH ? `:${process.env.PATH}` : ""}`;
     await installHooks({ homeDir: home, execPath: entry });

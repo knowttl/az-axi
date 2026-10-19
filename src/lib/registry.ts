@@ -261,7 +261,7 @@ export const DESCRIPTION =
 const HELP_OVERVIEWS = {
   auth: "az-axi auth status                       # selected profile, identity and credential sources",
   home: "az-axi                                   # dashboard: profile, identity, subscriptions, alerts, score, exposure, writes",
-  setup: "az-axi setup hooks                       # install the local-only session-start hook for ambient context",
+  setup: "az-axi setup hooks                       # install session context and the Claude Bash approval guard",
   doctor: "az-axi doctor                            # check az, tokens, ARM reachability and write status per profile",
   config: "az-axi config init|list|path             # manage profiles in the platform config directory",
   sub: "az-axi sub list                          # subscriptions visible to the identity",
@@ -455,6 +455,8 @@ const HELP_TEXT = {
     "az-axi setup hooks",
     "",
     "Install or repair the agent SessionStart hooks for az-axi ambient context (Claude Code, Codex, OpenCode).",
+    "Also install or repair the packaged Claude Code PreToolUse Bash approval guard in ~/.claude/settings.json.",
+    "The guard requests human approval for recognizable az-axi invocations with --execute; unrelated settings and hooks are preserved.",
     "The hook runs the local-only az-axi-hook entry point at session start: profile, scope, write posture, version and one next step.",
     "Requires a persistent installation; temporary directories, worktrees and pipeline builds cannot be registered as hook targets.",
     "No network, no Azure call, no `az`; unconfigured machines report \"not configured\" and exit 0.",
