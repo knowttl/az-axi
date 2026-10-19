@@ -13,7 +13,7 @@ This project does not promise fixes for older versions or a response deadline.
 ## Security boundaries and testing
 
 az-axi is read-only by default and supports explicitly gated writes.
-See the README for [write safeguards](README.md#writes), [authentication](README.md#authentication) and [metadata security boundaries](README.md#metadata-reads-and-security-boundaries).
+See the reference for [write safeguards](docs/safety.md#writes), [authentication](docs/configuration.md#authentication) and [metadata security boundaries](docs/safety.md#metadata-reads-and-security-boundaries).
 Redaction recognizes defined secret patterns; it is not a guarantee that arbitrary output is safe to share.
 Inspect and sanitize diagnostics before disclosure.
 

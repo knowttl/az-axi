@@ -6,7 +6,7 @@ import { packageInfo } from "./version.js";
  * renders this into `skills/az-axi/SKILL.md` (and `--check` refuses drift),
  * so the skill never drifts from the CLI's own description and leaf registry.
  * The body carries only durable guidance; per-leaf flags, defaults and
- * examples live in each leaf's `--help` and the README sections linked below.
+ * examples live in each leaf's `--help` and the reference pages linked below.
  */
 
 /** Published package invoked by the skill's non-interactive command forms. */
@@ -83,14 +83,14 @@ export function skillBody(): string {
     "## Reads",
     "",
     "- Discovery lists default to 50 compact rows with full IDs, counts and explicit empty states. `--fields a,b` selects columns, `--full` expands truncated content and shows every fetched row, `--limit N` caps rows.",
-    "- Native list fetch budgets (`--all`/`--max-rows`) cover all native Azure collection lists, including activity, monitoring, security, RBAC, governance and exposure; see [README.md#use](../../README.md#use) for budgets and display controls. Fetch budgets apply before local filters; `--limit` and `--full` control display only and incomplete totals are lower bounds.",
+    "- Native list fetch budgets (`--all`/`--max-rows`) cover all native Azure collection lists, including activity, monitoring, security, RBAC, governance and exposure; see [command reference](../../docs/commands.md) for budgets and display controls. Fetch budgets apply before local filters; `--limit` and `--full` control display only and incomplete totals are lower bounds.",
     `- Resource Graph: \`${npx} rg query --file query.kql\` (or piped stdin); without \`--full\`, \`--limit\` maps to \`$top\` (default 50, maximum 1000). When a skip token is returned, \`help[]\` carries the exact command for the next page.`,
     `- Log Analytics: \`${npx} logs query --file hunt.kql --workspace sentinel\`; \`--workspace\` takes a profile alias or workspace GUID, \`--timespan\` defaults to \`P1D\`.`,
     "- Query input differs by path: `graph query --graph-query <kql>` (or `-q`) and `monitor log-analytics query --analytics-query <kql>` require flags; `rg query \"<kql>\"` and `logs query \"<kql>\"` accept positional KQL.",
     "  All four accept `--file` or stdin.",
     `- Exposure: \`${npx} exposure --check mgmt-ports\`; default \`--check all\` returns per-check counts plus the first rows of each.`,
     `- Escape hatch: \`${npx} api /subscriptions --api-version 2022-12-01\`; lists with a \`value[]\` array return \`count\` plus \`value\`, \`--all\` follows \`nextLink\`. \`${npx} op status '<operation-url>'\` checks a long-running operation.`,
-    "- Per-command selectors, projections, paging limits and exclusions live in each leaf's `--help` and [README.md#use](../../README.md#use).",
+    "- Per-command selectors, projections, paging limits and exclusions live in each leaf's `--help` and [command reference](../../docs/commands.md).",
     "",
     "## Safe shell input",
     "",
@@ -102,7 +102,7 @@ export function skillBody(): string {
     `${npx} api POST /providers/Microsoft.ResourceGraph/resources --api-version 2024-04-01 --body-file query.json`,
     "```",
     "",
-    "`api` takes exactly one body source (`--body-file` or piped stdin). See [README.md#use](../../README.md#use) for the full rule.",
+    "`api` takes exactly one body source (`--body-file` or piped stdin). See [command reference](../../docs/commands.md) for the full rule.",
     "",
     "## Writes",
     "",
@@ -110,12 +110,12 @@ export function skillBody(): string {
     "",
     "- Every write previews first (what would change, with the exact command to execute) and needs human approval on every invocation: never batch, chain, or pre-approve writes. Execution needs `--execute` (plus `--confirm`, `--if-match`, `--timeout`, `--no-wait` where documented).",
     "- The human owns write access; this skill does not describe how to enable it. Launch agents that must never write with `AZ_AXI_READ_ONLY=1`.",
-    "- See [README.md#writes](../../README.md#writes) for selectors, close/classification rules, preview and no-op behavior, and ETag handling.",
+    "- See [write reference](../../docs/safety.md#writes) for selectors, close/classification rules, preview and no-op behavior, and ETag handling.",
     "",
     "## Conventions",
     "",
     "- Output is TOON on stdout; errors are TOON too. When present, `help` lists next steps. Never log secrets: credential-bearing values are redacted, and secret/key child resources and actions are refused before retrieval.",
-    "- Exit codes: 0 success (including no-ops), 1 error, 2 usage error. See [README.md#behavior](../../README.md#behavior) for error categories and output controls.",
+    "- Exit codes: 0 success (including no-ops), 1 error, 2 usage error. See [output contract](../../docs/commands.md#behavior) for error categories and output controls.",
     "- Unknown flags are rejected by name: read the `help` line and retry once.",
     "",
   ].join("\n");
