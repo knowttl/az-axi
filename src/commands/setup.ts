@@ -35,7 +35,8 @@ export interface InstallHooksOptions {
 /**
  * Register the local-only hook entry point (`az-axi-hook`, not the
  * network-bound dashboard) as the SessionStart hook for Claude Code and Codex
- * plus the OpenCode ambient plugin, then report the actual per-agent state.
+ * plus the OpenCode ambient plugin, and install the packaged Claude Code
+ * PreToolUse Bash approval guard, then report the actual per-agent state.
  */
 export async function installHooks(options: InstallHooksOptions = {}): Promise<Record<string, unknown>> {
   const entry = options.execPath ?? hookEntrypoint();
