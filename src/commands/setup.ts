@@ -1,12 +1,14 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AxiError, installSessionStartHooks, sessionStartHookStatus } from "axi-sdk-js";
 import { assertKnownFlags, parseArgs } from "../lib/args.js";
 import { subcommandOf } from "../lib/context.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { assertDurableHookTarget } from "../lib/hookTarget.js";
+import { installClaudeGuard } from "../lib/claudeGuard.js";
 
-/** `setup hooks` writes session-hook configuration only; it never touches Azure. */
+/** `setup hooks` writes agent-hook configuration only; it never touches Azure. */
 export const meta = commandMeta("setup");
 
 const SUBCOMMANDS = ["hooks"] as const;
@@ -38,6 +40,15 @@ export interface InstallHooksOptions {
 export async function installHooks(options: InstallHooksOptions = {}): Promise<Record<string, unknown>> {
   const entry = options.execPath ?? hookEntrypoint();
   assertDurableHookTarget(entry);
+  const guard = resolve(dirname(realpathSync(entry)), "../../scripts/claude-guard.mjs");
+  if (!existsSync(guard)) {
+    throw new AxiError("packaged approval guard not found", "NOT_FOUND", [
+      "Reinstall @knowttl/az-axi, then retry `az-axi setup hooks`",
+    ]);
+  }
+  assertDurableHookTarget(guard);
+  // Validate and install approval protection before registering ambient context.
+  installClaudeGuard(guard, options.homeDir);
   installSessionStartHooks({
     marker: "az-axi",
     execPath: entry,
@@ -48,14 +59,14 @@ export async function installHooks(options: InstallHooksOptions = {}): Promise<R
   const status = sessionStartHookStatus({ marker: "az-axi", ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }) });
   const agents = { claude: status.claude.installed, codex: status.codex.installed, opencode: status.opencode.installed };
   return {
-    hooks: { status: Object.values(agents).every(Boolean) ? "installed" : "partial", ...agents },
+    hooks: { status: Object.values(agents).every(Boolean) ? "installed" : "partial", ...agents, claudeGuard: true },
     help: ["Restart your agent session to receive az-axi ambient context"],
   };
 }
 
 /** The built hook binary next to the running CLI; missing before `pnpm build`. */
 function hookEntrypoint(): string {
-  const dir = dirname(resolve(process.argv[1] ?? ""));
+  const dir = fileURLToPath(new URL("../bin/", import.meta.url));
   const entry = ["az-axi-hook.js", "az-axi-hook"].map((name) => join(dir, name)).find((path) => existsSync(path));
   if (!entry) {
     throw new AxiError(`hook entry point not found next to ${join(dir, "az-axi")}`, "NOT_FOUND", [
