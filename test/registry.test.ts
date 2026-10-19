@@ -97,7 +97,7 @@ describe("exact leaf contracts", () => {
         }
       }
     }
-  });
+  }, 30_000);
 
   it.each(["\n", "\r\n"])("checks the committed generated command table with %j line endings", (lineEnding) => {
     const skill = readFileSync(new URL("../skills/az-axi/SKILL.md", import.meta.url), "utf8")

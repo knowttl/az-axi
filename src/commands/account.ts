@@ -5,8 +5,9 @@ import { request, requestAll } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { subscriptions } from "../lib/discovery.js";
 import { emptyState, pickFields } from "../lib/format.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
 import { formatFlagValue } from "../lib/shell.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("account");
 interface Subscription extends Record<string, unknown> {
@@ -26,7 +27,7 @@ function metadata(item: Subscription, full: boolean): Record<string, unknown> {
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const args = parseArgs(argv);
   const verb = subcommandOf(args, ["list", "show"], "account");
-  assertKnownFlags(args, [], `account ${verb}`);
+  assertKnownFlags(args, commandFlags(`account ${verb}`), `account ${verb}`);
   const invalid = (message: string): never => { throw new AxiError(message, "VALIDATION_ERROR", [`Run \`az-axi account ${verb} --help\` for selectors`]); };
   if (args.positionals.length !== 1) invalid("unexpected positional argument");
   const fields = flagList(args, "fields");
@@ -34,6 +35,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const full = flagBool(args, "full");
   const limit = flagNumber(args, "limit") ?? 50;
   if (!Number.isInteger(limit) || limit <= 0) invalid("--limit must be a positive integer");
+  const budget = verb === "list" ? nativeListBudget(args) : undefined;
   const profile = profileFromArgs(args);
   if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) invalid("management-group scope is unsupported for discovery; select subscriptions explicitly");
   if (verb === "show") {
@@ -42,21 +44,22 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     const item = await request<Subscription>(profile, { method: "GET", path: `/subscriptions/${ids[0]}`, apiVersion: SUBSCRIPTIONS_LIST });
     return { profile: profile.name, account: pickFields([metadata(item, full || !!fields)], fields)[0] };
   }
-  const page = await requestAll<Subscription>(profile, { method: "GET", path: "/subscriptions", apiVersion: SUBSCRIPTIONS_LIST }, 100);
+  const page = await requestAll<Subscription>(profile, { method: "GET", path: "/subscriptions", apiVersion: SUBSCRIPTIONS_LIST }, budget);
+  const incomplete = page.incomplete || !!page.nextLink;
   const ids = new Set((await subscriptions(profile, page)).map((id) => id.toLowerCase()));
   const items = page.items.filter((item) => ids.has(item.subscriptionId.toLowerCase()));
   const shown = items.slice(0, full ? undefined : limit);
-  const suffix = page.nextLink ? "+" : "";
+  const suffix = incomplete ? "+" : "";
   const identitySelectors = ["profile", "config", "tenant"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
   const selectors = ["profile", "config", "tenant", "subscription"]
     .filter((key) => typeof args.flags[key] === "string")
     .map((key) => ` ${formatFlagValue(key, args.flags[key] as string)}`).join("");
-  return { profile: profile.name, total: page.nextLink ? `${items.length}+` : items.length,
+  return { profile: profile.name, total: incomplete ? `${items.length}+` : items.length,
     count: `${shown.length} of ${items.length}${suffix} subscriptions`,
-    subscriptions: shown.length ? pickFields(shown.map((item) => metadata(item, full || !!fields)), fields) : emptyState("subscriptions", page.nextLink ? "in fetched pages; listing is incomplete" : "in selected scope"),
+    subscriptions: shown.length ? pickFields(shown.map((item) => metadata(item, full || !!fields)), fields) : emptyState("subscriptions", incomplete ? "in fetched pages; listing is incomplete" : "in selected scope"),
     help: [`Run \`az-axi account show --subscription <id>${identitySelectors}\` for live details`,
-      ...(shown.length < items.length ? [`Run \`az-axi account list${selectors} --full\` to show every fetched row`] : []),
-      ...(page.nextLink ? ["More pages exist; paging stopped at 100 pages. Counts are lower bounds."] : [])] };
+      ...(shown.length < items.length ? [`Run \`az-axi account list${selectors}${nativeListFetchFlags(args)} --full\` to show every fetched row`] : []),
+      ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : [])] };
 }

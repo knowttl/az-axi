@@ -134,7 +134,7 @@ describe("built CLI workspace and account reads offline", () => {
     const result = run([...path, "list"], "cap");
     expect(result.status, result.stdout).toBe(0);
     expect(result.stdout).toContain("total: 1+");
-    expect(result.stdout).toContain("Counts are lower bounds");
+    expect(result.stdout.toLowerCase()).toContain("counts are lower bounds");
   });
   it("reports truncation and full escape with the selected account scope", () => {
     const result = run(["account", "list", "-s", SUB_A, SUB_B, "--limit", "1"]);

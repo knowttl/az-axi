@@ -34,7 +34,7 @@ describe.each([
     expect(result.count).toMatch(/^1 of 1/);
     expect(result.rows).toEqual([expect.objectContaining({ name: sample.name, id: sample.id, location: "westus" })]);
     expect(result.rows).not.toEqual([sample]);
-    expect(all).toHaveBeenCalledWith(expect.objectContaining({ subscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", apiVersion: "2021-04-01" }), 100);
+    expect(all).toHaveBeenCalledWith(expect.objectContaining({ subscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", apiVersion: "2021-04-01" }), { maxRows: 1000, maxPages: 100 });
   });
   it("returns requested metadata fields", async () => {
     expect((await run(["list", "--fields", "id,tags"])).rows).toEqual([{ id: sample.id, tags: sample.tags }]);
@@ -57,7 +57,7 @@ describe.each([
   });
   it("resolves subscription names without changing the configured write allowlist", async () => {
     await run(["list", "--subscription", "Sandbox"]);
-    expect(all).toHaveBeenLastCalledWith(expect.objectContaining({ writeSubscriptions: [SUB_A] }), expect.objectContaining({ path: expect.stringContaining(SUB_A) }), 100);
+    expect(all).toHaveBeenLastCalledWith(expect.objectContaining({ writeSubscriptions: [SUB_A] }), expect.objectContaining({ path: expect.stringContaining(SUB_A) }), { maxRows: 1000, maxPages: 100 });
   });
   it.each(["Unknown", "Sandbox"])("refuses unknown or ambiguous subscription name %s", async (name) => {
     all.mockResolvedValue({ items: [subscriptionList[0]!, { ...subscriptionList[0]!, subscriptionId: SUB_B }] });

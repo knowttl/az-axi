@@ -1,3 +1,4 @@
+import { NATIVE_LIST_HELP } from "./nativePaging.js";
 export const NETWORK_RECORD_TYPES = ["a", "aaaa", "caa", "cname", "mx", "ns", "ptr", "soa", "srv", "txt"] as const;
 
 const SELECTORS: Record<string, string> = {
@@ -79,7 +80,7 @@ export function networkLeafHelp(path: string): string {
     `Command: az-axi ${path}`,
     `az-axi ${path} ${SELECTORS[key] ?? ""}`.trimEnd(),
     "Read-only ARM GETs against Microsoft.Network: NSGs, NICs, VNets, public IPs and private endpoints use api-version 2024-05-01; public DNS zones and record sets use api-version 2018-05-01. Effective security rules, effective routes, Network Watcher diagnostics, DNSSEC keys and private DNS zones stay out of scope. For the native network write, see `az-axi network nsg rule create --help` and README.md#writes.",
-    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. Lists follow up to 100 pages per subscription and disclose incomplete counts as lower bounds.",
+    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with --resource-group / -g scoping and exact --name / -n filtering. " + (path.endsWith(" list") ? NATIVE_LIST_HELP : ""),
     "Show by name needs exactly one subscription; --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when no scope is configured. --management-group scope is unsupported; select subscriptions explicitly.",
     DETAIL[key] ?? "",
     FULL[key] ?? "--fields selects listed fields and takes precedence over --full; --full expands safe metadata (tags, provisioningState, SKU details) and shows every fetched row. No view returns secrets, keys or credential fields.",

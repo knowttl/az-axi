@@ -1,11 +1,12 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
+import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText, parseArgs } from "../lib/args.js";
 import { requestStorageMetadata } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { emptyState, pickFields } from "../lib/format.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { storageLeafHelp } from "../lib/storageHelp.js";
 import { formatFlagValue } from "../lib/shell.js";
+import { nativeListBudget, nativeListFetchFlags, nativeMarkerList, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("storage");
 
@@ -17,6 +18,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError("expected storage container|blob list|show", "VALIDATION_ERROR", ["Run `az-axi storage --help`"]);
   }
   assertKnownFlags(args, commandFlags(path), path, storageLeafHelp(path));
+  const budget = verb === "list" ? nativeListBudget(args) : undefined;
   const authMode = flagText(args, "auth-mode");
   if (authMode !== undefined && authMode !== "login") {
     throw new AxiError("storage supports only --auth-mode login", "VALIDATION_ERROR", ["Remove --auth-mode or use --auth-mode login"]);
@@ -47,20 +49,29 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError("--fields accepts only safe storage properties", "VALIDATION_ERROR", [`Valid fields: ${safe.join(",")}`]);
   }
   const prefix = literal("prefix");
-  const page = await requestStorageMetadata(profileFromArgs(args), {
-    kind, verb, account, container, name, limit, prefix, marker: literal("marker"),
-  });
-  if (verb === "show") return { account, [kind]: pickFields(page.rows, fields)[0] };
+  const profile = profileFromArgs(args);
+  const marker = literal("marker");
+  const read = { kind, verb, account, container, name, limit, prefix, marker } as const;
+  if (verb === "show") {
+    const page = await requestStorageMetadata(profile, read);
+    return { account, [kind]: pickFields(page.rows, fields)[0] };
+  }
+  const page = await nativeMarkerList(budget!, marker, (limit, marker) =>
+    requestStorageMetadata(profile, { ...read, limit, marker }));
   const noun = `${kind}s`;
   const target = `${formatFlagValue("account-name", account)}${container ? ` ${formatFlagValue("container-name", container)}` : ""}`;
   const selectors = ["profile", "tenant", "config"].flatMap((flag) => {
     const value = flagString(args, flag);
     return value ? [` ${formatFlagValue(flag, value)}`] : [];
   }).join("");
+  const shown = flagBool(args, "full") ? page.rows : page.rows.slice(0, limit);
+  const help = [
+    ...(shown.length < page.rows.length ? [`Run \`az-axi ${path} ${target}${selectors}${prefix ? ` ${formatFlagValue("prefix", prefix)}` : ""}${marker ? ` ${formatFlagValue("marker", marker)}` : ""}${nativeListFetchFlags(args)} --full\` to show every fetched row`] : []),
+  ];
   return {
-    account, ...(container ? { container } : {}), count: `${page.rows.length}${page.nextMarker ? "+" : ""} ${noun}`,
-    [noun]: page.rows.length ? pickFields(page.rows, fields) : emptyState(noun, `in ${container ?? account}${page.nextMarker ? " on this page" : ""}`),
-    ...(page.nextMarker ? { nextMarker: page.nextMarker, help: [`Run \`az-axi ${path} ${target}${selectors}${prefix ? ` ${formatFlagValue("prefix", prefix)}` : ""} --limit ${limit} ${formatFlagValue("marker", page.nextMarker)}\` for the next page`] }
-      : page.rows.length ? { help: [`Run \`az-axi storage ${kind} show ${target}${selectors} --name <name>\` for properties`] } : {}),
+    account, ...(container ? { container } : {}), count: `${shown.length}${shown.length < page.rows.length ? ` of ${page.rows.length}` : ""}${page.incomplete ? "+" : ""} ${noun}`,
+    [noun]: page.rows.length ? pickFields(shown, fields) : emptyState(noun, `in ${container ?? account}${page.incomplete ? " in fetched pages; listing incomplete" : ""}`),
+    ...(page.nextMarker ? { nextMarker: page.nextMarker, help: [`Run \`az-axi ${path} ${target}${selectors}${prefix ? ` ${formatFlagValue("prefix", prefix)}` : ""}${nativeListFetchFlags(args)} --limit ${limit} ${formatFlagValue("marker", page.nextMarker)}\` for the next page`, ...help, ...(page.incomplete ? [NATIVE_LIST_INCOMPLETE] : [])] }
+      : page.rows.length ? { help: [...help, `Run \`az-axi storage ${kind} show ${target}${selectors} --name <name>\` for properties`, ...(page.incomplete ? [NATIVE_LIST_INCOMPLETE] : [])] } : page.incomplete ? { help: [NATIVE_LIST_INCOMPLETE] } : {}),
   };
 }

@@ -6,6 +6,7 @@ import { emptyState, pickFields } from "../lib/format.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { keyvaultLeafHelp } from "../lib/keyvaultHelp.js";
 import { formatFlagValue } from "../lib/shell.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("keyvault");
 
@@ -40,6 +41,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError("expected keyvault secret|key|certificate list", "VALIDATION_ERROR", ["Run `az-axi keyvault --help`"]);
   }
   assertKnownFlags(args, commandFlags(path), path, keyvaultLeafHelp(path));
+  const budget = nativeListBudget(args);
   const help = keyvaultLeafHelp(path);
   const vault = flagText(args, "vault-name");
   if (!vault) throw new AxiError("--vault-name is required", "VALIDATION_ERROR", [help]);
@@ -55,8 +57,9 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const expiring = flagText(args, "expiring-within");
   const expiringWithinMs = expiring === undefined ? undefined : expiryWindowMs(expiring, help);
   const page = await requestKeyVaultMetadata(profileFromArgs(args), {
-    kind: kind as KeyVaultKind, vault, limit, expiringWithinMs,
+    kind: kind as KeyVaultKind, vault, limit, budget, expiringWithinMs,
   });
+  const shown = flagBool(args, "full") ? page.rows : page.rows.slice(0, limit);
   const noun = NOUNS[kind as KeyVaultKind];
   const scope = expiring ? ` expiring within ${expiring.trim()}` : "";
   // Minimal default list schema (AXI): full safe properties via --fields or --full.
@@ -67,17 +70,15 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   }).join("");
   const target = formatFlagValue("vault-name", vault);
   return {
-    vault, count: `${page.rows.length}${page.truncated ? "+" : ""} ${noun}${scope}`,
-    [noun]: pickFields(page.rows, columns),
+    vault, count: `${shown.length}${shown.length < page.rows.length ? ` of ${page.rows.length}` : ""}${page.truncated ? "+" : ""} ${noun}${scope}`,
+    [noun]: pickFields(shown, columns),
     ...(!page.rows.length ? { status: page.truncated
       ? `No matching ${noun} in scanned pages of ${vault}${scope}; listing incomplete`
       : emptyState(noun, `in ${vault}${scope}`) } : {}),
-    ...(page.truncated
-      ? { help: [page.truncationReason === "scan"
-        ? "Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"
-        : limit === 1000 ? "Listing incomplete at the maximum --limit of 1000"
-        : `Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""} --limit ${Math.min(limit * 2, 1000)}\` for more rows`] }
-      : page.rows.length && !flagBool(args, "full") && !fields
-        ? { help: [`Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""} --limit ${limit} --full\` for all safe properties`] } : {}),
+    ...(page.truncated || (page.rows.length && !flagBool(args, "full") && (!fields || shown.length < page.rows.length)) ? { help: [
+      ...(page.truncated ? [NATIVE_LIST_INCOMPLETE] : []),
+      ...(page.rows.length && !flagBool(args, "full") && (!fields || shown.length < page.rows.length)
+        ? [`Run \`az-axi ${path} ${target}${selectors}${expiring ? ` ${formatFlagValue("expiring-within", expiring.trim())}` : ""}${nativeListFetchFlags(args)} --limit ${limit} --full\` for every fetched row and all safe properties`] : []),
+    ] } : {}),
   };
 }
