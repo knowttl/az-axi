@@ -1,7 +1,7 @@
 import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
 import { nativeGraphList } from "../lib/nativeGraph.js";
-import { nativeListBudget, nativeListFullHint, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
+import { nativeListBudget, nativeListFullHint, nativeListFetchFlags, NATIVE_LIST_CAPPED, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 import { graphScope, profileFromArgs, scopeFlags } from "../lib/context.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import {
@@ -135,7 +135,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     const picked = fields ? pickFields(formatRows(shown), fields) : formatRows(shown);
     const help: string[] = [];
     if (shown.length < fetched.rows.length) help.push(nativeListFullHint(args, "exposure"));
-    if (fetched.incomplete) help.push(NATIVE_LIST_INCOMPLETE);
+    if (fetched.incomplete) help.push(fetched.totalRecords !== undefined ? NATIVE_LIST_CAPPED : NATIVE_LIST_INCOMPLETE);
     else if (!full && (fetched.rows.length > shown.length || (fetched.totalRecords ?? 0) > shown.length)) {
       const nextLimit = Math.min(MAX_LIMIT, Math.max(fetched.rows.length, fetched.totalRecords ?? 0));
       help.push(`More rows exist: re-run with --limit ${nextLimit}${suffix}`);
@@ -154,13 +154,13 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const sections: Record<string, unknown> = {};
   let grandTotal = 0;
   let failedChecks = 0;
-  let incomplete = false;
+  let totalsExact = true;
   const help: string[] = [];
   for (const check of EXPOSURE_CHECKS) {
     try {
       const fetched = await runCheck(profile, check, subscriptions, managementGroups, budget);
       grandTotal += fetched.totalRecords ?? fetched.rows.length;
-      incomplete ||= fetched.incomplete;
+      totalsExact &&= fetched.totalRecords !== undefined || !fetched.incomplete;
       const shown = fetched.rows.slice(0, perCheck);
       const formatted = fields ? pickFields(formatRows(shown), fields) : formatRows(shown);
       sections[check] = {
@@ -169,7 +169,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
         rows: shown.length === 0 ? emptyState(CHECK_LABEL[check], scopeLabel) : formatted,
       };
       if (shown.length < fetched.rows.length) help.push(`[${check}] ${nativeListFullHint(args, "exposure")}`);
-      if (fetched.incomplete) help.push(`[${check}] ${NATIVE_LIST_INCOMPLETE}`);
+      if (fetched.incomplete) help.push(`[${check}] ${fetched.totalRecords !== undefined ? NATIVE_LIST_CAPPED : NATIVE_LIST_INCOMPLETE}`);
     } catch (err) {
       failedChecks++;
       const message = err instanceof Error ? err.message : String(err);
@@ -182,8 +182,8 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
 
   return {
     profile: profile.name,
-    total: incomplete || failedChecks ? `${grandTotal}+` : grandTotal,
-    count: `${grandTotal}${incomplete || failedChecks ? "+" : ""} exposures ${scopeLabel}${failedNote}`,
+    total: failedChecks > 0 || !totalsExact ? `${grandTotal}+` : grandTotal,
+    count: `${grandTotal}${failedChecks > 0 || !totalsExact ? "+" : ""} exposures ${scopeLabel}${failedNote}`,
     checks: sections,
     ...(help.length > 0 ? { help: help.slice(0, 4) } : {}),
   };

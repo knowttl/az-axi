@@ -1,7 +1,7 @@
 import { AxiError } from "axi-sdk-js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
 import { nativeGraphList } from "../lib/nativeGraph.js";
-import { nativeListBudget, nativeListFullHint, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
+import { nativeListBudget, nativeListFullHint, NATIVE_LIST_CAPPED, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, shortDate, truncate } from "../lib/format.js";
 import { isPrivilegedRole, PRIVILEGED_ROLE_IDS } from "../lib/roles.js";
@@ -173,7 +173,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
       count: fetched.incomplete ? `0 of ${total} assignments` : countLine(0, 0, "assignments"),
       rows: emptyState("role assignments", fetched.incomplete ? `${scopeHint} in fetched pages; listing is incomplete` : scopeHint),
       help: [
-        ...(fetched.incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
+        ...(fetched.incomplete ? [typeof total === "string" ? NATIVE_LIST_INCOMPLETE : NATIVE_LIST_CAPPED] : []),
         "Run `az-axi sub list` to verify the subscriptions in scope",
         "Run `az-axi rbac list --privileged` to focus on standing admin rights",
       ],
@@ -226,7 +226,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     );
   }
   if (fetched.incomplete || (fetched.totalRecords !== undefined && fetched.totalRecords > rows.length && !clientDropped)) {
-    help.push(NATIVE_LIST_INCOMPLETE);
+    help.push(typeof total === "string" ? NATIVE_LIST_INCOMPLETE : NATIVE_LIST_CAPPED);
   } else if (!privilegedOnly && Object.keys(sortedByRole).length > 1) {
     help.push("Run `az-axi rbac list --privileged` to focus on standing admin rights");
   }
