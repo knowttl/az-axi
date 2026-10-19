@@ -36,7 +36,7 @@ export function monitorLeafHelp(path: string): string {
     ...(path.endsWith(" list") ? [NATIVE_LIST_HELP] : []),
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only Azure Monitor GETs against Microsoft.Insights: metric alerts use api-version 2026-01-01; action groups use api-version 2023-01-01; diagnostic settings use api-version 2021-05-01-preview (the only version); metrics definitions and values use api-version 2024-02-01. Management-group scope is unsupported; select subscriptions explicitly.",
-    "Subscription and resource-group lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. Diagnostic settings and metrics target exactly one --resource <ARM-id>. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription; incomplete counts are disclosed as lower bounds.",
+    "Subscription and resource-group lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. Diagnostic settings and metrics target exactly one --resource <ARM-id>. --limit defaults to 50; --full shows every fetched row. ARM lists follow the shared fetch budget (up to 100 pages and the row budget per subscription); incomplete counts are disclosed as lower bounds.",
     "Show by name needs exactly one subscription. --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when one is present.",
     DETAIL[path] ?? "",
     ...(path === "monitor metrics list" ? ["--all and --max-rows apply to metric definitions only; time-series queries with --metric reject these flags."] : []),

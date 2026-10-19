@@ -27,7 +27,7 @@ export function securityReadLeafHelp(path: string): string {
     ...(path.endsWith(" list") ? [NATIVE_LIST_HELP] : []),
     `az-axi ${path} ${SELECTORS[path] ?? ""}`.trimEnd(),
     "Read-only Defender for Cloud GETs against Microsoft.Security: pricings use api-version 2024-01-01; sub-assessments use api-version 2019-01-01-preview (the only version). Management-group scope is unsupported; select subscriptions explicitly.",
-    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow up to 100 pages per subscription; incomplete counts are disclosed as lower bounds.",
+    "Lists fan out across the selected subscriptions (flags, environment, profile, else all accessible) with exact --name / -n filtering. --limit defaults to 50; --full shows every fetched row. ARM lists follow the shared fetch budget (up to 100 pages and the row budget per subscription); incomplete counts are disclosed as lower bounds.",
     "Show by name needs exactly one subscription. --ids takes exactly one ARM ID of the same collection and uses the ID's subscription when one is present.",
     DETAIL[path] ?? "",
     "--fields selects listed fields and takes precedence over --full; --full expands safe metadata and shows every fetched row. No view returns secrets, keys or credential fields.",

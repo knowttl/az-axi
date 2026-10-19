@@ -33,13 +33,13 @@
     "keyvault": 476,
     "acr": 476,
     "network": 547,
-    "policy": 472,
-    "lock": 448,
-    "deny-assignment": 514,
+    "policy": 469,
+    "lock": 445,
+    "deny-assignment": 511,
     "role": 449,
     "vm": 1351,
     "vmss": 1304,
     "disk": 882
   },
-  "helpTotal": 19396
+  "helpTotal": 19387
 }
