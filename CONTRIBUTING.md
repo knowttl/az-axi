@@ -68,6 +68,15 @@ Review [SECURITY.md](SECURITY.md) before sharing diagnostics.
 
 ## Releases
 
+The staging package `@knowttl/az-axi@0.0.0-stage` is retired and unsupported.
+Use a supported release from the [npm package page](https://www.npmjs.com/package/@knowttl/az-axi) or [GitHub releases](https://github.com/knowttl/az-axi/releases).
+Install the current release with `npm install -g @knowttl/az-axi@latest`, or run it with `npx -y @knowttl/az-axi@latest`.
+Replace any dependency or automation pin to `0.0.0-stage` with a supported release version.
+
+Retire staging versions with an npm deprecation notice directing users to supported releases.
+Do not unpublish or attempt to recreate retired versions.
+Registry deprecation is a separate maintainer operation; this policy does not assert that the live registry notice has been applied.
+
 Conventional commits on `main` produce a release-please PR with the version and generated changelog changes.
 Merging a release PR creates its tag and GitHub release, then builds, typechecks and tests that tag and publishes it to npm with OIDC provenance unless the version is already published.
 Release validation is separate from the local gate's GitHub test-CI policy.
