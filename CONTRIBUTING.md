@@ -26,7 +26,7 @@ The identifier guard rejects tenant identifiers and private domains in repositor
 Use synthetic identifiers and example domains when adding tests or documentation.
 
 The packaged skill is generated from [src/lib/skill.ts](src/lib/skill.ts) and the [leaf registry](src/lib/registry.ts).
-Run `pnpm skill:generate` when changing that surface, then `pnpm skill:check` to check drift.
+Run `pnpm skill:generate` when changing that surface, then `pnpm skill:check` to check drift in the skill and the exact command table in [docs/commands.md](docs/commands.md#exact-command-reference).
 `pnpm catalogue:generate` and `pnpm catalogue:check` maintain the pinned read catalogue from reviewed source snapshots without Azure access.
 New passthrough commands require explicit provenance and code review; generation never discovers or promotes commands dynamically.
 The README and leaf help describe implemented behavior.

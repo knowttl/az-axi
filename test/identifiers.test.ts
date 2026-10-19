@@ -38,6 +38,7 @@ const PUBLIC_HOSTS: readonly string[] = [
   "claude.com",
   "containerregistry.azure.net",
   "github.com",
+  "img.shields.io",
   "json-schema.org",
   "loganalytics.io",
   "microsoft.com",
