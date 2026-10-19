@@ -26,6 +26,9 @@ Use the dashboard when you need orientation, or run a known command directly.
 It prints the active profile, identity, visible subscription count, active Defender alerts by severity, average and lowest secure score, exposure counts, and write status - enough to act without a second call.
 A failed section degrades to a hint; the rest still render.
 
+The installed CLI's `setup hooks` command requires a persistent installation and installs or repairs session context for Claude Code, Codex and OpenCode, plus the packaged Claude Code PreToolUse Bash approval guard.
+The guard requests human approval for recognizable az-axi invocations with `--execute`; setup preserves unrelated settings and hooks.
+
 ## Commands
 
 The exact current leaf registry is `src/lib/registry.ts`. Capability labels: `native` (implemented handler), `passthrough` (pinned reviewed Azure CLI read), `api-only` (reviewed raw API operation only), `blocked` (policy refusal), `unsupported` (no supported implementation or reviewed API coverage). The table below records current executable leaves and their Azure effects; it makes no coverage claim for other Azure commands. `api` has a dynamic Azure effect determined by request policy, and `config init` only writes locally.
