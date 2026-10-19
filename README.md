@@ -178,7 +178,7 @@ The [TOON dependency compatibility review](docs/toon-compatibility.md) records t
 | `--limit N` | Caps displayed rows; most inspection lists default to 50 |
 | `--full` | Expands shortened values and usually removes display limits; Graph retains its page cap, while logs and `api` honor `--limit` |
 | `api --all` | Follows ARM `nextLink` for up to 10 pages; `api` has no default display row cap |
-| Compute (`vm`, `vmss`, `disk`) and Sentinel incident/rule/connector lists | Fetch at most 1,000 rows per subscription by default; `--all` raises this to 10,000; `--max-rows N` overrides either budget (1 to 100,000). Every walk stops at 100 pages. `--limit` and `--full` affect display only and never bypass fetch budgets. |
+| Native compute, Sentinel incident/rule/connector, resource group/resource, subscription/account, network/DNS and storage/Key Vault/ACR metadata lists | Fetch at most 1,000 rows per subscription or data-plane collection by default; `--all` raises this to 10,000; `--max-rows N` overrides either budget (1 to 100,000). Every walk stops at 100 pages. `--limit` and `--full` affect display only and never bypass fetch budgets. |
 
 Metadata data-plane commands retain their safe projections and bounds even with `--full`.
 Counts disclose incomplete pagination as lower bounds; an incomplete empty result does not prove that no matching objects exist.
@@ -224,14 +224,17 @@ Azure CLI token acquisition for these commands uses a sanitized, bounded child p
 
 | Service | Reads and bounds | Exclusions |
 | --- | --- | --- |
-| Blob storage | `storage container\|blob list\|show`; `--account-name`, plus `--container-name` for blobs; lists fetch one page, default 50 and maximum 1000, continued with `--marker`; show uses HEAD | User metadata, tags, blob content, credential lookup and local output files; Azure CLI storage defaults and `AZURE_STORAGE_*` credentials are not consumed |
-| Key Vault | `keyvault secret\|key\|certificate list --vault-name <vault>`; default 50 and maximum 1000 matching rows, at most 40 scanned pages; `--expiring-within 30d` excludes expired items and those without expiry | Single-object retrieval, tags, secret values, key material, certificate bytes, export, backup, download and mutations |
-| ACR | `acr repository list --name <registry>`, `acr repository show-tags --name <registry> --repository <repo>`, `acr manifest show-metadata --registry <registry> --name <repo:tag>`; lists fetch one page, default 50 and maximum 1000, continued with `--marker` | Credential export, image pulls, blob downloads, local output files, signatures, history, download URLs and mutations |
+| Blob storage | `storage container\|blob list\|show`; `--account-name`, plus `--container-name` for blobs; lists use the shared fetch budget and display 50 rows by default; `--marker` starts a walk at a service marker; show uses HEAD | User metadata, tags, blob content, credential lookup and local output files; Azure CLI storage defaults and `AZURE_STORAGE_*` credentials are not consumed |
+| Key Vault | `keyvault secret\|key\|certificate list --vault-name <vault>`; shared fetch budget counts scanned objects before filtering, default display 50 rows; `--expiring-within 30d` excludes expired items and those without expiry | Single-object retrieval, tags, secret values, key material, certificate bytes, export, backup, download and mutations |
+| ACR | `acr repository list --name <registry>`, `acr repository show-tags --name <registry> --repository <repo>`, `acr manifest show-metadata --registry <registry> --name <repo:tag>`; lists use the shared fetch budget and display 50 rows by default; `--marker` starts a walk at a service marker | Credential export, image pulls, blob downloads, local output files, signatures, history, download URLs and mutations |
 
 Storage needs Blob data RBAC permissions; Key Vault needs data-plane list permission; ACR needs registry pull access such as AcrPull.
 ACR exchanges an Entra token at the registry for catalog or repository pull-scoped access.
 Manifest reads also accept `repository@digest`; login-server-qualified references and `--limit` on manifest reads are refused.
-Storage and ACR `--full` retain the same safe schema and page bound; Key Vault `--full` expands safe columns while retaining row and scan limits.
+Storage and ACR `--full` retain the same safe schema and fetch budget; Key Vault `--full` expands safe columns while retaining fetch budgets.
+Service markers are returned only when they can resume without skipping an omitted page tail.
+`tag update` remains a gated write.
+Tag-related passthrough reads and Resource Graph queries retain their separate paging contracts.
 Key Vault continuations stay on the same vault and collection.
 Storage requests have a 30-second deadline and list XML is bounded to 1 MiB; Key Vault and ACR share a 30-second budget across credential acquisition and requests, with each response bounded to 1 MiB.
 Denied reads fail without trying another authentication method, and data-plane errors exclude secret values.

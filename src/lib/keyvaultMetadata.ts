@@ -3,6 +3,7 @@ import { KEYVAULT_DATA_PLANE } from "./apiVersions.js";
 import { resolveCredential } from "./auth.js";
 import type { ResolvedProfile } from "./config.js";
 import { assertEffectAllows } from "./registry.js";
+import type { NativeListBudget } from "./nativePaging.js";
 
 export type KeyVaultKind = "secret" | "key" | "certificate";
 
@@ -10,6 +11,7 @@ export interface KeyVaultRead {
   kind: KeyVaultKind;
   vault: string;
   limit: number;
+  budget?: NativeListBudget;
   /** Include only items expiring within this many milliseconds. Absent means no expiry filter. */
   expiringWithinMs?: number;
 }
@@ -61,10 +63,14 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
   const headers = { Authorization: credential.header, Accept: "application/json" };
   const rows: Array<Record<string, string | boolean>> = [];
   let url: string | undefined =
-    `https://${host}/${collection}?api-version=${KEYVAULT_DATA_PLANE}&maxresults=${Math.min(PAGE_SIZE, read.limit)}`;
+    `https://${host}/${collection}?api-version=${KEYVAULT_DATA_PLANE}&maxresults=${Math.min(PAGE_SIZE, read.budget?.maxRows ?? read.limit)}`;
+  const maxPages = read.budget?.maxPages ?? MAX_PAGES;
+  const maxRows = read.budget?.maxRows ?? read.limit;
+  let scanned = 0;
+  const seen = new Set<string>([url]);
   let truncated = false;
   let page = 0;
-  for (; page < MAX_PAGES && url && rows.length < read.limit; page++) {
+  for (; page < maxPages && url && (read.budget ? scanned : rows.length) < maxRows; page++) {
     let response: Response;
     try {
       response = await fetch(url, { method: "GET", redirect: "error", signal, headers });
@@ -80,15 +86,19 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
     const body = await readBoundedJson(response);
     const items = Array.isArray((body as { value?: unknown }).value) ? (body as { value: unknown[] }).value : failBody();
     for (const item of items) {
+      if (read.budget && scanned === maxRows) { truncated = true; break; }
+      scanned++;
       const row = toRow(read.kind, item);
       if (read.expiringWithinMs !== undefined && !expiresWithin(row, read.expiringWithinMs, Date.now())) continue;
-      if (rows.length < read.limit) rows.push(row);
+      if (rows.length < maxRows) rows.push(row);
       else truncated = true;
     }
     url = nextPage(host, collection, body);
+    if (url && seen.has(url)) { truncated = true; break; }
+    if (url) seen.add(url);
   }
   if (url) truncated = true;
-  return { rows, truncated, ...(truncated ? { truncationReason: url && page === MAX_PAGES ? "scan" as const : "limit" as const } : {}) };
+  return { rows, truncated, ...(truncated ? { truncationReason: url && page === maxPages ? "scan" as const : "limit" as const } : {}) };
 }
 
 function failBody(): never {
@@ -113,7 +123,7 @@ async function readBoundedJson(response: Response): Promise<unknown> {
     text += decoder.decode();
   } catch {
     await reader.cancel().catch(() => undefined);
-    throw new AxiError("key vault metadata response exceeded its bound or could not be read", "API_ERROR", ["Retry with a smaller --limit"]);
+    throw new AxiError("key vault metadata response exceeded its bound or could not be read", "API_ERROR", ["Retry with a smaller --max-rows fetch budget"]);
   } finally {
     reader.releaseLock();
   }

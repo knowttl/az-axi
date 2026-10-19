@@ -1,11 +1,12 @@
 import { AxiError } from "axi-sdk-js";
-import { assertKnownFlags, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
+import { assertKnownFlags, flagBool, flagList, flagNumber, flagText, parseArgs } from "../lib/args.js";
 import { requestAcrMetadata } from "../lib/client.js";
 import { profileFromArgs } from "../lib/context.js";
 import { emptyState, pickFields } from "../lib/format.js";
 import { commandFlags, commandMeta } from "../lib/registry.js";
 import { acrLeafHelp } from "../lib/acrHelp.js";
 import { formatFlagValue } from "../lib/shell.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("acr");
 
@@ -33,6 +34,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     return value;
   };
   const manifest = group === "manifest";
+  const budget = manifest ? undefined : nativeListBudget(args);
   const registry = manifest ? flagText(args, "registry") : flagText(args, "name");
   if (!registry) throw new AxiError(manifest ? "--registry is required" : "--name is required", "VALIDATION_ERROR", [acrLeafHelp(path)]);
   const showTags = group === "repository" && verb === "show-tags";
@@ -78,7 +80,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const page = await requestAcrMetadata(profileFromArgs(args), {
     op: manifest ? "manifest-show" : verb === "list" ? "repository-list" : "tag-list",
     registry, repository: manifest ? artifactRepo : repository ?? undefined, reference,
-    limit, last: manifest ? undefined : literal("marker"),
+    budget, limit, last: manifest ? undefined : literal("marker"),
     ...(order ? { orderby: order } : {}),
   });
   if (manifest) {
@@ -94,17 +96,23 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     return typeof value === "string" ? [` ${formatFlagValue(flag, value)}`] : [];
   }).join("");
   const next = showTags && orderby ? ` ${formatFlagValue("orderby", orderby)}` : "";
-  const rows = pickFields(page.rows, fields);
+  const shown = flagBool(args, "full") ? page.rows : page.rows.slice(0, limit);
+  const rows = pickFields(shown, fields);
+  const incomplete = page.incomplete || !!page.nextMarker;
+  const marker = literal("marker");
+  const help = [
+    ...(shown.length < page.rows.length ? [`Run \`az-axi ${path} ${target}${selectors}${next}${marker ? ` ${formatFlagValue("marker", marker)}` : ""}${nativeListFetchFlags(args)} --full\` to show every fetched row`] : []),
+  ];
   return {
     registry, ...(repository ? { repository } : {}),
-    count: `${page.rows.length}${page.nextMarker ? "+" : ""} ${noun}`,
-    [noun]: page.rows.length ? rows : emptyState(noun, `in ${repository ?? registry}${page.nextMarker ? " on this page" : ""}`),
+    count: `${shown.length}${shown.length < page.rows.length ? ` of ${page.rows.length}` : ""}${incomplete ? "+" : ""} ${noun}`,
+    [noun]: page.rows.length ? rows : emptyState(noun, `in ${repository ?? registry}${incomplete ? " in fetched pages; listing incomplete" : ""}`),
     ...(page.nextMarker
-      ? { nextMarker: page.nextMarker, help: [`Run \`az-axi ${path} ${target}${selectors}${next} --limit ${limit} ${formatFlagValue("marker", page.nextMarker)}\` for the next page`] }
+      ? { nextMarker: page.nextMarker, help: [`Run \`az-axi ${path} ${target}${selectors}${next}${nativeListFetchFlags(args)} --limit ${limit} ${formatFlagValue("marker", page.nextMarker)}\` for the next page`, ...help, ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : [])] }
       : page.rows.length
         ? { help: [verb === "list"
           ? `Run \`az-axi acr repository show-tags ${target}${selectors} --repository <repository>\` for tags`
-          : `Run \`az-axi acr manifest show-metadata ${formatFlagValue("registry", registry)} ${formatFlagValue("name", `${repository}:<tag>`)}${selectors}\` for manifest metadata`] }
-        : {}),
+          : `Run \`az-axi acr manifest show-metadata ${formatFlagValue("registry", registry)} ${formatFlagValue("name", `${repository}:<tag>`)}${selectors}\` for manifest metadata`, ...help, ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : [])] }
+        : incomplete ? { help: [NATIVE_LIST_INCOMPLETE] } : {}),
   };
 }

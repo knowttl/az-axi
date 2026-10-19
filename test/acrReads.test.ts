@@ -81,7 +81,7 @@ describe("acr read commands", () => {
   it("does not claim a total when a continuation exists", async () => {
     read.mockResolvedValue({ rows: [], nextMarker: "hello-world" });
     expect(await run([...list, "--profile", "ci"])).toMatchObject({ count: "0+ repositories",
-      nextMarker: "hello-world", help: [expect.stringContaining("--marker hello-world")] });
+      nextMarker: "hello-world", help: expect.arrayContaining([expect.stringContaining("--marker hello-world")]) });
   });
   it("preserves literal markers through shell and routing", async () => {
     read.mockResolvedValue({ rows: [], nextMarker: " next page " });

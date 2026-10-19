@@ -1,3 +1,4 @@
+import { NATIVE_LIST_HELP } from "./nativePaging.js";
 export function acrLeafHelp(path: string): string {
   const tags = path === "acr repository show-tags";
   const manifest = path === "acr manifest show-metadata";
@@ -15,12 +16,12 @@ export function acrLeafHelp(path: string): string {
     "Public Azure login server only (<registry>.azurecr.io, built from the validated registry name). Subscription selectors do not filter data-plane results; --name/--registry selects the registry.",
     manifest
       ? "show-metadata reads one manifest document and projects digest, mediaType, config and layer descriptors only. Blob content is never fetched and no local file is written."
-      : "--limit defaults to 50 (1-1000); one service page, --marker continues from the service Link header. Total is unknown while nextMarker is present.",
+      : "--limit defaults to 50 displayed rows (1-1000); --marker starts from the service Link header marker. " + NATIVE_LIST_HELP.replace("per subscription", "per registry/repository"),
     tags
-      ? "--orderby accepts only time_asc or time_desc (az vocabulary). --fields selects name, digest, createdTime, lastUpdateTime; --full keeps the same safe schema and page limit."
+      ? "--orderby accepts only time_asc or time_desc (az vocabulary). --fields selects name, digest, createdTime, lastUpdateTime; --full keeps the same safe schema and fetch budget."
       : manifest
         ? "--fields selects digest, mediaType, schemaVersion, config, layers, manifests; --full keeps the same safe projection. Signatures, history and download URLs are excluded."
-        : "--fields selects name only; --full keeps the same safe schema and page limit.",
+        : "--fields selects name only; --full keeps the same safe schema and fetch budget.",
     "Globals: --profile, --tenant, --subscription / -s, --management-group, --config, --fields, --full, --limit, --help / -h.",
     `Examples: az-axi ${path} ${target}${tags ? " --orderby time_desc --limit 10" : manifest ? "" : " --limit 10"}`,
   ].join("\n");

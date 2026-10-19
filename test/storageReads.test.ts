@@ -21,7 +21,7 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }); vi.unstubAllEnv
 describe("storage read commands", () => {
   it("lists compact safe properties and a scoped next step", async () => {
     expect(await run(args)).toMatchObject({ account: "stexample", container: "example", count: "1 blobs", blobs: [{ name: "example", size: "42" }], help: [expect.stringContaining("storage blob show --account-name stexample --container-name example")] });
-    expect(read).toHaveBeenCalledWith(expect.objectContaining({ auth: "token" }), expect.objectContaining({ kind: "blob", verb: "list", limit: 50 }));
+    expect(read).toHaveBeenCalledWith(expect.objectContaining({ auth: "token" }), expect.objectContaining({ kind: "blob", verb: "list", limit: 1000 }));
   });
   it.each(["container", "blob"])("%s show selects fields and full preserves the safe schema", async (kind) => {
     const target = [kind, "show", "--account-name", "stexample", "--name", "example", ...(kind === "blob" ? ["--container-name", "example"] : [])];
@@ -32,14 +32,14 @@ describe("storage read commands", () => {
     expect(await run(args)).toMatchObject({ count: "0 blobs", blobs: "0 blobs found in example" });
   });
   it("does not claim a total when a continuation exists", async () => {
-    read.mockResolvedValue({ rows: [], nextMarker: "--unsafe marker'" });
-    expect(await run([...args, "--prefix", "folder x", "--profile", "ci"])).toMatchObject({ count: "0+ blobs", nextMarker: "--unsafe marker'", help: [expect.stringContaining("--marker=")] });
+    read.mockResolvedValue({ rows: [{ name: "example", etag: "etag" }], nextMarker: "--unsafe marker'" });
+    expect(await run([...args, "--prefix", "folder x", "--profile", "ci", "--max-rows", "1"])).toMatchObject({ count: "1+ blobs", nextMarker: "--unsafe marker'", help: expect.arrayContaining([expect.stringContaining("--marker=")]) });
   });
   it.each(["container", "blob"])("%s list preserves literal filters in requests and pagination hints", async (kind) => {
-    read.mockResolvedValue({ rows: [], nextMarker: " next page " });
-    const result = await run([kind, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--prefix", " report ", "--marker", " current page "]);
+    read.mockResolvedValue({ rows: [{ name: "example", etag: "etag" }], nextMarker: " next page " });
+    const result = await run([kind, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--prefix", " report ", "--marker", " current page ", "--max-rows", "1"]);
     expect(read).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ prefix: " report ", marker: " current page " }));
-    expect(result.help).toEqual([expect.stringContaining("--prefix ' report ' --limit 50 --marker ' next page '")]);
+    expect(result.help).toEqual(expect.arrayContaining([expect.stringContaining("--prefix ' report ' --max-rows 1 --limit 50 --marker ' next page '")]));
   });
   it.each([" report ", " ", "-report"])("blob show preserves literal name %j through routing", async (name) => {
     await run(routeArgv(["storage", "blob", "show", "--account-name", "stexample", "--container-name", "example", `--name=${name}`]).argv.slice(1));
@@ -57,9 +57,9 @@ describe("storage read commands", () => {
     ["container", " "], ["blob", " "], ["container", "-reports"], ["blob", "-reports"],
     ["container", "--reports"], ["blob", "--reports"],
   ])("%s pagination preserves literal %j through shell and routing", async (kind, value) => {
-    read.mockResolvedValue({ rows: [], nextMarker: value });
-    const result = await run(routeArgv(["storage", kind, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), `--prefix=${value}`, `--marker=${value}`]).argv.slice(1));
-    expect(read).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ prefix: value, marker: value }));
+    read.mockResolvedValue({ rows: [{ name: "example", etag: "etag" }], nextMarker: value });
+    const result = await run(routeArgv(["storage", kind, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), `--prefix=${value}`, "--marker=start", "--max-rows", "1"]).argv.slice(1));
+    expect(read).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ prefix: value, marker: "start" }));
     const command = (result.help as string[])[0]!.split("`")[1]!;
     const argv = execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);
     await run(routeArgv(argv).argv.slice(1));
@@ -84,7 +84,7 @@ describe("storage read commands", () => {
     writeFileSync(config, JSON.stringify({ version: 1, profiles: { [profile]: { auth: "token", tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } } } }));
     read.mockResolvedValue({ rows: [{ name: "example", etag: "etag" }], nextMarker });
     const expectedProfile = { name: profile, tenant, configPath: config, tokenEnv: { storage: "EXPECTED_STORAGE_TOKEN" } };
-    const result = await run(routeArgv(["storage", kind!, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--config", config, "--profile", profile, "--tenant", tenant]).argv.slice(1));
+    const result = await run(routeArgv(["storage", kind!, "list", "--account-name", "stexample", ...(kind === "blob" ? ["--container-name", "example"] : []), "--config", config, "--profile", profile, "--tenant", tenant, "--max-rows", "1"]).argv.slice(1));
     expect(read).toHaveBeenLastCalledWith(expect.objectContaining(expectedProfile), expect.objectContaining({ kind, verb: "list" }));
     const command = (result.help as string[])[0]!.split("`")[1]!.replace("<name>", "example");
     const argv = execFileSync("sh", ["-s"], { encoding: "utf8", input: `capture() { printf '%s\\0' "$@"; }; ${command.replace(/^az-axi /, "capture ")}` }).split("\0").slice(0, -1);

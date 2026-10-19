@@ -31,7 +31,7 @@ describe("account and workspace discovery scope contracts", () => {
     vi.stubEnv("AZ_AXI_SUBSCRIPTION", SUB_B);
     vi.stubEnv("AZ_AXI_READ_ONLY", "0");
     expect(await account(["list", "--subscription", SUB_B])).toMatchObject({ total: 1, subscriptions: [{ name: "Lab", id: SUB_B }] });
-    expect(all).toHaveBeenCalledWith(expect.objectContaining({ allowWrites: true, subscriptions: [SUB_B], writeSubscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", path: "/subscriptions" }), 100);
+    expect(all).toHaveBeenCalledWith(expect.objectContaining({ allowWrites: true, subscriptions: [SUB_B], writeSubscriptions: [SUB_A] }), expect.objectContaining({ method: "GET", path: "/subscriptions" }), { maxRows: 1000, maxPages: 100 });
     const profile = all.mock.calls[0]![0];
     const writable = { resource: "arm" as const, method: "PATCH", path: `/subscriptions/${SUB_A}/resourceGroups/rg-demo` };
     expect(enforceGates(profile, writable, "write", { execute: true })).toBe(true);

@@ -152,7 +152,7 @@ describe("key vault metadata transport", () => {
   ] as const)("%s distinguishes the scan cap on %s from the row limit", async (kind, collection) => {
     fetchMock.mockImplementation(async () => json(JSON.stringify({
       value: [{ id: `https://kvexample.vault.azure.net/${collection}/never` }],
-      nextLink: `https://kvexample.vault.azure.net/${collection}?api-version=7.4&$skiptoken=abc`,
+      nextLink: `https://kvexample.vault.azure.net/${collection}?api-version=7.4&$skiptoken=${fetchMock.mock.calls.length}`,
     })));
     expect(await requestKeyVaultMetadata(profile, { kind, vault: "kvexample", limit: 50, expiringWithinMs: 86_400_000 }))
       .toEqual({ rows: [], truncated: true, truncationReason: "scan" });

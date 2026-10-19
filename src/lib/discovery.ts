@@ -8,6 +8,7 @@ import { emptyState, pickFields } from "./format.js";
 import { commandFlags } from "./registry.js";
 import { SECRET_ACTIONS } from "./policy.js";
 import { formatFlagValue } from "./shell.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "./nativePaging.js";
 
 interface ArmItem extends Record<string, unknown> {
   id: string;
@@ -30,12 +31,12 @@ function segment(value: string): string {
   return encodeURIComponent(value);
 }
 
-export async function subscriptions(profile: ResolvedProfile, available?: { items: Array<{ subscriptionId: string; displayName: string }>; nextLink?: string }): Promise<string[]> {
+export async function subscriptions(profile: ResolvedProfile, available?: { items: Array<{ subscriptionId: string; displayName: string }>; nextLink?: string; incomplete?: boolean }): Promise<string[]> {
   const selected = profile.subscriptions;
   if (selected?.length && selected.every((s) => GUID.test(s))) return [...new Set(selected.map((s) => s.toLowerCase()))];
-  const { items, nextLink } = available ?? await requestAll<{ subscriptionId: string; displayName: string }>(profile,
+  const { items, nextLink, incomplete } = available ?? await requestAll<{ subscriptionId: string; displayName: string }>(profile,
     { method: "GET", path: "/subscriptions", apiVersion: SUBSCRIPTIONS_LIST }, 100);
-  if (nextLink && (!available || selected?.some((id) => !GUID.test(id)))) invalid("subscription discovery is incomplete; select explicit subscription IDs");
+  if ((incomplete || nextLink) && (!available || selected?.some((id) => !GUID.test(id)))) invalid("subscription discovery is incomplete; select explicit subscription IDs");
   if (!selected?.length) return [...new Set(items.map((s) => s.subscriptionId))];
   return [...new Set(selected.map((value) => {
     if (GUID.test(value)) return value.toLowerCase();
@@ -90,6 +91,7 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
   const command = kind === "workspace" ? "monitor log-analytics workspace" : kind;
   assertKnownFlags(args, commandFlags(`${command} ${verb}`), `${command} ${verb}`);
   if (args.positionals.length !== 1) invalid("unexpected positional argument");
+  const budget = verb === "list" && kind !== "workspace" ? nativeListBudget(args) : undefined;
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (kind === "workspace" && fields?.some((field) => !WORKSPACE_FIELDS.includes(field))) invalid(`workspace --fields supports only metadata: ${WORKSPACE_FIELDS.join(", ")}`);
@@ -151,9 +153,9 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
   if (verb === "list") {
     for (const sub of subs) {
       const path = `/subscriptions/${sub}${group ? `/resourceGroups/${segment(group)}` : ""}/${kind === "workspace" ? "providers/Microsoft.OperationalInsights/workspaces" : kind === "group" ? "resourcegroups" : "resources"}`;
-      const page = await requestAll<ArmItem>(profile, { method: "GET", path, apiVersion: kind === "workspace" ? LOG_ANALYTICS_WORKSPACES : RESOURCE_GROUPS }, 100);
+      const page = await requestAll<ArmItem>(profile, { method: "GET", path, apiVersion: kind === "workspace" ? LOG_ANALYTICS_WORKSPACES : RESOURCE_GROUPS }, budget ?? 100);
       items.push(...page.items.filter((item) => (!name || item.name.toLowerCase() === name.toLowerCase()) && (!type || item.type?.toLowerCase() === type.toLowerCase())));
-      incomplete ||= !!page.nextLink;
+      incomplete ||= !!page.incomplete || !!page.nextLink;
     }
   }
   if (verb === "show") {
@@ -189,8 +191,8 @@ export async function runDiscovery(kind: "group" | "resource" | "workspace", arg
     rows: shown.length ? pickFields(shown.map((item) => kind === "workspace" ? full || fields ? workspaceMetadata(item) : compact(item, kind) : fields ? { ...item, ...compact(item, kind) } : full ? item : compact(item, kind)), fields) : emptyState(noun, incomplete ? "in fetched pages; listing is incomplete" : "in selected subscriptions"),
     help: [
       `Run \`az-axi ${command} show ${kind === "group" ? "--name <group> --subscription <id>" : "--ids <ARM-id>"}${detailSelectors}\` for details`,
-      ...(shown.length < items.length ? [`Run \`az-axi ${command} list${selectors} --full\` to show every fetched row`] : []),
-      ...(incomplete ? ["More pages exist; paging stopped at 100 pages per subscription. Counts are lower bounds. Narrow the subscription or resource-group scope."] : []),
+      ...(shown.length < items.length ? [`Run \`az-axi ${command} list${selectors}${budget ? nativeListFetchFlags(args) : ""} --full\` to show every fetched row`] : []),
+      ...(incomplete ? [budget ? NATIVE_LIST_INCOMPLETE : "More pages exist; paging stopped at 100 pages per subscription. Counts are lower bounds. Narrow the subscription or resource-group scope."] : []),
     ],
   };
 }

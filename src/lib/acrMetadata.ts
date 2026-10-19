@@ -3,6 +3,7 @@ import { resolveCredential } from "./auth.js";
 import type { ResolvedProfile } from "./config.js";
 import { assertEffectAllows } from "./registry.js";
 import { registerSecret } from "./redact.js";
+import { nativeMarkerList, type NativeListBudget } from "./nativePaging.js";
 
 export type AcrOp = "repository-list" | "tag-list" | "manifest-show";
 
@@ -14,11 +15,13 @@ export interface AcrRead {
   limit: number;
   last?: string;
   orderby?: "time_asc" | "time_desc";
+  budget?: NativeListBudget;
 }
 
 export interface AcrPage {
   rows: Record<string, unknown>[];
   nextMarker?: string;
+  incomplete?: boolean;
 }
 
 // VERIFY: Microsoft Learn REST Container Registry data plane, api-version
@@ -62,8 +65,12 @@ export async function requestAcrMetadata(profile: ResolvedProfile, read: AcrRead
   const refresh = await exchangeToken(loginServer, entra, signal);
   const scope = read.op === "repository-list" ? "registry:catalog:*" : `repository:${read.repository}:pull`;
   const access = await accessToken(loginServer, refresh, scope, signal);
-  if (read.op === "repository-list") return catalogPage(loginServer, access, read, signal);
-  if (read.op === "tag-list") return tagPage(loginServer, access, read, signal);
+  if (read.op !== "manifest-show") {
+    const fetchPage = (limit: number, last?: string) => read.op === "repository-list"
+      ? catalogPage(loginServer, access, { ...read, limit, last }, signal)
+      : tagPage(loginServer, access, { ...read, limit, last }, signal);
+    return read.budget ? nativeMarkerList(read.budget, read.last, fetchPage) : fetchPage(read.limit, read.last);
+  }
   return manifestPage(loginServer, access, read, signal);
 }
 
@@ -174,7 +181,7 @@ async function boundedJson(response: Response, message: string): Promise<unknown
     text += decoder.decode();
   } catch {
     await reader.cancel();
-    throw new AxiError(message, "API_ERROR", ["Retry with a smaller --limit"]);
+    throw new AxiError(message, "API_ERROR", ["For lists, retry with a smaller --max-rows fetch budget"]);
   } finally {
     reader.releaseLock();
   }

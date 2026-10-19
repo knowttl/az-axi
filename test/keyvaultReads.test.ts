@@ -1,3 +1,4 @@
+import { NATIVE_LIST_INCOMPLETE } from "../src/lib/nativePaging.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,7 +46,7 @@ describe("key vault read commands", () => {
   });
   it("does not claim a total when the service has more pages", async () => {
     read.mockResolvedValue({ rows: [], truncated: true });
-    expect(await run([...args, "--profile", "ci"])).toMatchObject({ count: "0+ secrets", help: [expect.stringContaining("--limit 100")] });
+    expect(await run([...args, "--profile", "ci"])).toMatchObject({ count: "0+ secrets", help: [NATIVE_LIST_INCOMPLETE] });
   });
   it.each([
     ["secret", "secrets"], ["key", "keys"], ["certificate", "certificates"],
@@ -56,17 +57,17 @@ describe("key vault read commands", () => {
         count: `0+ ${noun} expiring within 30d`,
         [noun]: [],
         status: `No matching ${noun} in scanned pages of kvexample expiring within 30d; listing incomplete`,
-        help: ["Listing stopped at the 40-page scan cap; increasing --limit cannot extend the scan"],
+        help: [NATIVE_LIST_INCOMPLETE],
       });
   });
   it("reports partial rows when the scan cap stops a nonempty list", async () => {
     read.mockResolvedValue({ rows: [{ name: "example", enabled: true, expiresOn: "" }], truncated: true, truncationReason: "scan" });
-    expect(await run(args)).toMatchObject({ count: "1+ secrets", secrets: [{ name: "example" }], help: [expect.stringContaining("40-page scan cap")] });
+    expect(await run(args)).toMatchObject({ count: "1+ secrets", secrets: [{ name: "example" }], help: expect.arrayContaining([NATIVE_LIST_INCOMPLETE]) });
   });
   it("does not suggest raising the row limit beyond its maximum", async () => {
     read.mockResolvedValue({ rows: [{ name: "example" }], truncated: true, truncationReason: "limit" });
     expect(await run([...args, "--limit", "1000"]))
-      .toMatchObject({ count: "1+ secrets", help: ["Listing incomplete at the maximum --limit of 1000"] });
+      .toMatchObject({ count: "1+ secrets", help: expect.arrayContaining([NATIVE_LIST_INCOMPLETE]) });
   });
   it("passes an expiry window through and scopes the count", async () => {
     const result = await run([...args, "--expiring-within", "30d"]);
@@ -106,7 +107,7 @@ describe("key vault read commands", () => {
     const argv = hint!.split("`")[1]!.split(" ").slice(1);
     await run(routeArgv(argv).argv.slice(1));
     expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: "ci" }), {
-      kind, vault: "kvexample", limit: 30, expiringWithinMs: 30 * 86_400_000,
+      kind, vault: "kvexample", limit: 30, budget: { maxRows: 1000, maxPages: 100 }, expiringWithinMs: 30 * 86_400_000,
     });
   });
 });

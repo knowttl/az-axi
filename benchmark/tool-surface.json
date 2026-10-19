@@ -29,10 +29,10 @@
     "api": 533,
     "op": 98,
     "az": 308,
-    "storage": 363,
-    "keyvault": 362,
-    "acr": 346,
-    "network": 577,
+    "storage": 456,
+    "keyvault": 437,
+    "acr": 437,
+    "network": 547,
     "policy": 472,
     "lock": 448,
     "deny-assignment": 514,
@@ -41,5 +41,5 @@
     "vmss": 1265,
     "disk": 843
   },
-  "helpTotal": 18509
+  "helpTotal": 18738
 }

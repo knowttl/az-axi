@@ -49,7 +49,7 @@ describe("sub list", () => {
         path: "/subscriptions",
         apiVersion: "2022-12-01",
       },
-      100,
+      { maxRows: 1000, maxPages: 100 },
     );
     expect(result.count).toBe("3 subscriptions");
     expect(result.subscriptions).toEqual([
@@ -98,8 +98,8 @@ describe("sub list", () => {
     const result = await run(["list"]);
     expect(result.count).toBe("1+ subscriptions");
     const help = (result.help as string[]).join("\n");
-    expect(help).toContain("More pages exist but paging stopped at the page cap");
-    expect(help).not.toContain("--full");
+    expect(help).toContain("Fetch budget reached");
+    expect(help).toContain("--full changes display only");
     expect(help).not.toContain("narrow with --subscription");
   });
 
@@ -112,8 +112,8 @@ describe("sub list", () => {
     expect(result.count).toBe("1 of 3+ subscriptions");
     expect(result.subscriptions).toHaveLength(1);
     const help = (result.help as string[]).join("\n");
-    expect(help).toContain("page cap");
-    expect(help).not.toContain("--full");
+    expect(help).toContain("Fetch budget reached");
+    expect(help).toContain("--full changes display only");
     expect(help).not.toContain("narrow with --subscription");
   });
 

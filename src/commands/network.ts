@@ -15,6 +15,7 @@ import { assertReadOnlyBoundary, classifyRequest } from "../lib/policy.js";
 import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
 import { parseSubscriptionId, shortenResourceId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("network");
 
@@ -456,6 +457,7 @@ async function runList(
   path: string,
   recordType: string | undefined,
 ): Promise<Record<string, unknown>> {
+  const budget = nativeListBudget(args);
   const full = flagBool(args, "full");
   const fields = flagList(args, "fields");
   if (fields?.some((field) => !collection.fields.includes(field))) {
@@ -479,11 +481,11 @@ async function runList(
   let incomplete = false;
   for (const sub of subs) {
     const page = await requestAll<ArmItem>(profile,
-      { method: "GET", path: collection.listPath(sub, group, zone, recordType, path), apiVersion: collection.apiVersion }, 100);
+      { method: "GET", path: collection.listPath(sub, group, zone, recordType, path), apiVersion: collection.apiVersion }, budget);
     collected.push(...page.items.filter((item) =>
       (!name || item.name.toLowerCase() === name.toLowerCase()) &&
       (recordType === undefined || recordTypeOf(item.id) === recordType)));
-    incomplete ||= !!page.nextLink;
+    incomplete ||= !!page.incomplete || !!page.nextLink;
   }
   if (collection.words.join(" ") === "dns record-set") {
     collected.sort((a, b) => a.name.localeCompare(b.name) || recordTypeOf(a.id).localeCompare(recordTypeOf(b.id)));
@@ -499,8 +501,8 @@ async function runList(
       count: countLine(0, 0, collection.noun),
       rows: emptyState(collection.noun, incomplete ? `${context} in fetched pages; listing is incomplete` : context),
       help: [
-        `Run \`az-axi ${path}${suffix} --full\` to show every fetched row`,
-        ...(incomplete ? ["More pages exist; paging stopped at 100 pages per subscription. Counts are lower bounds. Narrow the subscription or resource-group scope."] : []),
+        `Run \`az-axi ${path}${suffix}${nativeListFetchFlags(args)} --full\` to show every fetched row`,
+        ...(incomplete ? [NATIVE_LIST_INCOMPLETE] : []),
       ],
     };
   }
@@ -534,15 +536,15 @@ async function runList(
     `Run \`az-axi network ${collection.words.join(" ")}${isRecordSet ? ` ${recordTypeOf(first.id).toLowerCase()}` : ""} show ${firstSelector} ${formatFlagValue("subscription", firstSub)}${selectorSuffix(args, ["profile", "config", "tenant"])}\` for the first row in detail`,
   ];
   if (shown.length < collected.length || shortened) {
-    help.push(`Run \`az-axi ${path}${suffix} --full\` to show every fetched row`);
+    help.push(`Run \`az-axi ${path}${suffix}${nativeListFetchFlags(args)} --full\` to show every fetched row`);
   }
   if (incomplete) {
-    help.push("More pages exist; paging stopped at 100 pages per subscription. Counts are lower bounds. Narrow the subscription or resource-group scope.");
+    help.push(NATIVE_LIST_INCOMPLETE);
   }
   return {
     profile: profile.name,
     total: incomplete ? `${collected.length}+` : collected.length,
-    count: countLine(shown.length, collected.length, collection.noun),
+    count: incomplete ? `${shown.length} of ${collected.length}+ ${collection.noun}` : countLine(shown.length, collected.length, collection.noun),
     ...aggregates,
     rows: picked,
     help,

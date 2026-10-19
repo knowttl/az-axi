@@ -96,7 +96,7 @@ export async function requestStorageMetadata(profile: ResolvedProfile, read: Sto
       text += decoder.decode();
     } catch {
       await reader.cancel();
-      throw new AxiError("storage metadata response exceeded its bound or could not be read", "API_ERROR", ["Retry with a smaller --limit"]);
+      throw new AxiError("storage metadata response exceeded its bound or could not be read", "API_ERROR", ["Retry with a smaller --max-rows fetch budget"]);
     } finally {
       reader.releaseLock();
     }

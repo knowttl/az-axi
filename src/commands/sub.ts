@@ -4,7 +4,8 @@ import { assertKnownFlags, flagBool, flagList, flagNumber, parseArgs } from "../
 import { requestAll } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields } from "../lib/format.js";
-import { commandMeta } from "../lib/registry.js";
+import { commandFlags, commandMeta } from "../lib/registry.js";
+import { nativeListBudget, nativeListFetchFlags, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("sub");
 
@@ -20,32 +21,34 @@ interface Subscription {
 export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const args = parseArgs(argv);
   subcommandOf(args, SUBCOMMANDS, "sub");
-  assertKnownFlags(args, [], "sub list");
+  assertKnownFlags(args, commandFlags("sub list"), "sub list");
   if (args.positionals.length > 1) {
     throw new AxiError(`unexpected argument \`${args.positionals[1]}\` for \`sub list\``, "VALIDATION_ERROR", [
       "Run `az-axi sub list --help` for usage",
     ]);
   }
 
+  const budget = nativeListBudget(args);
   const profile = profileFromArgs(args);
   const limit = flagBool(args, "full") ? Number.POSITIVE_INFINITY : (flagNumber(args, "limit") ?? DEFAULT_LIMIT);
   if (!(limit > 0)) {
     throw new AxiError("flag --limit must be greater than 0", "VALIDATION_ERROR", ["Example: --limit 20"]);
   }
 
-  const { items, nextLink } = await requestAll<Subscription>(
+  const { items, nextLink, incomplete } = await requestAll<Subscription>(
     profile,
     {
       path: "/subscriptions",
       apiVersion: SUBSCRIPTIONS_LIST,
     },
-    100,
+    budget,
   );
+  const partial = incomplete || !!nextLink;
   if (items.length === 0) {
     return {
       profile: profile.name,
-      subscriptions: emptyState("subscriptions", "visible to this identity"),
-      help: ["Run `az login` (or `az login --tenant <tenant-id>`) and check the signed-in account with `az-axi doctor`"],
+      subscriptions: emptyState("subscriptions", partial ? "in fetched pages; listing incomplete" : "visible to this identity"),
+      help: partial ? [NATIVE_LIST_INCOMPLETE] : ["Run `az login` (or `az login --tenant <tenant-id>`) and check the signed-in account with `az-axi doctor`"],
     };
   }
 
@@ -61,11 +64,11 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const shown = rows.slice(0, limit);
 
   const help: string[] = [];
-  if (!nextLink && shown.length < rows.length) help.push("Run `az-axi sub list --full` to list every subscription");
-  if (nextLink) help.push("More pages exist but paging stopped at the page cap");
+  if (!partial && shown.length < rows.length) help.push(`Run \`az-axi sub list${nativeListFetchFlags(args)} --full\` to list every subscription`);
+  if (partial) help.push(NATIVE_LIST_INCOMPLETE);
   if (inScope.size === 0) help.push("Narrow the scope with `--subscription <id>` on any command");
 
-  const count = nextLink
+  const count = partial
     ? shown.length < rows.length
       ? `${shown.length} of ${rows.length}+ subscriptions`
       : `${shown.length}+ subscriptions`
