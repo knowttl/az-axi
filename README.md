@@ -250,7 +250,7 @@ Graph, logs and raw API have distinct paging controls; see the [output and pagin
 ## Contributing
 
 Run `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm skill:check` locally.
-GitHub test CI is intentionally disabled; release publishing runs its own validation and uses npm provenance.
+GitHub test CI is not required by the local validation gate; no current CI status is claimed here. Release publishing runs its own validation and uses npm provenance.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for offline fixtures and release procedures, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
 ## License
