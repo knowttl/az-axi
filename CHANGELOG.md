@@ -3,6 +3,20 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.10](https://github.com/knowttl/az-axi/compare/v0.1.9...v0.1.10) (2026-10-19)
+
+
+### Features
+
+* extend shared fetch budgets to native resource lists ([#98](https://github.com/knowttl/az-axi/issues/98)) ([f335285](https://github.com/knowttl/az-axi/commit/f3352852e635d94959002aae1429ad3446415d04))
+* unify native list fetch budgets with --all and --max-rows ([#97](https://github.com/knowttl/az-axi/issues/97)) ([ec4c466](https://github.com/knowttl/az-axi/commit/ec4c466c902470b7ab0bbe7f25c84bca3a08985a))
+
+
+### Bug Fixes
+
+* group top-level help and clarify gated-write skill description ([#96](https://github.com/knowttl/az-axi/issues/96)) ([8445f33](https://github.com/knowttl/az-axi/commit/8445f3317235a8b7d9f4107f16ed72da29ad1649))
+* return failing doctor exits and unify safe CLI errors ([#94](https://github.com/knowttl/az-axi/issues/94)) ([2f2d27d](https://github.com/knowttl/az-axi/commit/2f2d27d817bb98d4e806a85f9a59a2f951f38360))
+
 ## [0.1.9](https://github.com/knowttl/az-axi/compare/v0.1.8...v0.1.9) (2026-10-16)
 
 
