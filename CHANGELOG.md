@@ -3,6 +3,14 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.11](https://github.com/knowttl/az-axi/compare/v0.1.10...v0.1.11) (2026-10-19)
+
+
+### Features
+
+* complete shared fetch budgets across remaining native lists ([#99](https://github.com/knowttl/az-axi/issues/99)) ([8d14678](https://github.com/knowttl/az-axi/commit/8d146782acc38adaa2f0340fb0ced98aeb304def))
+* **setup:** install packaged Claude approval guard with setup hooks ([#101](https://github.com/knowttl/az-axi/issues/101)) ([28d2642](https://github.com/knowttl/az-axi/commit/28d2642713cf4d0f54825993b92d861fac8d139d))
+
 ## [0.1.10](https://github.com/knowttl/az-axi/compare/v0.1.9...v0.1.10) (2026-10-19)
 
 
