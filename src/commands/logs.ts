@@ -5,7 +5,7 @@ import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, flagText,
 import { sendRequest } from "../lib/client.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
-import { convertKustoTables, partialErrorText, type KustoResponse } from "../lib/kusto.js";
+import { assertKqlSyntax, convertKustoTables, partialErrorText, type KustoResponse } from "../lib/kusto.js";
 import { workspaceCustomerIdCommand } from "../lib/queries.js";
 import { readStdinIfPiped } from "../lib/stdin.js";
 import { normalizeTimespan } from "../lib/time.js";
@@ -168,6 +168,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     query = text;
   }
 
+  await assertKqlSyntax(query);
   const response = await sendRequest<KustoResponse>(profile, {
     method: "POST",
     resource: "logs",

@@ -3,6 +3,7 @@ import { AxiError } from "axi-sdk-js";
 import { RESOURCE_GRAPH_RESOURCES } from "../lib/apiVersions.js";
 import { assertKnownFlags, flagBool, flagList, flagNumber, flagString, parseArgs } from "../lib/args.js";
 import { sendRequest } from "../lib/client.js";
+import { assertKqlSyntax } from "../lib/kusto.js";
 import { profileFromArgs, subcommandOf } from "../lib/context.js";
 import { countLine, emptyState, pickFields, truncate } from "../lib/format.js";
 import { shortenResourceId, subscriptionNameMap } from "../lib/scope.js";
@@ -138,6 +139,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     query = text;
   }
 
+  await assertKqlSyntax(query);
   const flagSubs = flagList(args, "subscription");
   const flagMg = flagString(args, "management-group");
   let subscriptions: string[] | undefined;

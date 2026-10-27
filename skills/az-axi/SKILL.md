@@ -186,6 +186,10 @@ With no config file at all, az-axi uses an implicit `az` profile, so it works ri
 - Log Analytics: `npx -y @knowttl/az-axi logs query --file hunt.kql --workspace <alias|guid>`; `--workspace` takes a profile alias or workspace GUID, `--timespan` defaults to `P1D`.
 - Query input differs by path: `graph query --graph-query <kql>` (or `-q`) and `monitor log-analytics query --analytics-query <kql>` require flags; `rg query "<kql>"` and `logs query "<kql>"` accept positional KQL.
   All four accept `--file` or stdin.
+- These KQL commands parse locally before authentication or requests.
+  Syntax failures return `VALIDATION_ERROR` (exit 2), up to five `diagnostics` with line, column, code, token and message, and query excerpts.
+  Successful parsing prints no validation message.
+  Tables, columns, workspace functions, permissions and service-specific restrictions remain server checks; semantic rejections are identified separately.
 - Exposure: `npx -y @knowttl/az-axi exposure --check mgmt-ports`; default `--check all` returns per-check counts plus the first rows of each.
 - Escape hatch: `npx -y @knowttl/az-axi api /subscriptions --api-version 2022-12-01`; lists with a `value[]` array return `count` plus `value`, `--all` follows `nextLink`. `npx -y @knowttl/az-axi op status '<operation-url>'` checks a long-running operation.
 - Per-command selectors, projections, paging limits and exclusions live in each leaf's `--help` and [command reference](../../docs/commands.md).

@@ -7,6 +7,7 @@ import type { ResolvedProfile } from "../src/lib/config.js";
 import { redact } from "../src/lib/redact.js";
 import { nativeListBudget } from "../src/lib/nativePaging.js";
 import { parseArgs } from "../src/lib/args.js";
+import { formatError } from "../src/lib/errors.js";
 
 const TOKEN = "tok-9f3c1d7a-distinctive-secret";
 
@@ -479,6 +480,9 @@ describe("error translation", () => {
             innererror: {
               code: "SyntaxError",
               message: "Query could not be parsed at 'foo' on line [1,13]",
+              line: 1,
+              pos: 13,
+              token: "foo",
             },
           },
         },
@@ -490,6 +494,26 @@ describe("error translation", () => {
     expect(error.message).toContain("parsed at 'foo'");
     expect(error.suggestions.join(" ")).toContain("KQL");
     expect(error.suggestions.join(" ")).toContain("SyntaxError");
+    const formatted = formatError(error);
+    expect(formatted.exitCode).toBe(2);
+    expect(formatted.output).toContain("The server rejected the query (syntax error)");
+    expect(formatted.output).toContain("diagnostics[1]{line,column,code,token,message}:");
+    expect(formatted.output).toContain("1,13,SyntaxError,foo,");
+  });
+
+  it.each([
+    ["logs", "/v1/workspaces/x/query"],
+    ["arm", "/providers/Microsoft.ResourceGraph/resources"],
+  ] as const)("distinguishes %s semantic rejections from offline syntax errors", async (resource, path) => {
+    fetchMock.mockResolvedValueOnce(json({ error: {
+      code: "BadArgumentError", message: "Request rejected",
+      innererror: { code: "SemanticError", message: "Unknown table 'MissingTable'" },
+    } }, 400));
+    const error = await failure(request(profile(), { resource, path, method: "POST", apiVersion: "2024-04-01" }));
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.message).toBe("The server rejected the query (semantic error): Unknown table 'MissingTable'");
+    expect(error.suggestions.join(" ")).toContain("tables, columns, workspace functions, permissions");
+    expect(formatError(error).output).not.toContain("diagnostics[");
   });
 
   it("treats an invalid logs token as auth failure, not a missing Reader role", async () => {

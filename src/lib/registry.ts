@@ -325,6 +325,9 @@ export function leafHelp(leaf: CommandLeaf, path = leaf.path): string {
     ...(leaf.handlerPath ? [
       `Query input differs by path: ${leaf.path} requires ${leaf.path === "graph query" ? "--graph-query / -q" : "--analytics-query"} <kql>; ${leaf.handlerPath} accepts positional \"<kql>\". Both accept --file or stdin.`,
     ] : []),
+    ...(["graph query", "monitor log-analytics query"].includes(leaf.path) ? [
+      "KQL is parsed locally before authentication or requests. Syntax errors return VALIDATION_ERROR (exit 2), up to five diagnostics with line, column, code, token and message, and query excerpts. Tables, columns, workspace functions and permissions remain server checks.",
+    ] : []),
     ...(path === "role assignment list" ? ["--assignee aliases --principal; inherited assignments are always included."] : []),
     ...(path === "monitor activity-log list" ? ["--offset aliases --since (default 24h)."] : []),
     "",

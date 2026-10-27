@@ -219,6 +219,11 @@ Explicit Graph subscription and management-group scope families are mutually exc
 Log Analytics defaults to `--timespan P1D`, which intersects KQL time filters, and 50 displayed rows.
 It needs workspace query access, such as Log Analytics Reader.
 Legacy `rg query` and `logs query` also accept positional KQL; canonical query paths use named input, file or stdin.
+All four KQL command paths parse locally before authentication or network requests.
+Syntax errors return `VALIDATION_ERROR` (exit 2), up to five structured `diagnostics` containing one-based line and column, code, token and message, plus query excerpts with carets.
+If more diagnostics exist, help reports the omitted count.
+Successful parsing prints no validation message and does not check tables, columns, workspace functions, permissions or service-specific restrictions.
+Server semantic rejections say `The server rejected the query (semantic error)`; server-provided line, position and token are included as diagnostics when available.
 Legacy `rbac list` uses `--principal` instead of `--assignee`, and `activity list` uses `--since` instead of `--offset`.
 
 `api` accepts host-relative paths for `--resource arm|logs|graph` (default `arm`).

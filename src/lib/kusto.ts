@@ -1,3 +1,37 @@
+import { KqlError, type KqlDiagnostic } from "./errors.js";
+
+/** Parse without schema analysis so workspace functions and unknown names remain server concerns. */
+export async function assertKqlSyntax(query: string): Promise<void> {
+  // The translated parser requires its bundled Bridge runtime before initialization.
+  // @ts-expect-error The package declares globals rather than an ES module.
+  await import("@kusto/language-service-next/bridge.js");
+  // @ts-expect-error The package declares globals rather than an ES module.
+  await import("@kusto/language-service-next");
+  const parsed = Kusto.Language.KustoCode.Parse(query)!;
+  const found = parsed.GetDiagnostics()!;
+  if (found.Count === 0) return;
+  const lines = query.split(/\r\n|\r|\n/);
+  const diagnostics: KqlDiagnostic[] = [];
+  const excerpts: string[] = [];
+  for (let i = 0; i < Math.min(found.Count, 5); i++) {
+    const diagnostic = found.getItem(i);
+    const prefix = query.slice(0, diagnostic.Start);
+    const line = prefix.split(/\r\n|\r|\n/).length;
+    const column = prefix.length - Math.max(prefix.lastIndexOf("\n"), prefix.lastIndexOf("\r"));
+    const token = query.slice(diagnostic.Start, diagnostic.Start + diagnostic.Length);
+    diagnostics.push({ line, column, code: diagnostic.Code!, token, message: diagnostic.Message! });
+    const text = lines[line - 1] ?? "";
+    excerpts.push(`${line} | ${text}\n${" ".repeat(String(line).length)} | ${" ".repeat(column - 1)}${"^".repeat(Math.max(1, Math.min(diagnostic.Length, text.length - column + 1)))}`);
+  }
+  const first = diagnostics[0]!;
+  throw new KqlError(
+    `KQL syntax error at line ${first.line}, column ${first.column}: ${first.message} The query was not sent.`,
+    diagnostics,
+    [...excerpts, ...(found.Count > 5 ? [`Showing 5 of ${found.Count} syntax diagnostics`] : []),
+      "Fix the query and retry; KQL reference: https://learn.microsoft.com/kusto/query/"],
+  );
+}
+
 /**
  * Log Analytics `tables` to objects (PLAN.md Section 6.10).
  * The query API returns `{ tables: [{ name, columns: [{ name, type }], rows }] }`.
