@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.12](https://github.com/knowttl/az-axi/compare/v0.1.11...v0.1.12) (2026-10-27)
+
+
+### Bug Fixes
+
+* make workspace aliases discoverable ([#107](https://github.com/knowttl/az-axi/issues/107)) ([608946e](https://github.com/knowttl/az-axi/commit/608946e64842a750e234e790f4ea7c281a5c0dbd))
+
 ## [0.1.11](https://github.com/knowttl/az-axi/compare/v0.1.10...v0.1.11) (2026-10-19)
 
 
