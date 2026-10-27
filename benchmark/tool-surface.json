@@ -10,7 +10,7 @@
     "auth": 51,
     "home": 244,
     "setup": 172,
-    "doctor": 231,
+    "doctor": 234,
     "config": 186,
     "sub": 58,
     "account": 247,
@@ -41,5 +41,5 @@
     "vmss": 1304,
     "disk": 882
   },
-  "helpTotal": 19556
+  "helpTotal": 19559
 }

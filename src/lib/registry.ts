@@ -466,7 +466,7 @@ const HELP_TEXT = {
   doctor: [
     "az-axi doctor [--profile <name>] [--config <path>]",
     "",
-    "One row per profile: name, auth, identity, type, subscriptions, writes, status, writeSubscriptions.",
+    "One row per profile: name, auth, identity, type, subscriptions, workspaces, writes, status, writeSubscriptions.",
     "Write details include configured write subscriptions, AZ_AXI_READ_ONLY and the write log path.",
     "Checks: az installed, signed in, arm/logs/graph tokens (graph is optional), ARM reachability, TLS.",
     "help[] lists every failure with the fix, prefixed by the profile name.",

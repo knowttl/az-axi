@@ -110,7 +110,7 @@ describe("exact leaf contracts", () => {
     // Original help baselines, with Log Analytics examples updated for TD-042.
     const expected = {
       home: "d3ca0c70af59860ef81995074ea50c4ad93da1d0f3eab53cf287316e00cb2c25",
-      doctor: "17f287915d3cd4c621533eec03a8f3079f30223f7015165b5a7a2460feab9ea1",
+      doctor: "4df1d590fb74aab58d7f8180ff96c76feca7470668f5ee16321508e359f0201f",
       sub: "6f9a9637c3fcd37decc544aeaa111c07b5d3ae8ed5d007a8f668ad5e80ea13ef",
       rg: "9f25569fa8ab226e69cd4050a995e798855367ba646edb9875f3a4b43e6402f9",
       rbac: "114552b9a5fbe8c7516f37171150027994051bb061996386969031c47b7aced6",
