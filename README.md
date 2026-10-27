@@ -217,6 +217,10 @@ Use a complete command path followed by `--help` for required selectors, support
 The [command reference](docs/commands.md) covers the full surface, query inputs and compatibility aliases.
 The [generated exact leaf list](skills/az-axi/SKILL.md#commands) comes from the CLI registry and is checked by `pnpm skill:check`.
 
+`graph query`, `rg query`, `monitor log-analytics query` and `logs query` parse KQL locally before authentication or requests.
+Syntax errors return exit 2 with `VALIDATION_ERROR`, up to five diagnostics with line, column, code, token and message, and query excerpts to guide corrections.
+Successful parsing is silent; tables, columns, workspace functions, permissions and service-specific restrictions still require server checks.
+
 <a id="behavior"></a>
 
 ### Output and exit codes

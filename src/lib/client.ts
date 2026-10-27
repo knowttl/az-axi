@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { NativeListBudget } from "./nativePaging.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { AxiError } from "axi-sdk-js";
+import { KqlError, type KqlDiagnostic } from "./errors.js";
 import { resolveCredential } from "./auth.js";
 import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
 import { enforceGates, type GateOptions } from "./gates.js";
@@ -51,6 +52,7 @@ export interface ApiResponse<T> {
 export class ApiRequestError extends AxiError {
   constructor(error: AxiError, readonly httpStatus: number, readonly requestId?: string, readonly correlationId?: string) {
     super(error.message, error.code, error.suggestions);
+    this.cause = error;
   }
 }
 
@@ -335,6 +337,9 @@ interface ApiErrorNode {
   code?: string;
   message?: string;
   innererror?: ApiErrorNode;
+  line?: number;
+  pos?: number;
+  token?: string;
 }
 
 const AUTH_ERROR_CODES = new Set([
@@ -345,7 +350,7 @@ const AUTH_ERROR_CODES = new Set([
 ]);
 
 /** Outer code for classification; deepest message, because Log Analytics hides syntax errors in `innererror`. */
-function readApiError(text: string): { code?: string; message?: string; innerCode?: string } {
+function readApiError(text: string): { code?: string; message?: string; innerCode?: string; diagnostics?: KqlDiagnostic[] } {
   try {
     const parsed = JSON.parse(text) as { error?: ApiErrorNode; message?: string };
     const root = parsed.error;
@@ -353,13 +358,17 @@ function readApiError(text: string): { code?: string; message?: string; innerCod
     let innerCode: string | undefined;
     let current = root;
     const seen = new Set<ApiErrorNode>();
+    const diagnostics: KqlDiagnostic[] = [];
     while (current?.innererror && typeof current.innererror === "object" && !seen.has(current)) {
       seen.add(current);
       current = current.innererror;
       if (current.code) innerCode = current.code;
       if (current.message?.trim()) message = current.message;
+      if (Number.isInteger(current.line) && current.line! > 0 && Number.isInteger(current.pos) && current.pos! > 0) {
+        diagnostics.push({ line: current.line!, column: current.pos!, code: current.code ?? "", token: current.token ?? "", message: current.message ?? "" });
+      }
     }
-    return { code: root?.code, message, innerCode };
+    return { code: root?.code, message, innerCode, diagnostics: diagnostics.slice(0, 5) };
   } catch {
     return {};
   }
@@ -416,6 +425,15 @@ function translateError(ctx: ErrorContext): AxiError {
     ]);
   }
   if (status === 400) {
+    const kqlQuery = (resource === "logs" && path.endsWith("/query")) || path.toLowerCase() === "/providers/microsoft.resourcegraph/resources";
+    if (kqlQuery) {
+      const syntax = /syntax/i.test(innerCode ?? armCode ?? "");
+      return new KqlError(`The server rejected the query (${syntax ? "syntax" : "semantic"} error): ${message || "bad request"}`,
+        parsedError.diagnostics ?? [], [
+          "Offline KQL parsing does not check tables, columns, workspace functions, permissions or service-specific restrictions; check these and request options, then retry",
+          ...codes, trace,
+        ]);
+    }
     return fail(message || "bad request", "VALIDATION_ERROR", [
       resource === "logs"
         ? "The KQL query or --timespan was rejected: fix the syntax and retry"
