@@ -207,10 +207,12 @@ describe("built CLI exact-leaf routing with fake transport", () => {
     expect(beforeQuery.stderr).toBe(afterQuery.stderr);
     const oldResult = run(["logs", "query", "--workspace", WORKSPACE, "--timespan", "P1D", "--", "--help"]);
     const shortResult = run(["logs", "query", "-w", WORKSPACE, "-t", "P1D", "--", "--help"]);
-    expect(shortResult.status).toBe(0);
+    expect(shortResult.status).toBe(2);
     expect(shortResult.stdout).toBe(oldResult.stdout);
     expect(shortResult.stderr).toBe(oldResult.stderr);
-    expect(shortResult.stderr).toContain('"query":"--help"');
+    expect(shortResult.stdout).toContain("KQL syntax error");
+    expect(shortResult.stdout).toContain("--help");
+    expect(shortResult.stderr).toBe("");
   }, 15_000);
 
   it("maps assignee and resource-group short flags without changing native filters", () => {
