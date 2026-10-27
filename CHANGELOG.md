@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.13](https://github.com/knowttl/az-axi/compare/v0.1.12...v0.1.13) (2026-10-27)
+
+
+### Features
+
+* reject invalid KQL locally before query requests ([#109](https://github.com/knowttl/az-axi/issues/109)) ([fadf0b4](https://github.com/knowttl/az-axi/commit/fadf0b4f80dedb85467919345b2521aa8292f828))
+
 ## [0.1.12](https://github.com/knowttl/az-axi/compare/v0.1.11...v0.1.12) (2026-10-27)
 
 
