@@ -80,6 +80,16 @@ afterEach(() => {
 });
 
 describe("sentinel incident list", () => {
+  it("explains an unknown workspace when no aliases are configured", async () => {
+    await expect(run(["incident", "list", "--subscription", SUB_A, "--workspace", "sentinel"])).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "unknown workspace 'sentinel'",
+      suggestions: expect.arrayContaining(["No workspace aliases are configured for this profile"]),
+    });
+    expect(allMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
   it("lists compact rows newest first with aggregates and a detail hint", async () => {
     const result = await run(["incident", "list", ...SELECTORS]);
     expect(result).toMatchObject({

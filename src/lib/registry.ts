@@ -466,7 +466,7 @@ const HELP_TEXT = {
   doctor: [
     "az-axi doctor [--profile <name>] [--config <path>]",
     "",
-    "One row per profile: name, auth, identity, type, subscriptions, writes, status, writeSubscriptions.",
+    "One row per profile: name, auth, identity, type, subscriptions, workspaces, writes, status, writeSubscriptions.",
     "Write details include configured write subscriptions, AZ_AXI_READ_ONLY and the write log path.",
     "Checks: az installed, signed in, arm/logs/graph tokens (graph is optional), ARM reachability, TLS.",
     "help[] lists every failure with the fix, prefixed by the profile name.",
@@ -552,8 +552,8 @@ const HELP_TEXT = {
   ].join("\n"),
   logs: [
     "az-axi logs query \"<kql>\" --workspace <alias|guid> [--timespan P1D] [--limit 50]",
-    "az-axi logs query --file hunt.kql --workspace sentinel",
-    "cat hunt.kql | az-axi logs query --workspace sentinel   # multi-line KQL from stdin",
+    "az-axi logs query --file hunt.kql --workspace <alias|guid>",
+    "cat hunt.kql | az-axi logs query --workspace <alias|guid>   # multi-line KQL from stdin",
     "For flag input use `az-axi monitor log-analytics query --analytics-query <kql> --workspace <alias|guid>`; logs query accepts positional KQL, --file or stdin.",
     "",
     "POST /v1/workspaces/{id}/query on api.loganalytics.io. Surrounding query whitespace is trimmed; no row limits or time filters are added to the KQL.",

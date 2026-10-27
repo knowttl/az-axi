@@ -57,6 +57,7 @@ az-axi sub list
 With an existing sign-in, no az-axi configuration is required.
 The subscription output has the shape shown above; names, IDs, counts and profile reflect your identity.
 `doctor` checks sign-in, token acquisition, ARM reachability and write posture; it exits 1 if a required check fails.
+Its `workspaces` column lists each profile's configured workspace aliases, or `(none)`.
 These read commands contact Azure.
 For a one-off invocation without a global install, use `npx -y @knowttl/az-axi doctor` or `npx -y @knowttl/az-axi sub list`.
 
