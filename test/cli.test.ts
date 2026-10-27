@@ -134,10 +134,13 @@ describe("end to end with a stubbed network", () => {
     expect(result.stdout + result.stderr).not.toContain(TOKEN);
   }, 30_000);
 
-  it("runs doctor over a token profile and reports write status", () => {
+  it("runs doctor over a token profile and reports workspace aliases and write status", () => {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ version: 1, profiles: {
+      ci: { auth: "token", subscriptions: [SUB], workspaces: { sentinel: SUB } },
+    } }));
     const result = runStubbed(["doctor"], 200, { value: [{ subscriptionId: SUB }] });
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("ci,token,(token),token,1,disabled (default),ok");
+    expect(result.stdout).toContain("ci,token,(token),token,1,sentinel,disabled (default),ok");
     expect(result.stdout).not.toContain(TOKEN);
 
     const forced = runStubbed(["doctor"], 200, { value: [] }, { AZ_AXI_READ_ONLY: "1" });

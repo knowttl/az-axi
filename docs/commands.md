@@ -267,6 +267,8 @@ help[2]: Run `az-axi --help` for the full command surface,Run `az-axi` with no a
 Exit 0 means the command succeeded, exit 2 covers usage and access errors, and exit 1 covers other failures.
 `AUTH_REQUIRED` intentionally remains exit 2 for compatibility, including missing authentication.
 `doctor` prints every selected profile and exits 1 if any profile has a required check failure or cannot be resolved; healthy profiles and optional Graph-token failures exit 0.
+Its `workspaces` column lists configured alias names, or `(none)` when the profile has no aliases.
+Unknown workspace errors list known aliases or state that no workspace aliases are configured for the profile.
 Unknown flags list valid flags or a targeted replacement; other argument errors give a concise remedy, with full leaf help available through `--help`.
 Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, `WRITES_DISABLED`, `PRECONDITION_FAILED`, `OPERATION_TIMEOUT`, `UNKNOWN_OUTCOME`, `PROVIDER_NOT_REGISTERED` and `API_ERROR`.
 `WRITES_DISABLED` identifies either the forced `AZ_AXI_READ_ONLY` override or the profile write opt-in in its message.

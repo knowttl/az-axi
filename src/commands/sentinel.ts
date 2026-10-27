@@ -172,7 +172,7 @@ function workspaceGuid(profile: ResolvedProfile, raw: string): string {
   if (GUID.test(direct)) return direct;
   const aliases = entries && typeof entries === "object" && !Array.isArray(entries) ? Object.keys(entries) : [];
   throw new AxiError(`unknown workspace '${text}'`, "VALIDATION_ERROR", [
-    ...(aliases.length > 0 ? [`Known aliases: ${aliases.join(", ")}`] : []),
+    aliases.length > 0 ? `Known aliases: ${aliases.join(", ")}` : "No workspace aliases are configured for this profile",
     "Pass --workspace <alias> or --workspace <workspace-id-guid> (the customer ID, not the ARM resource ID)",
   ]);
 }

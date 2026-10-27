@@ -106,8 +106,8 @@ describe("exact leaf contracts", () => {
     expect(block).toBe(commandListMarkdown());
   });
 
-  it("preserves the exact pre-registry help text", () => {
-    // SHA-256 values captured from origin/main before centralizing the help source.
+  it("preserves the reviewed group help text", () => {
+    // Original help baselines, with Log Analytics examples updated for TD-042.
     const expected = {
       home: "d3ca0c70af59860ef81995074ea50c4ad93da1d0f3eab53cf287316e00cb2c25",
       doctor: "17f287915d3cd4c621533eec03a8f3079f30223f7015165b5a7a2460feab9ea1",
@@ -117,7 +117,7 @@ describe("exact leaf contracts", () => {
       activity: "65bfc1e42c8358f8f92b2e12f86e40bbbcade07230055db7d19dd8f09c7961b0",
       defender: "abf0481253893cc00df76b0b5cc375f98a76a4b91c109538f23de13dd19d0332",
       exposure: "3c34ade43fa8d6c15499e009490c9c2387d1db7b2d54840a831a960c21e682b1",
-      logs: "939537c4188a3820cb4e1e8578b972f793345150c5d7734861b61baa2ec77e67",
+      logs: "8f481e58e179d51774555818fb60d88f048815fb6637e24f99278ef054e8452e",
       api: "8a363b22d6122afb9b2ebdc58d3e20236cb3f4de14fe23700de8b6f1bd957547",
       op: "5d038ba3c945dab73d8b9a9b75deffcad095974054b8d1f6650c4e1041886629",
     };

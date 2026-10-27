@@ -80,7 +80,7 @@ function resolveWorkspaceId(profile: { workspaces?: unknown }, raw: string): { i
   }
   const aliases = Object.keys(entries ?? {});
   throw new AxiError(`unknown workspace '${text}'`, "VALIDATION_ERROR", [
-    ...(aliases.length > 0 ? [`Known aliases: ${aliases.join(", ")}`] : []),
+    aliases.length > 0 ? `Known aliases: ${aliases.join(", ")}` : "No workspace aliases are configured for this profile",
     ...workspaceHelp(),
   ]);
 }

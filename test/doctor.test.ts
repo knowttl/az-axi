@@ -60,7 +60,7 @@ describe("doctor", () => {
     expect(result.package).toMatch(/az-axi \d+\.\d+\.\d+/);
     expect(String(result.config)).toContain("implicit az profile");
     expect(result.profiles).toEqual([
-      { name: "az", auth: "az", identity: "ada@contoso.com", type: "user", subscriptions: 3, writes: "disabled (default)", writeSubscriptions: "(none)", status: "ok" },
+      { name: "az", auth: "az", identity: "ada@contoso.com", type: "user", subscriptions: 3, workspaces: "(none)", writes: "disabled (default)", writeSubscriptions: "(none)", status: "ok" },
     ]);
     expect(result.readOnly).toEqual({ set: false, forced: false });
     expect(result.writeLog).toBe(collapseHomeDirectory(resolveWriteLogPath()));
@@ -83,7 +83,7 @@ describe("doctor", () => {
       JSON.stringify({
         defaultProfile: "work",
         version: 1, profiles: {
-          work: { auth: "az" },
+          work: { auth: "az", workspaces: { sentinel: SUB_A, audit: SUB_A } },
           sandbox: { auth: "az", subscriptions: [SUB_A], allowWrites: true },
           ci: { auth: "token" },
         },
@@ -97,6 +97,7 @@ describe("doctor", () => {
     ]);
     expect(result[2]).toMatchObject({ identity: "(token)", type: "token" });
     expect(result.map((row) => row.writeSubscriptions)).toEqual(["(none)", SUB_A, "(none)"]);
+    expect(result.map((row) => row.workspaces)).toEqual(["sentinel,audit", "(none)", "(none)"]);
     // token mode never spawns az
     expect(runAzMock).toHaveBeenCalledTimes(2);
   });

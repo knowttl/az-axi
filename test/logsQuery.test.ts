@@ -65,6 +65,15 @@ function lastRequest() {
 }
 
 describe("logs query", () => {
+  it("explains an unknown workspace when no aliases are configured", async () => {
+    await expect(run(["query", "SigninLogs | take 1", "--workspace", "sentinel"])).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "unknown workspace 'sentinel'",
+      suggestions: expect.arrayContaining(["No workspace aliases are configured for this profile"]),
+    });
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it("posts KQL unchanged to the workspace with the default timespan", async () => {
     const result = await run(["query", "SigninLogs | take 5", "--workspace", WS]);
     expect(sendMock).toHaveBeenCalledTimes(1);
