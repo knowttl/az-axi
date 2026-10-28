@@ -1,6 +1,6 @@
 # Commands
 
-[README](../README.md#commands) · [Configuration](configuration.md) · [Safety](safety.md)
+[README](../README.md#what-it-covers) · [Configuration](configuration.md) · [Safety](safety.md)
 
 Contents: [Command groups](#command-surface-and-subcommands) · [Exact leaf table](#exact-command-reference) · [Query inputs](#queries-and-request-bodies) · [Output and paging](#behavior).
 
