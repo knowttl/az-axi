@@ -6,7 +6,7 @@ Contents: [Command groups](#command-surface-and-subcommands) · [Exact leaf tabl
 
 The no-argument dashboard reports the selected profile, identity, subscriptions, Defender alerts, secure score, exposure and write status.
 Native commands call Azure REST APIs directly; the separate `az` passthrough supports only one pinned, reviewed read.
-Use a complete command path followed by `--help` for accepted flags, defaults and examples.
+Start with the skill's [investigation quickstart](../skills/az-axi/SKILL.md#investigation-quickstart); use a complete command path followed by `--help` when a command fails or its selectors, flags or defaults are unfamiliar.
 
 ### Command surface and subcommands
 

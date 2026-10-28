@@ -52,7 +52,8 @@ az-axi setup hooks
 Restart the agent session after setup.
 Claude Code, Codex and OpenCode receive local profile, scope, write posture and next-step context; only Claude Code receives the approval guard.
 For on-demand discovery, install the skill: `npx skills add knowttl/az-axi --skill az-axi`.
-The hooks and skill grant no Azure permissions; the [generated skill](skills/az-axi/SKILL.md#commands) is the full command reference.
+The hooks and skill grant no Azure permissions.
+Start investigations with the skill's [compact agent guide](skills/az-axi/SKILL.md#investigation-quickstart); its [command table](skills/az-axi/SKILL.md#commands) covers the full surface.
 See [hook setup, limits and removal paths](docs/safety.md#agent-approval-hook) to repair or remove integrations while preserving unrelated settings.
 
 <a id="features"></a>
@@ -71,7 +72,7 @@ See [hook setup, limits and removal paths](docs/safety.md#agent-approval-hook) t
 | Data-plane metadata | Inspect Blob, Key Vault and ACR metadata | Read | [Security boundaries](docs/safety.md#metadata-reads-and-security-boundaries) |
 | REST and operations | Preview permitted ARM writes, execute gated requests and check operations | Read/gated write | [REST gates](docs/safety.md#rest-previews-and-execution) |
 
-Use a complete command path followed by `--help` for selectors, flags and defaults.
+Use a complete command path followed by `--help` when a command fails or its selectors, flags or defaults are unfamiliar.
 The [command guide and generated exact leaf table](docs/commands.md#exact-command-reference) cover the full surface and compatibility aliases.
 
 <a id="writes"></a>
