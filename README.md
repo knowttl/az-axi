@@ -1,266 +1,164 @@
 # az-axi
 
-Azure inspection and gated operations for agents and the humans running them, with compact TOON output instead of large REST responses.
+Azure inspection and gated operations for agents and the humans running them, with compact TOON output.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![npm version](https://img.shields.io/npm/v/%40knowttl%2Faz-axi)](https://www.npmjs.com/package/@knowttl/az-axi)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22.12.0-green)](package.json)
-[![Release provenance](https://img.shields.io/badge/npm-provenance-blue)](https://www.npmjs.com/package/@knowttl/az-axi#provenance)
+[![npm version](https://img.shields.io/npm/v/%40knowttl%2Faz-axi)](https://www.npmjs.com/package/@knowttl/az-axi) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Node.js](https://img.shields.io/badge/node-%3E%3D22.12.0-green)](package.json) [![npm provenance](https://img.shields.io/badge/npm-provenance-blue)](https://www.npmjs.com/package/@knowttl/az-axi#provenance) [![AXI](https://img.shields.io/badge/AXI-Agent%20eXperience%20Interface-blue)](https://github.com/knowttl)
+
+[Why](#why-this-exists) · [Quickstart](#quickstart) · [Agent setup](#use-with-your-agent) · [Coverage](#what-it-covers) · [Safety](#safety) · [Configuration](#configuration) · [Output](#output-and-exit-codes) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing) · [Security](#security) · [License](#license)
+
+## Why this exists
+
+Azure CLI JSON and raw REST responses expose more fields than an agent usually needs to choose its next action.
+az-axi provides bounded TOON metadata views, explicit empty states and scoped next-step hints through a shell interface.
+Native commands call Azure REST APIs directly; Azure CLI supplies the default ambient authentication.
+Writes require explicit gates, previews and verification so agents can inspect Azure before proposing a change.
+
+## Quickstart
+
+Requires Node.js 22.12 or later, npm, and Azure read access; use Azure CLI on PATH or a [token profile](docs/configuration.md#authentication).
 
 ```sh
-az-axi sub list
+npm install --global @knowttl/az-axi
+az login
+az-axi doctor
 ```
 
-Actual output from the built CLI using the repository's synthetic service fixture:
+`doctor` checks sign-in, tokens, ARM reachability and write posture; see its [output contract](docs/commands.md#behavior).
+One-off alternative: `npx -y @knowttl/az-axi doctor`.
+With an existing Azure CLI sign-in, no configuration is required; optionally save a named profile, then run a read:
+
+```sh
+az-axi config init --name work --auth az
+az-axi sub list --profile work
+```
+
+Synthetic subscription output (your identity determines the actual rows):
 
 ```toon
-profile: demo
+profile: work
 count: 1 subscriptions
 subscriptions[1]{name,id,state,inScope}:
   "Sandbox, demo",00000000-0000-0000-0000-000000000001,Enabled,yes
 ```
 
-[Quickstart](#quickstart) • [Use with your agent](#use-with-your-agent) • [Features](#features) • [Safety](#safety) • [Configuration](#configuration) • [Commands](#commands)
-
-## Why this exists
-
-Azure CLI JSON and raw REST responses expose more fields than an agent usually needs to choose its next action.
-az-axi provides small metadata views, explicit empty states and scoped follow-up commands through a shell interface, without requiring an MCP server.
-Native commands call Azure REST APIs directly; Azure CLI supplies the default ambient authentication.
-
-## Features
-
-- **Inventory:** inspect subscriptions, resources, compute, networks, DNS and governance.
-- **Security:** inspect access, Defender posture, Sentinel incidents and public exposure.
-- **Queries:** run Resource Graph and Log Analytics queries from flags, files or stdin.
-- **Metadata:** list Blob, Key Vault and registry metadata without retrieving secret values or blob content.
-- **Output:** select fields, expand details and bound collection fetches with incomplete-result disclosure.
-- **Operations:** preview permitted writes, enforce subscription allowlists and record dispatched write outcomes locally.
-
-## Quickstart
-
-| Prerequisite | Requirement |
-| --- | --- |
-| Runtime | Node.js 22.12 or later and npm |
-| Authentication | Azure CLI on PATH with an existing sign-in, or a [token profile](docs/configuration.md#authentication) |
-| Azure access | Read permissions on the selected resources; see [permissions](#permissions) |
-
-Install the CLI, sign in through Azure CLI's own flow, then inspect visible subscriptions:
-
-```sh
-npm install -g @knowttl/az-axi
-az login
-az-axi doctor
-az-axi sub list
-```
-
-With an existing sign-in, no az-axi configuration is required.
-The subscription output has the shape shown above; names, IDs, counts and profile reflect your identity.
-`doctor` checks sign-in, token acquisition, ARM reachability and write posture; it exits 1 if a required check fails.
-Its `workspaces` column lists each profile's configured workspace aliases, or `(none)`.
-These read commands contact Azure.
-For a one-off invocation without a global install, use `npx -y @knowttl/az-axi doctor` or `npx -y @knowttl/az-axi sub list`.
-
-To save a named profile using the existing Azure CLI session:
-
-```sh
-az-axi config init --name work --auth az
-az-axi auth status --profile work
-```
-
-Never paste tokens into command arguments or chat.
-Token profiles resolve credentials from environment variables or private files through SecretRefs; az-axi has no login, logout or credential-store commands.
-
 ## Use with your agent
 
-Install session integration from a persistent global installation:
+From a persistent global installation, install session context and Claude Code's Bash approval guard:
 
 ```sh
 az-axi setup hooks
 ```
 
-This installs local-only session context for Claude Code and Codex, plus an OpenCode ambient plugin.
-It injects the selected profile, scope, write posture, version and a next step, without network requests or Azure CLI subprocesses.
-It also installs Claude Code's packaged Bash approval guard.
 Restart the agent session after setup.
-Repeat setup after moving or reinstalling the package to repair paths; unrelated settings are preserved.
-Setup refuses temporary directories, worktrees and pipeline builds.
+Claude Code, Codex and OpenCode receive local profile, scope, write posture and next-step context; only Claude Code receives the approval guard.
+For on-demand discovery, install the skill: `npx skills add knowttl/az-axi --skill az-axi`.
+The hooks and skill grant no Azure permissions; the [generated skill](skills/az-axi/SKILL.md#commands) is the full command reference.
+See [hook setup, limits and removal paths](docs/safety.md#agent-approval-hook) to repair or remove integrations while preserving unrelated settings.
 
-For on-demand command discovery, install the generated [agent skill](skills/az-axi/SKILL.md):
+<a id="features"></a>
+<a id="commands"></a>
+<a id="use"></a>
 
-```sh
-npx skills add knowttl/az-axi --skill az-axi
-```
+## What it covers
 
-The skill uses `npx -y @knowttl/az-axi`, so it does not require a global installation.
-The skill and session context are alternative discovery paths; either is sufficient.
-The approval guard is a separate protection installed by hook setup.
-To remove integrations, remove only az-axi entries from `SessionStart` in `~/.claude/settings.json` and `~/.codex/hooks.json`, the az-axi guard entry from Claude's `PreToolUse`, and `~/.config/opencode/plugins/axi-az-axi.js`.
-Preserve other hooks and shared Codex feature settings.
-See [approval-hook behavior and limits](docs/safety.md#agent-approval-hook).
+| Group | Purpose | Read/write | Reference |
+| --- | --- | --- | --- |
+| Orientation and profiles | Diagnose access, select profiles and install hooks | Reads; local setup writes | [Configuration](docs/configuration.md) |
+| Inventory and access | Inspect subscriptions, resources, roles and activity | Read | [Commands](docs/commands.md#command-surface-and-subcommands) |
+| Security and incidents | Inspect Defender, Sentinel and exposure; update alerts and incidents | Read/gated write | [Write families](docs/safety.md#writes) |
+| Infrastructure and governance | Inspect compute, networks, DNS and policy; update tags or create Deny NSG rules | Read/gated write | [Commands](docs/commands.md#command-surface-and-subcommands) |
+| Monitoring and queries | Query metrics, Resource Graph and Log Analytics | Read | [Query inputs](docs/commands.md#queries-and-request-bodies) |
+| Data-plane metadata | Inspect Blob, Key Vault and ACR metadata | Read | [Security boundaries](docs/safety.md#metadata-reads-and-security-boundaries) |
+| REST and operations | Preview permitted ARM writes, execute gated requests and check operations | Read/gated write | [REST gates](docs/safety.md#rest-previews-and-execution) |
+
+Use a complete command path followed by `--help` for selectors, flags and defaults.
+The [command guide and generated exact leaf table](docs/commands.md#exact-command-reference) cover the full surface and compatibility aliases.
 
 <a id="writes"></a>
 <a id="metadata-reads-and-security-boundaries"></a>
 
 ## Safety
 
-Azure writes are disabled by default.
-`config init` writes a local profile; `setup hooks` writes local agent settings.
-Neither changes Azure resources.
-
-| Azure write capability | Behavior |
-| --- | --- |
-| `security alert update` / `defender alerts update` | Change alert status |
-| `sentinel incident update` | Change incident status, severity, owner or classification |
-| `sentinel incident comment create` | Append a new comment on each execution |
-| `tag update` | Merge or delete named tags; replacement refused |
-| `network nsg rule create` | Create a Deny rule; destructive confirmation required |
-| `api` | Policy-permitted ARM writes and destructive operations; credential-returning actions blocked |
-
-Every Azure write requires a human-edited profile with `allowWrites: true` and a nonempty `subscriptions` allowlist.
-The target must belong to that fixed allowlist; scope flags cannot widen it.
-Without `--execute`, permitted requests return a preview instead of dispatching a write.
-Destructive execution also requires `--confirm <resource-name>` with an exact name match.
-`AZ_AXI_READ_ONLY=1` blocks both write previews and execution.
-Preview reads and deployment what-if may contact Azure.
-Use narrow RBAC permissions and review previews before approving execution.
-See the complete [write gates, concurrency limits and async outcomes](docs/safety.md#writes).
-
-The installed Claude Bash guard asks for human approval when it recognizes az-axi and `--execute` in shell text.
-It needs an interactive session with permission prompts enabled; it does not cover PowerShell, other tools or unrecognizable dynamically assembled commands.
-Codex and OpenCode receive session context only.
-Verify the guard with harmless `az-axi api --help --execute` (approval expected) and `az-axi --help` (no approval expected).
-
-Dispatched write attempts append metadata, excluding bodies and headers, to `~/.local/state/az-axi/writes.log` by default, or `%LOCALAPPDATA%\az-axi\writes.log` on Windows.
-`XDG_STATE_HOME` changes the Unix state root; `AZ_AXI_WRITE_LOG` overrides the path.
-Dry runs, no-ops and failures before dispatch are not logged.
-If logging fails after dispatch, verify the resource before retrying.
-
-### Permissions
-
-Grant only the actions needed at the narrowest applicable scope.
-These are common role choices, not permissions az-axi grants automatically.
-
-| Surface | Required access / typical role |
-| --- | --- |
-| ARM inventory, Resource Graph, access and activity reads | Read actions on selected scope, commonly Reader; results follow the identity's access |
-| Defender posture and alerts | Security read permissions, commonly Security Reader |
-| Sentinel incident and configuration reads | Workspace security read permissions, commonly Microsoft Sentinel Reader |
-| Log Analytics queries | Workspace query access, commonly Log Analytics Reader |
-| Blob metadata | Data-plane container/blob read permissions, commonly Storage Blob Data Reader |
-| Key Vault metadata | Metadata list permissions, commonly Key Vault Reader under Azure RBAC |
-| ACR metadata | Repository metadata/pull access under the registry's configured permission mode |
-| Writes | Corresponding action rights, such as Security Operator or Microsoft Sentinel Responder; tag and NSG actions need resource-specific write rights |
-
-### Credentials and data
-
-The default profile uses Azure CLI's existing login cache.
-az-axi does not persist acquired bearer tokens; token profiles reference environment variables or private files.
-Secrets are redacted from output, including recognized nested fields and credentialed URLs.
-Arbitrary provider text can still contain sensitive data; inspect output before sharing it.
-See [metadata projections and redaction boundaries](docs/safety.md#metadata-reads-and-security-boundaries) and [credential storage protections](docs/configuration.md#authentication).
-
-Native requests send selectors, query text and requested bodies to the selected Azure service over HTTPS.
-ACR reads exchange an Entra token for a pull-scoped registry token.
-The session hook stays local; normal CLI output goes to stdout and write audit metadata stays in the local log.
+Azure operations are read-only by default; `config init` and `setup hooks` only write local settings.
+Every Azure write requires a human-edited profile with `allowWrites: true` and a nonempty `subscriptions` allowlist; read-scope flags cannot widen it.
+Permitted writes preview unless `--execute` is supplied; destructive execution also requires an exact `--confirm <resource-name>` match.
+`AZ_AXI_READ_ONLY=1` blocks previews and execution; preview reads and deployment what-if may contact Azure.
+Review previews and use the [least-privilege permissions](docs/safety.md#permissions) appropriate to each service.
+See the [complete write matrix, verification limits and local audit log](docs/safety.md#writes).
+The [Claude Bash guard](docs/safety.md#agent-approval-hook) asks for approval of recognized execution commands in interactive sessions with permission prompts enabled.
+Credentials come from existing Azure CLI sign-in or private SecretRefs; az-axi does not persist acquired bearer tokens.
+Recognized secrets are redacted, but arbitrary provider text may contain sensitive data; inspect output before sharing it.
+See [credential protections](docs/configuration.md#authentication) and [metadata and data boundaries](docs/safety.md#metadata-reads-and-security-boundaries).
 
 <a id="authentication"></a>
 
 ## Configuration
 
-Use `az-axi config path` to locate configuration and `az-axi config list` to inspect profiles without printing tokens.
-The default path is `~/.config/az-axi/config.json` on Unix and `%APPDATA%\az-axi\config.json` on Windows.
+`az-axi config path` locates configuration; `az-axi config list` inspects profiles without printing tokens.
+Select profiles with `--profile` or `AZ_AXI_PROFILE`; see [precedence, SecretRefs and migration](docs/configuration.md).
 
-| Control | Purpose |
+| Platform | Default config path |
 | --- | --- |
-| `--config` / `AZ_AXI_CONFIG` | Override the config path |
-| `--profile` / `AZ_AXI_PROFILE` | Select a profile |
-| `--subscription`, `--tenant`, `--management-group` | Select supported read scope |
-| `auth: az` | Use existing Azure CLI sign-in |
-| `auth: token` with `armToken: { "env": "AZ_AXI_ARM_TOKEN" }` | Resolve a pre-acquired ARM token from the environment |
-| `AZ_AXI_READ_ONLY=1` | Force write protection |
-| `NODE_EXTRA_CA_CERTS` | Add a PEM root CA for TLS-inspecting networks |
+| Linux/macOS | `~/.config/az-axi/config.json` (absolute `XDG_CONFIG_HOME` overrides the root) |
+| Windows | `%APPDATA%\az-axi\config.json` (fallback: `~/AppData/Roaming/az-axi/config.json`) |
 
-<details>
-<summary>Minimal named profile with writes disabled</summary>
+| Environment variable | Purpose | Default |
+| --- | --- | --- |
+| `AZ_AXI_CONFIG`, `AZ_AXI_PROFILE` | Config path and profile selection | Platform path; profile selection rules |
+| `AZ_AXI_TENANT_ID`, `AZ_AXI_SUBSCRIPTIONS`, `AZ_AXI_MANAGEMENT_GROUP` | Environment-profile tenant and read scope | Unset |
+| `AZ_AXI_TENANT`, `AZ_AXI_SUBSCRIPTION` | Deprecated tenant/subscription aliases | Unset |
+| `AZ_AXI_ARM_TOKEN`, `AZ_AXI_LOGS_TOKEN`, `AZ_AXI_GRAPH_TOKEN` | ARM, Log Analytics and Graph token SecretRefs | Unset |
+| `AZ_AXI_STORAGE_TOKEN`, `AZ_AXI_VAULT_TOKEN`, `AZ_AXI_REGISTRY_TOKEN` | Native data-plane token SecretRefs | Unset |
+| `AZ_AXI_READ_ONLY` | Force write protection (`1` or `true`) | Off |
+| `AZ_AXI_WRITE_LOG` | Override dispatched-write journal path | Platform state directory + `writes.log` |
+| `XDG_CONFIG_HOME`, `XDG_STATE_HOME` | Absolute Unix config/state roots | `~/.config`, `~/.local/state` |
+| `APPDATA`, `LOCALAPPDATA` | Windows config/state roots | `~/AppData/Roaming`, `~/AppData/Local` |
+| `NODE_EXTRA_CA_CERTS` | Extra PEM root CA file for TLS | Unset |
+| `AZURE_CONFIG_DIR` | Azure CLI authentication directory, retained for child processes | Azure CLI default |
+| `CLAUDECODE`, `CODEX_THREAD_ID`, `CODEX_SESSION_ID`, `PI_CODING_AGENT`, `OPENCODE` | Host markers for skill-install hints | No detected host |
+| `CLAUDE_CONFIG_DIR`, `PI_CODING_AGENT_DIR` | Host skill lookup roots | `~/.claude`, `~/.pi/agent` |
+| `AZ_AXI_PRIVATE_PATH`, `AZ_AXI_PRIVATE_ACTION`, `AZ_AXI_PRIVATE_DIRECTORY` | Internal Windows ACL subprocess transport | Tool-generated; not user overrides |
 
-```json
-{
-  "version": 1,
-  "defaultProfile": "work",
-  "profiles": {
-    "work": { "auth": "az" }
-  }
-}
-```
-
-</details>
-
-See [configuration](docs/configuration.md) for precedence, all environment variables, workspace aliases, SecretRefs and migration guidance.
-Deprecated `AZ_AXI_TENANT`, `AZ_AXI_SUBSCRIPTION` and `tokenEnv` aliases remain accepted with stderr notices for one minor release; migrate to `AZ_AXI_TENANT_ID`, `AZ_AXI_SUBSCRIPTIONS` and SecretRefs.
-
-<a id="use"></a>
-
-## Commands
-
-| Domain | Representative command |
-| --- | --- |
-| Orientation and profiles | `doctor`, `auth status`, `config list` |
-| Inventory and access | `account list`, `resource list`, `role assignment list` |
-| Security and incidents | `security alert list`, `sentinel incident list`, `exposure` |
-| Infrastructure and governance | `vm list`, `network nsg list`, `policy state list` |
-| Monitoring and queries | `monitor metrics list`, `graph query`, `monitor log-analytics query` |
-| Data-plane metadata | `storage blob list`, `keyvault secret list`, `acr repository list` |
-| REST and operations | `api`, `op status` |
-
-Use a complete command path followed by `--help` for required selectors, supported flags and defaults.
-The [command reference](docs/commands.md) covers the full surface, query inputs and compatibility aliases.
-The [generated exact leaf list](skills/az-axi/SKILL.md#commands) comes from the CLI registry and is checked by `pnpm skill:check`.
-
-`graph query`, `rg query`, `monitor log-analytics query` and `logs query` parse KQL locally before authentication or requests.
-Syntax errors return exit 2 with `VALIDATION_ERROR`, up to five diagnostics with line, column, code, token and message, and query excerpts to guide corrections.
-Successful parsing is silent; tables, columns, workspace functions, permissions and service-specific restrictions still require server checks.
+Custom SecretRefs read their named environment variables; Azure CLI uses its own authentication environment.
+See [environment details](docs/configuration.md#environment-variables) for defaults and internal subprocess variables.
 
 <a id="behavior"></a>
 
-### Output and exit codes
+## Output and exit codes
 
 Data and structured errors use TOON on stdout; diagnostics and deprecation notices use stderr.
-Help is plain text and version flags print the bare version.
+Help is plain text; `--version` prints the bare version.
 
 | Exit | Meaning |
 | --- | --- |
 | 0 | Success, including no-ops |
 | 1 | Other failures; `doctor` required-check failures |
-| 2 | Usage and access errors, including `AUTH_REQUIRED`, `FORBIDDEN` and write-gate refusals |
+| 2 | Usage and access errors, including authentication and write-gate refusals |
 
-`--fields a,b` selects supported fields; `--limit N` caps displayed rows, usually 50.
-Native lists fetch up to 1,000 rows per subscription or collection by default; `--all` raises the budget to 10,000 and `--max-rows N` overrides it, with a 100-page ceiling.
-Key Vault scans at most 2,500 objects at 25 per page.
-`--full` expands fetched data and does not bypass fetch budgets.
-Incomplete counts are disclosed as lower bounds unless the service supplies an exact total.
-Graph, logs and raw API have distinct paging controls; see the [output and paging contract](docs/commands.md#behavior) and the [TOON compatibility review](docs/toon-compatibility.md).
+`--fields a,b` selects supported fields; `--limit N` caps displayed rows.
+`--full` expands fetched data without bypassing fetch budgets; incomplete counts are disclosed.
+See [output and paging controls](docs/commands.md#behavior) for `--all`, `--max-rows` and command-specific limits, and the [TOON compatibility review](docs/toon-compatibility.md).
 
 ## Troubleshooting
 
 | Symptom | Action |
 | --- | --- |
-| `AUTH_REQUIRED` / Conditional Access failure | Refresh Azure CLI sign-in in the intended tenant, or replace expired external tokens, then run `doctor` |
-| `TLS_ERROR` | Set `NODE_EXTRA_CA_CERTS` to your organization's PEM root CA and rerun `doctor` |
-| `PROVIDER_NOT_REGISTERED` | Ask a subscription administrator to register the provider namespace named by Azure |
+| `AUTH_REQUIRED` / Conditional Access | Refresh Azure CLI sign-in or external tokens, then run `doctor` |
+| `TLS_ERROR` | Set `NODE_EXTRA_CA_CERTS` to the required PEM root CA and rerun `doctor` |
+| `PROVIDER_NOT_REGISTERED` | Ask an administrator to register the provider namespace named by Azure |
 | Incomplete results | Narrow scope or increase `--max-rows`; `--full` only changes display |
-| `WRITES_DISABLED` | Check the forced read-only environment setting and the selected profile's write opt-in |
-| `CONFIG_MOVED` / `CONFIG_INVALID` | Follow the reported migration hint or inspect the [configuration reference](docs/configuration.md) |
+| Write/config refusal | Review [write gates](docs/safety.md#writes) or follow the reported [config migration hint](docs/configuration.md) |
 
 ## Contributing
 
-Run `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm skill:check` locally.
-GitHub test CI is not required by the local validation gate; no current CI status is claimed here. Release publishing runs its own validation and uses npm provenance.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for offline fixtures and release procedures, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for offline validation, generated references, development and releases.
+Repository documentation ownership and validation policy live in [.no-mistakes.yaml](.no-mistakes.yaml).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for private vulnerability reporting and security testing boundaries.
 
 ## License
 
 [MIT](LICENSE).
-[NOTICE.md](NOTICE.md) and [UPSTREAM.md](UPSTREAM.md) credit ado-axi and Microsoft Azure CLI/SDK source excerpts.
-
-If this project saved you time or helped your workflow, please consider giving it a ⭐ on GitHub to help others find it!
+[NOTICE.md](NOTICE.md) and [UPSTREAM.md](UPSTREAM.md) credit upstream source excerpts.

@@ -1,5 +1,5 @@
 // Local changelog section extraction. The release workflow uses release-please
-// to generate GitHub release notes; see README.md#releases.
+// to generate GitHub release notes; see CONTRIBUTING.md#releases.
 //
 //   node scripts/release-notes.mjs v0.2.0
 import { readFileSync } from "node:fs";

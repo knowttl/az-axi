@@ -2,6 +2,8 @@
 
 [README](../README.md#configuration) · [Commands](commands.md)
 
+Contents: [Profiles](#profiles) · [Authentication](#authentication) · [Environment variables](#environment-variables).
+
 ### Profiles
 
 az-axi follows the [AXI credential standard](https://github.com/knowttl/artium-axi/blob/main/docs/credential-standard.md).
@@ -87,6 +89,12 @@ Reads require owner UID and reject group/other write access to configs, and all 
 Windows writes apply a protected DACL granting FullControl only to the current user, SYSTEM and Administrators, with bounded rename retries.
 The Microsoft Azure CLI and its existing `~/.azure` login remain the ambient credential source and are unchanged.
 
+### Environment variables
+
+Unless stated otherwise, variables below are unset by default.
+Unset token variables supply no credential; unset scope fields impose no environment-profile scope.
+SecretRefs may name additional variables explicitly.
+
 | Variable | Meaning |
 | --- | --- |
 | `AZ_AXI_CONFIG` | Configuration path override |
@@ -105,6 +113,15 @@ The Microsoft Azure CLI and its existing `~/.azure` login remain the ambient cre
 | `AZ_AXI_READ_ONLY` | `1` or `true` blocks writes; `0`, `false` or unset is off (case-insensitive); any other value fails with `CONFIG_INVALID` |
 | `AZ_AXI_WRITE_LOG` | Write log path override |
 | `NODE_EXTRA_CA_CERTS` | PEM root CA file for Node.js on networks with TLS-inspecting proxies |
+| `XDG_CONFIG_HOME`, `XDG_STATE_HOME` | Absolute Unix roots; defaults are `~/.config` and `~/.local/state`; ignored on Windows |
+| `APPDATA`, `LOCALAPPDATA` | Windows roots; fall back to `~/AppData/Roaming` and `~/AppData/Local` |
+| `CLAUDECODE`, `CODEX_THREAD_ID`, `CODEX_SESSION_ID`, `PI_CODING_AGENT`, `OPENCODE` | Host-provided markers used only to select a skill-install hint |
+| `CLAUDE_CONFIG_DIR` | Claude skill lookup root; default `~/.claude` |
+| `PI_CODING_AGENT_DIR` | Pi skill lookup root; default `~/.pi/agent` |
+
+OpenCode skill lookup also uses `XDG_CONFIG_HOME`, falling back to `~/.config`.
+The Windows ACL subprocess receives tool-generated `AZ_AXI_PRIVATE_PATH`, `AZ_AXI_PRIVATE_ACTION` and `AZ_AXI_PRIVATE_DIRECTORY`; these are internal transport variables, not configuration overrides.
+Azure CLI retains its own authentication environment, including `AZURE_CONFIG_DIR`; see the [passthrough isolation rules](safety.md#pinned-azure-cli-read-catalogue).
 
 The `storage`, `vault` and `registry` audiences apply only to their native metadata commands, not `api --resource`.
 For TLS trust failures (`TLS_ERROR`), provide your organization's root CA through `NODE_EXTRA_CA_CERTS` and re-run `doctor`.
