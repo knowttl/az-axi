@@ -12,6 +12,84 @@ Run commands as `npx -y @knowttl/az-axi ...`: no global install needed and no in
 Version pinning is the installer's choice: use `npx -y @knowttl/az-axi@<version> ...` to select a specific release.
 Never run against a real tenant in tests; use the offline suite instead.
 
+## Investigation quickstart
+
+Start with a known read below; reserve `--help` for a command that fails or an unfamiliar task.
+Examples use a synthetic `demo` profile scoped to one subscription, with workspace alias `sentinel` mapping to its customer GUID.
+Replace profile and resource selectors with the reviewed investigation scope; never widen scope to work around an access error.
+All examples assume `AZ_AXI_READ_ONLY=1` in the process environment.
+
+### Investigation reads
+
+Each line is a complete example; optional filters are described below.
+Use the installed binary in place of the non-interactive package prefix if available.
+
+```sh
+npx -y @knowttl/az-axi sub list --profile demo --fields name,id,state,inScope --limit 10
+npx -y @knowttl/az-axi resource list --profile demo --resource-group rg-demo --fields name,id,type,location --limit 10
+npx -y @knowttl/az-axi activity list --profile demo --since 24h --status Failed --fields time,caller,operation,status,resource --limit 10
+npx -y @knowttl/az-axi rbac list --profile demo --privileged --fields principal,role,scope --limit 10
+npx -y @knowttl/az-axi defender alerts --profile demo --severity High,Medium --status Active --limit 10
+npx -y @knowttl/az-axi sentinel incident list --profile demo --workspace sentinel --status New,Active --limit 10
+npx -y @knowttl/az-axi sentinel incident show --profile demo --workspace sentinel --name 3177
+npx -y @knowttl/az-axi sentinel incident list-alert --profile demo --workspace sentinel --name 3177 --limit 10
+npx -y @knowttl/az-axi sentinel incident list-entity --profile demo --workspace sentinel --name 3177 --limit 10
+npx -y @knowttl/az-axi exposure --profile demo --check all --limit 5
+npx -y @knowttl/az-axi rg query 'Resources' --profile demo --limit 10
+npx -y @knowttl/az-axi logs query 'SigninLogs' --profile demo --workspace sentinel --timespan P1D --limit 10
+```
+
+- Inventory: `--resource-type` and `--name` match exactly; use full `id` values for later resource pivots.
+- Activity: `--since` defaults to 24h and cannot exceed 90d; `--caller`, `--operation` and `--resource-group` narrow the hunt.
+- RBAC: `--principal <UPN|objectId>`, `--role <name>` and `--scope <ARM-id>` narrow assignments; `--privileged` selects the four supported administrator roles.
+- Defender: status defaults to Active; `--status all` includes closed alerts, `--since 7d` narrows age, and default rows include severity and alert identity.
+- Sentinel: list filters include `--severity High,Medium`, `--owner <text>` and `--since 7d`; default rows include number, severity, title, status and time.
+  Detail and related reads accept `--name <GUID|number>` with a workspace, or `--ids <incident-ARM-id>` alone; a workspace requires exactly one subscription.
+  Related alert fields are name, alert, severity, status, time; entity fields are kind, entity, name.
+- Queries: use `--file <path>` or stdin for KQL with shell metacharacters; project only needed columns and use KQL `take` or `summarize` to bound service results.
+  Log Analytics requires a customer GUID or configured workspace alias, never an ARM ID; `--timespan` intersects KQL time filters.
+
+### One-call forms and output bounds
+
+RBAC joins role definitions and resolves principal names in one invocation; failed name resolution retains object IDs with a hint.
+Exposure `--check all` combines public-ips, mgmt-ports and any-any checks with counts and rows; its default is 10 rows per check.
+Sentinel `--name 3177` resolves the number and retrieves the detail, alerts or entities without a separate lookup call.
+Number resolution scans the bounded incident list; a known incident GUID or ARM ID avoids that scan.
+Related alerts and entities remain separate commands, not a combined incident bundle; their service responses do not paginate.
+
+Lists normally display 50 rows; `--fields a,b` selects row columns and `--limit N` reduces display.
+Native collection reads follow pages automatically: 1000 fetched rows by default, `--all` raises this to 10000, `--max-rows 1..100000` overrides it, with at most 100 pages per subscription or collection (per exposure check across scope).
+Budgets apply before local filters; incomplete totals are lower bounds, not proof of absence.
+`--full` expands cells and normally shows all fetched rows, so avoid it for compact lists; it never removes fetch budgets.
+Resource Graph query is different: `--limit` requests one page (default 50, maximum 1000); `--full` requests 1000, and `help[]` supplies the next-page command when a skip token exists.
+Log Analytics `--limit` only caps displayed rows, including with `--full`; inspect `warning` and `otherTables` for partial results and omitted tables.
+
+### Read allowlist and state changes
+
+The exact read paths in the example block are suitable inputs to a reviewed allowlist, with scoped selectors and query inputs reviewed separately.
+RBAC, Resource Graph, Log Analytics and Sentinel related reads may use read POSTs; HTTP POST alone does not imply mutation.
+Azure writes include `security alert update` (also `defender alerts update`), `sentinel incident update`, `sentinel incident comment create`, `tag update`, and `network nsg rule create`.
+Generic `api` is policy-dependent and must not be allowlisted wholesale; `config init` and `setup hooks` change local files.
+Write previews are outside the read allowlist; execution needs profile write gates, human approval and `--execute`, plus confirmation for destructive operations.
+
+### Help and failures
+
+Top-level `--help` returns the command overview, aliases, global selectors and output/write rules; group `--help` returns that family's reference; complete leaf `--help` returns accepted flags, selectors, defaults and examples.
+Read the structured error and `help[]` first, then consult the failing leaf's help if needed; do not start each case by traversing help.
+Output and errors are TOON on stdout; exit 0 means success (including empty results), exit 2 means usage/access refusal, and exit 1 covers other failures.
+
+| Code or symptom | Adjustment |
+| --- | --- |
+| `UNKNOWN_FLAG`, `VALIDATION_ERROR` | Correct syntax or selectors; KQL diagnostics identify line/column. Do not repeat unchanged input. |
+| `AUTH_REQUIRED` | Refresh the approved sign-in or external token source. |
+| `FORBIDDEN`, `NOT_FOUND` | Check authorized scope, permissions and resource identity; do not retry with broader scope. |
+| `TLS_ERROR`, `NETWORK_ERROR` | Repair trust/connectivity; TLS may need `NODE_EXTRA_CA_CERTS`. |
+| `PROVIDER_NOT_REGISTERED` | Ask an administrator to register the named provider. |
+| `RATE_LIMITED` | Honor the retry-after hint and narrow the query or timespan before retrying. |
+| `API_ERROR` | Read the provider message and request hint; correct query semantics or respect throttling before retrying. |
+| `READ_ONLY`, `WRITES_DISABLED`, `SUBSCRIPTION_NOT_WRITABLE` | A write was attempted; return to the read plan instead of changing gates. |
+| Incomplete count, warning, failed exposure check | Narrow the query or deliberately increase its budget; partial success is not a clean negative finding. |
+
 ## Orientation
 
 ```sh
