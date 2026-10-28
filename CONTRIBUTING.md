@@ -29,7 +29,7 @@ The packaged skill is generated from [src/lib/skill.ts](src/lib/skill.ts) and th
 Run `pnpm skill:generate` when changing that surface, then `pnpm skill:check` to check drift in the skill and the exact command table in [docs/commands.md](docs/commands.md#exact-command-reference).
 `pnpm catalogue:generate` and `pnpm catalogue:check` maintain the pinned read catalogue from reviewed source snapshots without Azure access.
 New passthrough commands require explicit provenance and code review; generation never discovers or promotes commands dynamically.
-The README and leaf help describe implemented behavior.
+The README introduces implemented behavior; linked docs and leaf help provide the detailed reference.
 Historical [design](https://github.com/knowttl/az-axi/blob/archive/internal-docs/PLAN.md) and [benchmark notes](https://github.com/knowttl/az-axi/blob/archive/internal-docs/BENCHMARK.md) are retained for reference and may contain superseded claims.
 Session hooks, Key Vault metadata reads and Sentinel incident management are implemented; they are not deferred features.
 

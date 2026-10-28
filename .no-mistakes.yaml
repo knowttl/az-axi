@@ -8,13 +8,15 @@ commands:
   lint: 'corepack pnpm run lint'
 document:
   instructions: |
-    README.md owns the product introduction, installation, usage, and behavior reference.
+    README.md owns the product introduction, installation and concise usage overview.
+    docs/commands.md owns the detailed behavior reference and generated leaf table;
+    docs/configuration.md and docs/safety.md own configuration and safety details.
     skills/az-axi/SKILL.md is the packaged agent skill surface and must stay
     consistent with the CLI help and commands; update both together.
     CONTRIBUTING.md owns local validation, benchmarks, live-smoke rules, and releases.
     SECURITY.md owns vulnerability reporting and security testing boundaries.
     Historical design and benchmark notes are preserved on archive/internal-docs;
-    they are not behavior specifications. README.md and leaf help describe the
+    they are not behavior specifications. The linked docs and leaf help describe the
     implemented session hooks, Key Vault metadata reads, and Sentinel commands.
     This repository has no AGENTS.md or CLAUDE.md.
 review:

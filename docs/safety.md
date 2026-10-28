@@ -2,6 +2,8 @@
 
 [README](../README.md#safety) · [Configuration](configuration.md) · [Commands](commands.md)
 
+Contents: [Metadata boundaries](#metadata-reads-and-security-boundaries) · [Permissions](#permissions) · [Pinned reads](#pinned-azure-cli-read-catalogue) · [Writes](#writes) · [Operation status](#check-an-operation) · [Agent hooks](#agent-approval-hook).
+
 ### Metadata reads and security boundaries
 
 Typed inventory views return metadata instead of arbitrary provider properties.
@@ -35,6 +37,31 @@ Tag-related passthrough reads and Resource Graph queries retain their separate p
 Key Vault continuations stay on the same vault and collection.
 Storage requests have a 30-second deadline and list XML is bounded to 1 MiB; Key Vault and ACR share a 30-second budget across credential acquisition and requests, with each response bounded to 1 MiB.
 Denied reads fail without trying another authentication method, and data-plane errors exclude secret values.
+
+The default profile uses Azure CLI's existing login cache.
+az-axi does not persist acquired bearer tokens; token profiles reference environment variables or private files.
+Arbitrary provider text can still contain sensitive data; inspect output before sharing it.
+See [credential storage protections](configuration.md#authentication).
+
+Native requests send selectors, query text and requested bodies to the selected Azure service over HTTPS.
+ACR reads exchange an Entra token for a pull-scoped registry token.
+The session hook stays local; normal CLI output goes to stdout and write audit metadata stays in the local log.
+
+### Permissions
+
+Grant only the actions needed at the narrowest applicable scope.
+These are common role choices, not permissions az-axi grants automatically.
+
+| Surface | Required access / typical role |
+| --- | --- |
+| ARM inventory, Resource Graph, access and activity reads | Read actions on selected scope, commonly Reader; results follow the identity's access |
+| Defender posture and alerts | Security read permissions, commonly Security Reader |
+| Sentinel incident and configuration reads | Workspace security read permissions, commonly Microsoft Sentinel Reader |
+| Log Analytics queries | Workspace query access, commonly Log Analytics Reader |
+| Blob metadata | Data-plane container/blob read permissions, commonly Storage Blob Data Reader |
+| Key Vault metadata | Metadata list permissions, commonly Key Vault Reader under Azure RBAC |
+| ACR metadata | Repository metadata/pull access under the registry's configured permission mode |
+| Writes | Corresponding action rights, such as Security Operator or Microsoft Sentinel Responder; tag and NSG actions need resource-specific write rights |
 
 ### Pinned Azure CLI read catalogue
 
@@ -180,3 +207,14 @@ This Bash hook does not cover PowerShell, other tools, aliases or dynamically as
 Use an interactive session with permission prompts enabled.
 After installation or hook upgrades, verify that harmless `az-axi api --help --execute` requests approval and `az-axi --help` does not.
 See the official [hook decision reference](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
+
+Session context is installed for Claude Code and Codex, plus an OpenCode ambient plugin.
+It injects the selected profile, scope, write posture, version and a next step without network requests or Azure CLI subprocesses.
+Restart the agent session after setup.
+Repeat setup after moving or reinstalling the package to repair paths; unrelated settings are preserved.
+Setup refuses temporary directories, worktrees and pipeline builds.
+The skill uses `npx -y @knowttl/az-axi`, so it does not require a global installation.
+The skill and session context are alternative discovery paths; the approval guard is a separate protection installed by hook setup.
+
+To remove integrations, remove only az-axi entries from `SessionStart` in `~/.claude/settings.json` and `~/.codex/hooks.json`, the az-axi guard entry from Claude's `PreToolUse`, and `~/.config/opencode/plugins/axi-az-axi.js`.
+Preserve other hooks and shared Codex feature settings.

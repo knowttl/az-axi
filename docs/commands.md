@@ -1,6 +1,8 @@
 # Commands
 
-[README](../README.md#commands) · [Configuration](configuration.md) · [Safety](safety.md)
+[README](../README.md#what-it-covers) · [Configuration](configuration.md) · [Safety](safety.md)
+
+Contents: [Command groups](#command-surface-and-subcommands) · [Exact leaf table](#exact-command-reference) · [Query inputs](#queries-and-request-bodies) · [Output and paging](#behavior).
 
 The no-argument dashboard reports the selected profile, identity, subscriptions, Defender alerts, secure score, exposure and write status.
 Native commands call Azure REST APIs directly; the separate `az` passthrough supports only one pinned, reviewed read.
