@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.14](https://github.com/knowttl/az-axi/compare/v0.1.13...v0.1.14) (2026-10-28)
+
+
+### Bug Fixes
+
+* add compact investigation guide to agent skill ([#114](https://github.com/knowttl/az-axi/issues/114)) ([5802a28](https://github.com/knowttl/az-axi/commit/5802a28f95114cc8be042771400c8ac3457413a5))
+
 ## [0.1.13](https://github.com/knowttl/az-axi/compare/v0.1.12...v0.1.13) (2026-10-27)
 
 
