@@ -179,6 +179,7 @@ globalThis.fetch = async (url, init = {}) => {
         properties: { customerId: guid },
       }] });
     }
+    if (new URL(url).pathname === "/subscriptions") return json({ value: [] });
     return json({ tags: { env: scenario === "noop" ? "prod" : "dev" } }, 200, { etag: '"fresh"' });
   }
   if (new URL(url).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });

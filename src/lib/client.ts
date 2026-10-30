@@ -244,13 +244,23 @@ export async function request<T = unknown>(profile: ResolvedProfile, options: Re
 }
 
 export interface ListResponse<T> {
-  value?: T[];
+  value: T[];
   nextLink?: string;
 }
 
 /** First page of a list response. */
 export async function requestList<T>(profile: ResolvedProfile, options: RequestOptions): Promise<T[]> {
-  return (await request<ListResponse<T>>(profile, options))?.value ?? [];
+  return (await requestListPage<T>(profile, options)).value;
+}
+
+async function requestListPage<T>(profile: ResolvedProfile, options: RequestOptions): Promise<ListResponse<T>> {
+  const body = await request<ListResponse<T>>(profile, options);
+  if (!body || !Array.isArray(body.value)) {
+    throw new AxiError("invalid list response: expected a value array", "API_ERROR", [
+      "Check API compatibility and any proxy or sign-in page intercepting the response",
+    ]);
+  }
+  return body;
 }
 
 /**
@@ -267,8 +277,8 @@ export async function requestAll<T>(
   const items: T[] = [];
   let page = options;
   for (let i = 0; i < maxPages; i++) {
-    const body = await request<ListResponse<T>>(profile, page);
-    const rows = body?.value ?? [];
+    const body = await requestListPage<T>(profile, page);
+    const rows = body.value;
     const remaining = maxRows - items.length;
     items.push(...rows.slice(0, remaining));
     // A next-page link would skip the unconsumed tail of this page.
@@ -285,7 +295,9 @@ function parseBody(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
-    return text;
+    throw new AxiError("response is not valid JSON", "API_ERROR", [
+      "Check API compatibility and any proxy or sign-in page intercepting the response",
+    ]);
   }
 }
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
 import { clearCredentialCache } from "../src/lib/auth.js";
-import { ApiRequestError, buildUrl, request, requestAll, sendRequest } from "../src/lib/client.js";
+import { ApiRequestError, buildUrl, request, requestAll, requestList, sendRequest } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { redact } from "../src/lib/redact.js";
 import { nativeListBudget } from "../src/lib/nativePaging.js";
@@ -384,14 +384,46 @@ describe("sendRequest", () => {
     expect(fetchMock.mock.calls[0]?.[1].body).toBe(JSON.stringify(body));
   });
 
-  it("returns raw text and tolerates empty and non-JSON bodies", async () => {
+  it("returns explicitly requested raw text and tolerates empty bodies", async () => {
     fetchMock.mockImplementationOnce(async () => new Response("plain", { status: 200 }));
     expect(await request(profile(), { path: "/x", apiVersion: "1", raw: true })).toBe("plain");
     fetchMock.mockImplementationOnce(async () => new Response("", { status: 200 }));
     expect(await request(profile(), { path: "/x", apiVersion: "1" })).toBeUndefined();
-    fetchMock.mockImplementationOnce(async () => new Response("not json", { status: 200 }));
-    expect(await request(profile(), { path: "/x", apiVersion: "1" })).toBe("not json");
   });
+
+  it("rejects a successful HTML response without exposing its contents", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(`<html>synthetic-login-marker ${TOKEN}</html>`, { status: 200 }));
+    const error = await failure(request(profile(), { path: "/subscriptions", apiVersion: "1" }));
+    expect(error.code).toBe("API_ERROR");
+    expect(formatError(error)).toEqual({
+      output: expect.stringContaining("response is not valid JSON"), exitCode: 1,
+    });
+    expect(formatError(error).output).not.toContain("synthetic-login-marker");
+    expect(formatError(error).output).not.toContain(TOKEN);
+  });
+});
+
+describe.each([{ name: "requestList", readList: requestList }, { name: "requestAll", readList: requestAll }])("list response validation: $name", ({ readList }) => {
+  it.each([undefined, null, [], "synthetic-body-marker", {}, { value: null }, { value: "synthetic-body-marker" }, { value: {} }].map((body) => ({ body })))(
+    "rejects an envelope without a value array: $body", async ({ body }) => {
+      fetchMock.mockResolvedValueOnce(body === undefined ? new Response(null, { status: 204 }) : json(body));
+      const error = await failure(readList(profile(), { path: "/subscriptions", apiVersion: "1" }));
+      expect(error.code).toBe("API_ERROR");
+      expect(formatError(error).output).toContain("value array");
+      expect(formatError(error).output).not.toContain("synthetic-body-marker");
+    },
+  );
+});
+
+it.each([[], [{ id: "synthetic-resource" }]].map((value) => ({ value })))("returns a valid first-page list: $value", async ({ value }) => {
+  fetchMock.mockResolvedValueOnce(json({ value }));
+  expect(await requestList(profile(), { path: "/subscriptions", apiVersion: "1" })).toEqual(value);
+});
+
+it("rejects an invalid later page instead of returning partial list results", async () => {
+  fetchMock.mockResolvedValueOnce(json({ value: [1], nextLink: "https://management.azure.com/subscriptions?api-version=1&page=2" }))
+    .mockResolvedValueOnce(json({ value: null }));
+  await expect(requestAll(profile(), { path: "/subscriptions", apiVersion: "1" })).rejects.toMatchObject({ code: "API_ERROR" });
 });
 
 describe("error translation", () => {

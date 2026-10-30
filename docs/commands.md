@@ -278,6 +278,9 @@ Its `workspaces` column lists configured alias names, or `(none)` when the profi
 Unknown workspace errors list known aliases or state that no workspace aliases are configured for the profile.
 Unknown flags list valid flags or a targeted replacement; other argument errors give a concise remedy, with full leaf help available through `--help`.
 Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, `WRITES_DISABLED`, `PRECONDITION_FAILED`, `OPERATION_TIMEOUT`, `UNKNOWN_OUTCOME`, `PROVIDER_NOT_REGISTERED` and `API_ERROR`.
+Successful responses containing non-JSON bodies fail with `API_ERROR` unless raw text was explicitly requested.
+List reads require a `value` array on every page; malformed envelopes fail with `API_ERROR` instead of returning empty or partial results.
+Empty bodies remain valid for non-list requests, including no-content responses.
 `WRITES_DISABLED` identifies either the forced `AZ_AXI_READ_ONLY` override or the profile write opt-in in its message.
 `READ_ONLY` blocks credential-returning actions; `PROVIDER_NOT_REGISTERED` asks the subscription owner to register the provider namespace named by Azure.
 
