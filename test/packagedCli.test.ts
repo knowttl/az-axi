@@ -20,6 +20,8 @@ describe("clean-installed package regression for #122", () => {
     config = join(dir, "config.json");
     mkdirSync(join(dir, "empty-path"));
     mkdirSync(join(dir, "install"));
+    writeFileSync(join(dir, ".npmrc"), "registry=https://registry.npmjs.org/\n");
+    writeFileSync(join(dir, "global.npmrc"), "");
     writeFileSync(config, JSON.stringify({ version: 1, defaultProfile: "ci", profiles: {
       ci: { auth: "token", subscriptions: [SUB], armToken: { env: "PACKAGED_ARM_TOKEN" } },
     } }));
@@ -27,9 +29,13 @@ describe("clean-installed package regression for #122", () => {
     expect(pack.status, pack.stdout + pack.stderr).toBe(0);
     const tarball = readdirSync(dir).find((name) => name.endsWith(".tgz"))!;
     const { storeDir } = parse(readFileSync(join(ROOT, "node_modules/.modules.yaml"), "utf8")) as { storeDir: string };
-    const install = spawnSync(process.env.AZ_AXI_TEST_PNPM ?? "pnpm", ["install", "--offline", "--store-dir", storeDir, "--cache-dir", process.env.AZ_AXI_TEST_PNPM_CACHE!, "--ignore-scripts", "--dir", join(dir, "install"), join(dir, tarball)], {
-      cwd: ROOT, encoding: "utf8",
-      env: { ...process.env, COREPACK_ENABLE_NETWORK: "0", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+    const install = spawnSync(process.env.AZ_AXI_TEST_PNPM ?? "pnpm", ["install", "--prefer-offline", "--store-dir", process.env.AZ_AXI_TEST_PNPM_STORE ?? storeDir, "--cache-dir", process.env.AZ_AXI_TEST_PNPM_CACHE!, "--ignore-scripts", "--dir", join(dir, "install"), join(dir, tarball)], {
+      cwd: join(dir, "install"), encoding: "utf8",
+      env: {
+        ...process.env, COREPACK_ENABLE_NETWORK: "0", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+        npm_config_userconfig: join(dir, ".npmrc"), NPM_CONFIG_USERCONFIG: join(dir, ".npmrc"),
+        npm_config_globalconfig: join(dir, "global.npmrc"), NPM_CONFIG_GLOBALCONFIG: join(dir, "global.npmrc"),
+      },
     });
     expect(install.status, install.stdout + install.stderr).toBe(0);
     bin = join(dir, "install/node_modules/@knowttl/az-axi/dist/bin/az-axi.js");

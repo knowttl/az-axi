@@ -156,7 +156,7 @@ See [output and paging controls](docs/commands.md#behavior) for `--all`, `--max-
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for offline validation, generated references, development and releases.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local validation, generated references, development and releases.
 Repository documentation ownership and validation policy live in [.no-mistakes.yaml](.no-mistakes.yaml).
 
 ## Security

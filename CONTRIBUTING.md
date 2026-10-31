@@ -21,8 +21,10 @@ node dist/bin/az-axi.js --help
 `lint` and `typecheck` both run TypeScript without emitting files; no separate style linter is configured.
 The local validation gate does not require GitHub test CI (`no_ci: true`).
 The test suite uses offline fakes and synthetic fixtures, with discovery limited to `test/` so nested checkouts are not run.
-Packaged CLI tests require pnpm dependencies and registry metadata already present in the local store and cache.
-The isolated runner resolves cached pnpm before replacing HOME and disables Corepack downloads; packaged installs use `--offline`.
+Packaged CLI tests reuse the local pnpm store and cache, fetching missing dependencies or registry metadata from the public npm registry when needed.
+Set `AZ_AXI_TEST_PNPM_STORE` and `AZ_AXI_TEST_PNPM_CACHE` to empty directories to verify a cold install.
+The isolated runner resolves cached pnpm before replacing HOME and disables Corepack downloads; packaged installs use `--prefer-offline` with isolated npm configuration.
+CLI requests to Azure still use offline fakes.
 Vitest's default filename patterns and exclusions remain in effect within that directory.
 The identifier guard rejects tenant identifiers and private domains in repository text.
 Use synthetic identifiers and example domains when adding tests or documentation.
@@ -77,7 +79,7 @@ Record the CLI commit, Node and tokenizer versions, capture date, and skipped or
 ## Live smoke checks
 
 Only the owner runs [scripts/live-smoke.mjs](scripts/live-smoke.mjs) against explicitly selected sandbox resources.
-Ordinary local validation uses offline tests, including tests of the smoke-check logic, without service calls.
+Ordinary local validation uses synthetic Azure responses, including tests of the smoke-check logic, without Azure service calls.
 Live reads use the owner's existing Azure sign-in or token profile.
 Writes additionally require `--writes --subscription <id> --resource-group <name>` and the normal profile write gates.
 Write checks modify sandbox tags and leave the test tag in place.

@@ -17,7 +17,8 @@ See the reference for [write safeguards](docs/safety.md#writes), [authentication
 Redaction recognizes defined secret patterns; it is not a guarantee that arbitrary output is safe to share.
 Inspect and sanitize diagnostics before disclosure.
 
-Contributions must preserve offline test isolation, synthetic fixtures and the public-repository identifier guard.
-Do not test against real services, capture tenant data or execute writes without the resource owner's explicit authorization.
+Contributions must preserve Azure test isolation, synthetic fixtures and the public-repository identifier guard.
+See [local validation](CONTRIBUTING.md#local-validation) for package-install network requirements.
+Do not test against real Azure services, capture tenant data or execute writes without the resource owner's explicit authorization.
 Owner-only benchmark and live-smoke procedures, including destructive checks, are in [CONTRIBUTING.md](CONTRIBUTING.md).
 Upstream notices are retained in [NOTICE.md](NOTICE.md) and [UPSTREAM.md](UPSTREAM.md).
