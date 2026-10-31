@@ -3,7 +3,10 @@ import { clearCredentialCache } from "../src/lib/auth.js";
 import { requestList, sendRequest, requestAcrMetadata, requestKeyVaultMetadata, requestStorageMetadata } from "../src/lib/client.js";
 import type { ResolvedProfile } from "../src/lib/config.js";
 import { formatError, WriteExecutionError } from "../src/lib/errors.js";
+import { executeWrite } from "../src/lib/execute.js";
 import { AxiError } from "axi-sdk-js";
+
+vi.mock("../src/lib/writeLog.js", () => ({ appendWriteLog: vi.fn() }));
 
 const profile: ResolvedProfile = { name: "ci", auth: "token", source: "implicit", writeSubscriptions: [] };
 const fetchMock = vi.fn<typeof fetch>();
@@ -59,12 +62,36 @@ test.each([
   expect(output).not.toContain("synthetic-private-value");
 });
 
-test("diagnostics survive the write outcome wrapper", async () => {
+test.each([0, 200, 202])("diagnostics retain their response status alongside write status %i", async (status) => {
   fetchMock.mockResolvedValueOnce(new Response(html));
   const error = await requests[0]!.run().catch((error: AxiError) => error);
-  const output = formatError(new WriteExecutionError(error as AxiError, { outcome: "failed" }, [])).output;
-  expect(output).toContain("status: 200");
+  const output = formatError(new WriteExecutionError(error as AxiError, { outcome: "failed", status }, [])).output;
+  expect(output).toContain(`\nstatus: ${status}\n`);
+  expect(output).toContain("responseStatus: 200");
   expect(output).toContain("outcome: failed");
+});
+
+test.each(["azure-asyncoperation", "location"])("malformed %s polls retain both HTTP statuses", async (header) => {
+  const subscription = "00000000-0000-0000-0000-000000000021";
+  const path = `https://management.azure.com/subscriptions/${subscription}/resourceGroups/rg-demo?api-version=1`;
+  const operationUrl = `https://management.azure.com/subscriptions/${subscription}/operations/op1?api-version=1`;
+  vi.stubEnv("AZ_AXI_READ_ONLY", "0");
+  fetchMock.mockResolvedValueOnce(json({ tags: { env: "dev" } }))
+    .mockResolvedValueOnce(new Response("{}", { status: 202, headers: { [header]: operationUrl } }))
+    .mockResolvedValueOnce(new Response(html, { headers: { "content-type": "text/html; private=synthetic-header-value" } }));
+  const error = await executeWrite({
+    profile: { ...profile, allowWrites: true, subscriptions: [subscription], writeSubscriptions: [subscription] },
+    method: "PATCH", path, cls: "write", body: { tags: { env: "prod" } },
+    selectors: "", timeoutMs: 1000, noWait: false,
+  }).catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(WriteExecutionError);
+  const output = formatError(error).output;
+  expect(output).toContain("\nstatus: 202\n");
+  expect(output).toContain("responseStatus: 200");
+  expect(output).toContain("contentType: text/html");
+  expect(output).toContain("$,string");
+  expect(output).not.toContain("synthetic-private-value");
+  expect(output).not.toContain("synthetic-header-value");
 });
 
 test("registry token shape failures retain safe response evidence", async () => {

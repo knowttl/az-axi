@@ -57,8 +57,10 @@ const USAGE_CODES = new Set([
 /** Both entry points redact structured and unexpected failures before encoding. */
 export function formatError(error: unknown): { output: string; exitCode: number } {
   const kql = error instanceof KqlError ? error : error instanceof Error && error.cause instanceof KqlError ? error.cause : undefined;
+  const details = responseDetails(error);
   const out: Record<string, unknown> = error instanceof AxiError
-    ? { error: error.message, code: error.code, ...responseDetails(error), ...(error instanceof WriteExecutionError ? error.output : {}),
+    ? { error: error.message, code: error.code, ...details, ...(error instanceof WriteExecutionError ? error.output : {}),
+        ...(error instanceof WriteExecutionError && details.status !== undefined ? { responseStatus: details.status } : {}),
         ...(kql?.diagnostics.length ? { diagnostics: kql.diagnostics } : {}) }
     : { error: error instanceof Error ? error.message : String(error), code: "UNKNOWN" };
   if (error instanceof AxiError && error.suggestions.length > 0) out.help = error.suggestions;
