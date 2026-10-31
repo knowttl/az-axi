@@ -79,7 +79,7 @@ Record the CLI commit, Node and tokenizer versions, capture date, and skipped or
 ## Live smoke checks
 
 Only the owner runs [scripts/live-smoke.mjs](scripts/live-smoke.mjs) against explicitly selected sandbox resources.
-Ordinary local validation uses offline tests, including tests of the smoke-check logic, without service calls.
+Ordinary local validation uses synthetic Azure responses, including tests of the smoke-check logic, without Azure service calls.
 Live reads use the owner's existing Azure sign-in or token profile.
 Writes additionally require `--writes --subscription <id> --resource-group <name>` and the normal profile write gates.
 Write checks modify sandbox tags and leave the test tag in place.
