@@ -18,7 +18,7 @@ Start with the skill's [investigation quickstart](../skills/az-axi/SKILL.md#inve
 | Access | `role assignment list` (legacy `rbac list`), `role definition list\|show`, `deny-assignment list\|show` |
 | Activity | `monitor activity-log list` (legacy `activity list`) |
 | Defender | `security alert list\|update`, `security secure-scores list`, `security pricing list\|show`, `security sub-assessment list\|show`, `defender alerts\|assessments\|score`, `defender alerts get\|update` |
-| Sentinel | `sentinel incident list\|show\|list-alert\|list-entity\|update`, `sentinel incident comment create`, `sentinel alert-rule list\|show`, `sentinel data-connector list\|show` |
+| Sentinel | `sentinel incident list\|show\|bundle\|list-alert\|list-entity\|update`, `sentinel incident comment create`, `sentinel alert-rule list\|show`, `sentinel data-connector list\|show` |
 | Monitoring | `monitor log-analytics workspace list\|show`, `monitor metrics alert list\|show`, `monitor action-group list\|show`, `monitor diagnostic-settings list\|show`, `monitor metrics list` |
 | Log Analytics | `monitor log-analytics query` (legacy `logs query`) |
 | Network | `network nsg\|nic\|vnet\|public-ip\|private-endpoint list\|show`, `network nsg rule create` |
@@ -90,6 +90,7 @@ Aliases are supported spellings of the same command.
 | `az-axi security secure-scores list` | native | read |
 | `az-axi sentinel incident list` | native | read |
 | `az-axi sentinel incident show` | native | read |
+| `az-axi sentinel incident bundle` | native | read |
 | `az-axi sentinel incident list-alert` | native | read |
 | `az-axi sentinel incident list-entity` | native | read |
 | `az-axi sentinel incident update` | native | write |
@@ -189,6 +190,7 @@ az-axi security alert list --severity High
 az-axi security secure-scores list
 az-axi sentinel incident list -s '<subscription-id>' -g rg-demo --workspace-name logs-demo
 az-axi sentinel incident show -s '<subscription-id>' -g rg-demo --workspace-name logs-demo --name 3177
+az-axi sentinel incident bundle -s '<subscription-id>' -g rg-demo --workspace-name logs-demo --name 3177 --alert-limit 10 --entity-limit 20
 az-axi exposure --check mgmt-ports
 
 # Infrastructure and monitoring
@@ -204,6 +206,19 @@ az-axi graph query --file inventory.kql --subscriptions '<subscription-id>'
 az-axi monitor log-analytics query --file hunt.kql --workspace '<workspace-guid>' --timespan P7D
 az-axi api GET "/subscriptions?api-version=2022-12-01"
 ```
+
+<a id="sentinel-incident-bundle"></a>
+
+`sentinel incident bundle` reads detail, alerts and entities after resolving the incident number once.
+It accepts the same selectors as `incident show`, including `--incident-id`, workspace aliases and `--ids`.
+Ambiguous numbers and searches that cannot establish uniqueness within the fetch budget are refused; use the incident GUID or ARM ID directly.
+Alerts and entities each report their own exact `total`, displayed `count`, `complete` and `capped` flags.
+`complete` is false when either the display limit or row budget omits rows; `capped` is true only when the service total exceeds the row budget.
+`--alert-limit` and `--entity-limit` default to 50 each, with a maximum of 1000; `--full` expands metadata while retaining these limits.
+The shared `--max-rows` / `--all` budget bounds the number lookup and separately caps rows retained from each related response locally; it does not limit the size of those service responses or trigger related paging.
+Section failures set `partial: true`, name the sections in `failed`, and include structured errors alongside successful sections; this partial result exits 0, so inspect these fields before drawing conclusions.
+`partial: false` means no section failed, even when display limits or row budgets omit rows.
+Use the separate related list commands for `--fields` or `--limit`.
 
 ### Queries and request bodies
 
@@ -247,6 +262,7 @@ The [TOON dependency compatibility review](toon-compatibility.md) records the sy
 | All native Azure collection lists | Fetch at most 1,000 rows per subscription or data-plane collection by default; `--all` raises this to 10,000 (Key Vault: at most 2,500 scanned at 25/page); `--max-rows N` overrides either budget (1 to 100,000). Every walk stops at 100 pages. `--limit` and `--full` affect display only and never bypass fetch budgets. |
 
 Metadata data-plane commands retain their safe projections and bounds even with `--full`.
+For Sentinel bundles, `--full` retains the independent display limits described in the [bundle contract](#sentinel-incident-bundle).
 Counts disclose incomplete pagination as lower bounds, except capped listings that report an exact service total; an incomplete empty result does not prove that no matching objects exist.
 Native fetch budgets count rows before local filters; each selected subscription or data-plane collection receives its own budget.
 Resource Graph inventories (RBAC, Defender assessments/scores and exposure checks) apply the budget across the selected scope, separately for each exposure check.

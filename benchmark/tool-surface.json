@@ -2,11 +2,11 @@
   "tokenizer": "o200k_base",
   "skill": {
     "frontmatter": 56,
-    "body": 5467,
-    "total": 5522
+    "body": 5591,
+    "total": 5646
   },
   "help": {
-    "topLevel": 1418,
+    "topLevel": 1420,
     "auth": 51,
     "home": 244,
     "setup": 172,
@@ -23,7 +23,7 @@
     "activity": 172,
     "defender": 262,
     "security": 1113,
-    "sentinel": 2515,
+    "sentinel": 2909,
     "exposure": 457,
     "logs": 343,
     "api": 533,
@@ -41,5 +41,5 @@
     "vmss": 1304,
     "disk": 882
   },
-  "helpTotal": 19559
+  "helpTotal": 19955
 }

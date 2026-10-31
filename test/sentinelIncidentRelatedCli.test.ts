@@ -23,6 +23,12 @@ describe("built CLI sentinel incident related reads offline", () => {
     const stub = `
       const data = ${JSON.stringify({ discoveryWorkspace, sentinelIncidents, sentinelIncidentDetail, sentinelIncidentAlerts, sentinelIncidentEntities, subscriptionList })};
       const mode = ${JSON.stringify(mode)};
+      if (mode === 'encoded-path') {
+        const encodedScope = id => id.replace('/rg-demo/', '/rg-é/').replace('/logs-demo', '/logs démo');
+        data.discoveryWorkspace.id = encodedScope(data.discoveryWorkspace.id);
+        data.discoveryWorkspace.name = 'logs démo';
+        for (const incident of data.sentinelIncidents) incident.id = encodedScope(incident.id);
+      }
       globalThis.fetch = async (url, options) => {
         process.stderr.write(JSON.stringify({url, method: options.method, body: options.body ?? null}) + '\\n');
         const path = new URL(url).pathname;
@@ -30,10 +36,13 @@ describe("built CLI sentinel incident related reads offline", () => {
           return Response.json({error:{code:'AuthorizationFailed',message:'Denied'}},{status:403});
         }
         if (path.endsWith('/alerts')) {
+          if (mode === 'malformed-alerts') return Response.json({});
+          if (mode === 'partial-alerts') return Response.json({error:{code:'AuthorizationFailed',message:'Denied'}},{status:403});
           if (options.method !== 'POST' || options.body) throw new Error('alerts must be a bodyless POST');
           return Response.json(mode === 'empty' ? {value: []} : {value: data.sentinelIncidentAlerts});
         }
         if (path.endsWith('/entities')) {
+          if (mode === 'partial-entities') return Response.json({error:{code:'AuthorizationFailed',message:'Denied'}},{status:403});
           if (options.method !== 'POST' || options.body) throw new Error('entities must be a bodyless POST');
           return Response.json(mode === 'empty' ? {entities: []} : data.sentinelIncidentEntities);
         }
@@ -41,8 +50,11 @@ describe("built CLI sentinel incident related reads offline", () => {
         let body;
         if (path === '/subscriptions') body = {value: data.subscriptionList};
         else if (path.endsWith('/workspaces')) body = {value: mode === 'empty' ? [] : [data.discoveryWorkspace]};
-        else if (path.endsWith('/incidents')) body = {value: mode === 'empty' ? [] : data.sentinelIncidents};
-        else if (path.includes('/incidents/')) body = data.sentinelIncidents.find(i => i.name === path.split('/').pop()) || data.sentinelIncidentDetail;
+        else if (path.endsWith('/incidents')) body = {value: mode === 'ambiguous' ? [data.sentinelIncidents[0], {...data.sentinelIncidents[0], name: data.sentinelIncidents[1].name}] : mode === 'empty' ? [] : data.sentinelIncidents};
+        else if (path.includes('/incidents/')) {
+          if (mode === 'partial-detail') return Response.json({error:{code:'AuthorizationFailed',message:'Denied'}},{status:403});
+          body = data.sentinelIncidents.find(i => i.name === path.split('/').pop()) || data.sentinelIncidentDetail;
+        }
         else throw new Error('unexpected offline path: ' + path);
         return Response.json(body);
       };
@@ -56,6 +68,107 @@ describe("built CLI sentinel incident related reads offline", () => {
   }
   const selectors = ["--resource-group", "rg-demo", "--workspace-name", "logs-demo"];
   const byName = ["--name", INCIDENT_A.name];
+
+  it.each([
+    ["GUID", [...byName, "--resource-group", "rg-é", "--workspace-name", "logs démo"], "ci", false],
+    ["number", ["--name", "3177", "--resource-group", "rg-é", "--workspace-name", "logs démo"], "ci", true],
+    ["alias", [...byName, "--workspace", "sentinel"], "alias", false],
+    ["ARM ID", ["--ids", INCIDENT_A.id.replace("/rg-demo/", "/rg-é/").replace("/logs-demo/", "/logs démo/")], "ci", true],
+  ] as const)("bundles encoded path segments selected by %s", (_selector, flags, profile, full) => {
+    const controls = full ? ["--full"] : [];
+    const result = run(["sentinel", "incident", "bundle", ...flags, ...controls], "encoded-path", profile);
+    expect(result.status, result.stdout).toBe(0);
+    const output = decode(result.stdout) as Record<string, unknown>;
+    expect(output).toMatchObject({ partial: false, failed: [], detail: { number: 3177, workspace: "logs démo" } });
+    const show = run(["sentinel", "incident", "show", ...flags, ...controls], "encoded-path", profile);
+    expect(show.status, show.stdout).toBe(0);
+    expect(output.detail).toEqual(decode(show.stdout));
+    const requests = result.stderr.trim().split("\n").map(line => JSON.parse(line));
+    const base = `/subscriptions/${SUB_A}/resourceGroups/rg-%C3%A9/providers/Microsoft.OperationalInsights/workspaces/logs%20d%C3%A9mo/providers/Microsoft.SecurityInsights/incidents/${INCIDENT_A.name}`;
+    expect(requests.filter(({ url }) => new URL(url).pathname.includes(`/incidents/${INCIDENT_A.name}`))
+      .map(({ url, method, body }) => ({ path: new URL(url).pathname, method, body })))
+      .toEqual([
+        { path: base, method: "GET", body: null },
+        { path: `${base}/alerts`, method: "POST", body: null },
+        { path: `${base}/entities`, method: "POST", body: null },
+      ]);
+  });
+
+  it.each([
+    ["--alert-limit", "0"], ["--entity-limit", "1001"], ["--max-rows", "0"],
+    ["--limit", "1"], ["--fields", "name"], ["--execute"],
+  ])("rejects unsupported or invalid bundle controls %j before transport", (...flags) => {
+    const result = run(["sentinel", "incident", "bundle", ...byName, ...selectors, ...flags]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toBe("");
+  });
+
+  it("reports definitive empty related collections", () => {
+    const result = run(["sentinel", "incident", "bundle", "--ids", INCIDENT_A.id], "empty");
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ partial: false,
+      alerts: { total: 0, count: "0 incident alerts", complete: true, rows: [] },
+      entities: { total: 0, count: "0 incident entities", complete: true, rows: [] },
+    });
+  });
+
+  it("discloses malformed related responses instead of reporting a clean empty result", () => {
+    const result = run(["sentinel", "incident", "bundle", ...byName, ...selectors], "malformed-alerts");
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({ partial: true, failed: ["alerts"], alerts: { code: "API_ERROR" }, entities: { total: 2 } });
+  });
+
+  it("bundles detail and independently limited related reads after one number lookup", () => {
+    const result = run(["sentinel", "incident", "bundle", "--name", "3177", ...selectors, "--alert-limit", "1", "--entity-limit", "2", "--full"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({
+      partial: false, failed: [], detail: { number: 3177, title: INCIDENT_A.properties.title },
+      alerts: { total: 2, count: "1 of 2 incident alerts", complete: false, capped: false, rows: [{ name: sentinelIncidentAlerts[0]!.name, id: sentinelIncidentAlerts[0]!.id }] },
+      entities: { total: 2, count: "2 incident entities", complete: true, rows: sentinelIncidentEntities.entities.map(entity => ({ name: entity.name, id: entity.id })) },
+    });
+    const requests = result.stderr.trim().split("\n").map(line => JSON.parse(line));
+    expect(requests.map(({ url, method, body }) => ({ path: new URL(url).pathname.split("/incidents")[1], method, body })))
+      .toEqual([
+        { path: "", method: "GET", body: null },
+        { path: `/${INCIDENT_A.name}`, method: "GET", body: null },
+        { path: `/${INCIDENT_A.name}/alerts`, method: "POST", body: null },
+        { path: `/${INCIDENT_A.name}/entities`, method: "POST", body: null },
+      ]);
+  });
+
+  it("refuses ambiguous incident numbers before reading sections", () => {
+    const result = run(["sentinel", "incident", "bundle", "--name", "3177", ...selectors], "ambiguous");
+    expect(result.status).toBe(2);
+    expect(decode(result.stdout)).toMatchObject({ code: "VALIDATION_ERROR", error: "ambiguous incident number 3177" });
+    expect(result.stderr).not.toContain(`/incidents/${INCIDENT_A.name}`);
+  });
+
+  it("refuses an incomplete number search even when the fetched page contains a match", () => {
+    const result = run(["sentinel", "incident", "bundle", "--name", "3177", ...selectors, "--max-rows", "1"]);
+    expect(result.status).toBe(1);
+    expect(decode(result.stdout)).toMatchObject({ code: "INCOMPLETE_SEARCH" });
+    expect(result.stdout).toContain("uniqueness cannot be established");
+    expect(result.stderr).not.toContain(`/incidents/${INCIDENT_A.name}`);
+  });
+
+  it("keeps collection budgets when full output is requested by ARM ID", () => {
+    const result = run(["sentinel", "incident", "bundle", "--ids", INCIDENT_A.id, "--max-rows", "1", "--full"]);
+    expect(result.status, result.stdout).toBe(0);
+    expect(decode(result.stdout)).toMatchObject({
+      alerts: { total: 2, capped: true, complete: false, count: "1 of 2 incident alerts", rows: [{ name: sentinelIncidentAlerts[0]!.name }] },
+      entities: { total: 2, capped: true, complete: false, count: "1 of 2 incident entities", rows: [{ name: sentinelIncidentEntities.entities[0]!.name }] },
+    });
+  });
+
+  it.each(["detail", "alerts", "entities"])("discloses a failed %s section and retains successful reads", (section) => {
+    const result = run(["sentinel", "incident", "bundle", ...byName, ...selectors], `partial-${section}`);
+    expect(result.status, result.stdout).toBe(0);
+    const output = decode(result.stdout) as Record<string, unknown>;
+    expect(output).toMatchObject({ partial: true, failed: [section], [section]: { complete: false, code: "FORBIDDEN" } });
+    for (const successful of ["detail", "alerts", "entities"].filter(key => key !== section)) {
+      expect(output[successful]).toMatchObject(successful === "detail" ? { number: 3177 } : { total: 2, complete: true });
+    }
+  });
 
   it("lists related alerts and entities with compact rows and aggregates", () => {
     const alerts = run(["sentinel", "incident", "list-alert", ...byName, ...selectors]);

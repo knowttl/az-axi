@@ -33,7 +33,7 @@ describe("exact leaf contracts", () => {
       "security pricing list", "security pricing show",
       "security sub-assessment list", "security sub-assessment show",
       "security alert update", "defender assessments", "defender score", "sentinel incident list", "sentinel incident show",
-      "sentinel incident list-alert", "sentinel incident list-entity", "sentinel incident update", "sentinel incident comment create",
+      "sentinel incident bundle", "sentinel incident list-alert", "sentinel incident list-entity", "sentinel incident update", "sentinel incident comment create",
       "sentinel alert-rule list", "sentinel alert-rule show", "sentinel data-connector list", "sentinel data-connector show", "exposure", "monitor log-analytics query", "api", "op status", "az group show",
       "storage container list", "storage container show", "storage blob list", "storage blob show",
       "keyvault secret list", "keyvault key list", "keyvault certificate list",

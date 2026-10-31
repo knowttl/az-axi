@@ -16,7 +16,7 @@ import { commandFlags, commandMeta, runWithEffect } from "../lib/registry.js";
 import { parseSubscriptionId } from "../lib/scope.js";
 import { formatFlagValue } from "../lib/shell.js";
 import { parseSince } from "../lib/time.js";
-import { DEFAULT_NATIVE_LIST_BUDGET, nativeListBudget, nativeListFetchFlags, NATIVE_LIST_CAPPED, NATIVE_LIST_INCOMPLETE } from "../lib/nativePaging.js";
+import { DEFAULT_NATIVE_LIST_BUDGET, nativeListBudget, nativeListFetchFlags, NATIVE_LIST_CAPPED, NATIVE_LIST_INCOMPLETE, type NativeListBudget } from "../lib/nativePaging.js";
 
 export const meta = commandMeta("sentinel");
 
@@ -383,9 +383,23 @@ async function listForNumber(
   target: WorkspaceTarget,
   incidentNumber: number,
   listHint: string,
+  uniqueBudget?: NativeListBudget,
 ): Promise<Incident> {
   const page = await requestAll<Incident>(profile,
-    { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS }, DEFAULT_NATIVE_LIST_BUDGET);
+    { method: "GET", path: incidentBase(target.subscription, target.resourceGroup, target.workspaceName), apiVersion: SENTINEL_INCIDENTS }, uniqueBudget ?? DEFAULT_NATIVE_LIST_BUDGET);
+  if (uniqueBudget) {
+    const matches = page.items.filter((incident) => incident.properties?.incidentNumber === incidentNumber);
+    if (matches.length > 1) {
+      throw new AxiError(`ambiguous incident number ${incidentNumber}`, "VALIDATION_ERROR", [
+        "Use --name <incident-guid> or --ids <incident-ARM-id> to select the incident directly",
+      ]);
+    }
+    if (page.nextLink || page.incomplete) {
+      throw new AxiError(`incident number ${incidentNumber} search is incomplete within the fetch budget; uniqueness cannot be established`, "INCOMPLETE_SEARCH", [
+        "Use --name <incident-guid> or --ids <incident-ARM-id> to select the incident directly",
+      ]);
+    }
+  }
   const match = page.items
     .filter((incident) => incident.properties?.incidentNumber === incidentNumber)
     .sort((a, b) => eventTime(b.properties?.createdTimeUtc) - eventTime(a.properties?.createdTimeUtc))[0];
@@ -423,6 +437,7 @@ async function resolveIncidentIdentity(
   profile: ResolvedProfile,
   args: ReturnType<typeof parseArgs>,
   verb: string,
+  uniqueBudget?: NativeListBudget,
 ): Promise<IncidentIdentity> {
   const nameFlag = flagText(args, "name");
   const incidentIdFlag = flagText(args, "incident-id");
@@ -465,7 +480,7 @@ async function resolveIncidentIdentity(
   const target = await resolveWorkspace(profile, args, subscription);
   if (NUMBER.test(name!.trim())) {
     const incident = await listForNumber(profile, target, Number(name!.trim()),
-      `az-axi sentinel incident list${selectorSuffix(args, subscription, target)}`);
+      `az-axi sentinel incident list${selectorSuffix(args, subscription, target)}`, uniqueBudget);
     if (!incident.name || !GUID.test(incident.name)) invalid("incident lookup returned an unexpected incident name");
     return { subscription, target, incidentId: incident.name, label: name!.trim() };
   }
@@ -663,8 +678,67 @@ async function runEntityList(profile: ResolvedProfile, args: ReturnType<typeof p
   };
 }
 
-async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+async function runBundle(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
+  if (args.flags.fields !== undefined || args.flags.limit !== undefined) {
+    invalid("incident bundle uses --alert-limit and --entity-limit; use list-alert or list-entity for --fields and --limit");
+  }
+  const budget = nativeListBudget(args);
+  const limits = ["alert-limit", "entity-limit"].map((key) => {
+    const raw = flagText(args, key);
+    const value = raw === undefined ? DEFAULT_LIMIT : Number(raw);
+    if (!Number.isInteger(value) || value < 1 || value > MAX_LIMIT) invalid(`--${key} must be an integer from 1 to ${MAX_LIMIT}`);
+    return value;
+  });
+  const identity = await resolveIncidentIdentity(profile, args, "bundle", budget);
+  const path = relatedBase(identity, identity.target);
   const full = flagBool(args, "full");
+  const sections: Record<string, unknown> = {};
+  const failures: string[] = [];
+  for (const section of ["detail", "alerts", "entities"] as const) {
+    try {
+      if (section === "detail") {
+        const incident = await request<Incident>(profile, {
+          method: "GET", path, apiVersion: SENTINEL_INCIDENTS,
+        });
+        sections.detail = incidentDetail(profile, incident, args, identity.subscription, identity.target);
+        continue;
+      }
+      // These reviewed read actions return a single response, never a collection walk.
+      const body = await request<{ value?: AlertItem[] } & EntitiesResponse>(profile, {
+        method: "POST", path: `${path}/${section}`, apiVersion: SENTINEL_INCIDENTS,
+      });
+      const limit = limits[section === "alerts" ? 0 : 1]!;
+      const available = section === "alerts" ? body?.value : body?.entities;
+      if (!Array.isArray(available)) {
+        throw new AxiError(`invalid incident ${section} response: expected an array`, "API_ERROR", [
+          "Check API compatibility and retry the related list command",
+        ]);
+      }
+      const shown = available.slice(0, Math.min(limit, budget.maxRows));
+      const rows = section === "alerts"
+        ? (shown as AlertItem[]).map(full ? fullAlertRow : compactAlertRow)
+        : (shown as EntityItem[]).map(full ? fullEntityRow : compactEntityRow);
+      sections[section] = {
+        total: available.length,
+        count: countLine(shown.length, available.length, `incident ${section}`),
+        complete: shown.length === available.length,
+        capped: available.length > budget.maxRows,
+        rows,
+        ...(available.length > budget.maxRows ? { help: [NATIVE_LIST_CAPPED] } : {}),
+      };
+    } catch (error) {
+      if (!(error instanceof AxiError)) throw error;
+      failures.push(section);
+      sections[section] = { complete: false, error: error.message, code: error.code, help: error.suggestions };
+    }
+  }
+  return {
+    profile: profile.name, workspace: identity.target.workspaceName, incident: identity.label,
+    partial: failures.length > 0, failed: failures, ...sections,
+  };
+}
+
+async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
   const nameFlag = flagText(args, "name");
   const incidentIdFlag = flagText(args, "incident-id");
   if (nameFlag && incidentIdFlag && nameFlag.trim() !== incidentIdFlag.trim()) {
@@ -719,8 +793,20 @@ async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseAr
       });
     }
   }
-  const suffix = selectorSuffix(args, subscription, target);
+  return incidentDetail(profile, incident, args, subscription, target);
+}
 
+function incidentDetail(
+  profile: ResolvedProfile,
+  incident: Incident,
+  args: ReturnType<typeof parseArgs>,
+  subscription: string,
+  target?: WorkspaceTarget,
+): Record<string, unknown> {
+  const full = flagBool(args, "full");
+  const ids = flagText(args, "ids");
+  const name = flagText(args, "name") ?? flagText(args, "incident-id");
+  const suffix = selectorSuffix(args, subscription, ids ? undefined : target);
   const properties = incident.properties ?? {};
   const description = properties.description ?? "";
   const descriptionText = full ? { text: description, truncated: false } : truncate(description, CELL_TRUNCATE);
@@ -1507,11 +1593,11 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const verb = args.positionals[1];
   const tail = args.positionals.slice(2);
   let leaf: string;
-  if ((verb === "list" || verb === "show" || verb === "list-alert" || verb === "list-entity" || verb === "update") && tail.length === 0) {
+  if ((verb === "list" || verb === "show" || verb === "bundle" || verb === "list-alert" || verb === "list-entity" || verb === "update") && tail.length === 0) {
     leaf = `sentinel incident ${verb}`;
   } else if (verb === "comment" && tail.length === 1 && tail[0] === "create") {
     leaf = "sentinel incident comment create";
-  } else if (verb === "list" || verb === "show" || verb === "list-alert" || verb === "list-entity" || verb === "update") {
+  } else if (verb === "list" || verb === "show" || verb === "bundle" || verb === "list-alert" || verb === "list-entity" || verb === "update") {
     throw new AxiError(`unexpected argument \`${tail[0]}\` for \`sentinel incident ${verb}\``, "VALIDATION_ERROR", [
       `Run \`az-axi sentinel incident ${verb} --help\` for usage`,
     ]);
@@ -1519,18 +1605,19 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
     throw new AxiError(
       verb ? `unknown command \`sentinel incident ${[verb, ...tail].join(" ")}\`` : "missing verb for `sentinel incident`",
       "VALIDATION_ERROR",
-      ["Expected one of: list | show | list-alert | list-entity | update | comment create", "Run `az-axi sentinel incident list --help` for usage"],
+      ["Expected one of: list | show | bundle | list-alert | list-entity | update | comment create", "Run `az-axi sentinel incident list --help` for usage"],
     );
   }
   assertKnownFlags(args, commandFlags(leaf), leaf);
   const profile = profileFromArgs(args);
-  if (leaf === "sentinel incident list" || leaf === "sentinel incident show" || leaf === "sentinel incident list-alert" || leaf === "sentinel incident list-entity") {
+  if (leaf === "sentinel incident list" || leaf === "sentinel incident show" || leaf === "sentinel incident bundle" || leaf === "sentinel incident list-alert" || leaf === "sentinel incident list-entity") {
     if (args.flags["management-group"] || profile.managementGroup && !args.flags.subscription) {
       invalid("management-group scope is unsupported for Sentinel incidents; select one subscription explicitly");
     }
   }
   if (leaf === "sentinel incident list") return runList(profile, args);
   if (leaf === "sentinel incident show") return runShow(profile, args);
+  if (leaf === "sentinel incident bundle") return runBundle(profile, args);
   if (leaf === "sentinel incident list-alert") return runAlertList(profile, args);
   if (leaf === "sentinel incident list-entity") return runEntityList(profile, args);
   // The module effect stays read so incident reads keep the read-only request

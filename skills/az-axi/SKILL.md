@@ -32,6 +32,7 @@ npx -y @knowttl/az-axi rbac list --profile demo --privileged --fields principal,
 npx -y @knowttl/az-axi defender alerts --profile demo --severity High,Medium --status Active --limit 10
 npx -y @knowttl/az-axi sentinel incident list --profile demo --workspace sentinel --status New,Active --limit 10
 npx -y @knowttl/az-axi sentinel incident show --profile demo --workspace sentinel --name 3177
+npx -y @knowttl/az-axi sentinel incident bundle --profile demo --workspace sentinel --name 3177 --alert-limit 10 --entity-limit 20
 npx -y @knowttl/az-axi sentinel incident list-alert --profile demo --workspace sentinel --name 3177 --limit 10
 npx -y @knowttl/az-axi sentinel incident list-entity --profile demo --workspace sentinel --name 3177 --limit 10
 npx -y @knowttl/az-axi exposure --profile demo --check all --limit 5
@@ -54,8 +55,9 @@ npx -y @knowttl/az-axi logs query 'SigninLogs' --profile demo --workspace sentin
 RBAC joins role definitions and resolves principal names in one invocation; failed name resolution retains object IDs with a hint.
 Exposure `--check all` combines public-ips, mgmt-ports and any-any checks with counts and rows; its default is 10 rows per check.
 Sentinel `--name 3177` resolves the number and retrieves the detail, alerts or entities without a separate lookup call.
+Use `sentinel incident bundle` for detail plus both related collections with one number resolution. Ambiguous numbers and incomplete searches are refused. Alert and entity totals and display limits are independent; `--full` preserves those limits. `partial` and `failed` disclose section failures while retaining successful reads. Each collection uses the shared bounded row budget; no related paging or mutation is performed.
 Number resolution scans the bounded incident list; a known incident GUID or ARM ID avoids that scan.
-Related alerts and entities remain separate commands, not a combined incident bundle; their service responses do not paginate.
+Related alerts and entities are also available as separate commands; their service responses do not paginate.
 
 Lists normally display 50 rows; `--fields a,b` selects row columns and `--limit N` reduces display.
 Native collection reads follow pages automatically: 1000 fetched rows by default, `--all` raises this to 10000, `--max-rows 1..100000` overrides it, with at most 100 pages per subscription or collection (per exposure check across scope).
@@ -159,6 +161,7 @@ The exact current leaf registry is `src/lib/registry.ts`. Capability labels: `na
 | `az-axi security secure-scores list` | native | read |
 | `az-axi sentinel incident list` | native | read |
 | `az-axi sentinel incident show` | native | read |
+| `az-axi sentinel incident bundle` | native | read |
 | `az-axi sentinel incident list-alert` | native | read |
 | `az-axi sentinel incident list-entity` | native | read |
 | `az-axi sentinel incident update` | native | write |
