@@ -1,4 +1,5 @@
 import { AxiError } from "axi-sdk-js";
+import { responseDiagnostics, responseInvalid } from "./errors.js";
 import { resolveCredential } from "./auth.js";
 import type { ResolvedProfile } from "./config.js";
 import { assertEffectAllows } from "./registry.js";
@@ -80,6 +81,7 @@ export async function requestStorageMetadata(profile: ResolvedProfile, read: Sto
     }] };
   }
   // Bound the decoded XML stream too: a compressed or chunked response may omit Content-Length.
+  const diagnostics = responseDiagnostics(response);
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   let text = "";
@@ -96,12 +98,17 @@ export async function requestStorageMetadata(profile: ResolvedProfile, read: Sto
       text += decoder.decode();
     } catch {
       await reader.cancel();
-      throw new AxiError("storage metadata response exceeded its bound or could not be read", "API_ERROR", ["Retry with a smaller --max-rows fetch budget"]);
+      throw responseInvalid(new AxiError("storage metadata response exceeded its bound or could not be read", "API_ERROR", ["Retry with a smaller --max-rows fetch budget"]), diagnostics);
     } finally {
       reader.releaseLock();
     }
   }
-  return metadataPage(text, read.kind);
+  diagnostics.record(response.status, response.headers, text);
+  try {
+    return metadataPage(text, read.kind);
+  } catch (error) {
+    throw responseInvalid(error, diagnostics);
+  }
 }
 
 interface Node { name: string; text: string; children: Node[]; encoded: boolean }

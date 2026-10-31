@@ -1,4 +1,6 @@
 import { AxiError } from "axi-sdk-js";
+import { responseDiagnostics, responseInvalid } from "./errors.js";
+import type { ResponseDiagnostics } from "../response-diagnostics.js";
 import { resolveCredential } from "./auth.js";
 import type { ResolvedProfile } from "./config.js";
 import { assertEffectAllows } from "./registry.js";
@@ -94,11 +96,11 @@ function pathOf(loginServer: string, path: string, query?: Record<string, string
 /** Exact token endpoint only; the Entra token never travels anywhere else. */
 async function exchangeToken(loginServer: string, entra: string, signal: AbortSignal): Promise<string> {
   const body = new URLSearchParams({ grant_type: "access_token", service: loginServer, access_token: entra });
-  const json = await postForm(`https://${loginServer}/oauth2/exchange`, body, signal);
+  const { json, diagnostics } = await postForm(`https://${loginServer}/oauth2/exchange`, body, signal);
   if (typeof json.refresh_token !== "string" || !json.refresh_token || /[\r\n]/.test(json.refresh_token)) {
-    throw new AxiError("acr token exchange returned an unusable refresh token", "AUTH_REQUIRED", [
+    throw responseInvalid(new AxiError("acr token exchange returned an unusable refresh token", "AUTH_REQUIRED", [
       "Check the selected Azure CLI tenant and sign-in, or use a token profile with AZ_AXI_REGISTRY_TOKEN",
-    ]);
+    ]), diagnostics);
   }
   registerSecret(json.refresh_token);
   return json.refresh_token;
@@ -106,18 +108,18 @@ async function exchangeToken(loginServer: string, entra: string, signal: AbortSi
 
 async function accessToken(loginServer: string, refresh: string, scope: string, signal: AbortSignal): Promise<string> {
   const body = new URLSearchParams({ grant_type: "refresh_token", service: loginServer, scope, refresh_token: refresh });
-  const json = await postForm(`https://${loginServer}/oauth2/token`, body, signal);
+  const { json, diagnostics } = await postForm(`https://${loginServer}/oauth2/token`, body, signal);
   if (typeof json.access_token !== "string" || !json.access_token || /[\r\n]/.test(json.access_token)) {
-    throw new AxiError("acr token request returned an unusable access token", "AUTH_REQUIRED", [
+    throw responseInvalid(new AxiError("acr token request returned an unusable access token", "AUTH_REQUIRED", [
       "The identity needs AcrPull on the registry; admin-user passwords are never used",
-    ]);
+    ]), diagnostics);
   }
   registerSecret(json.access_token);
   return json.access_token;
 }
 
 /** One exact form POST to the pinned login server; token values never enter errors. */
-async function postForm(url: string, body: URLSearchParams, signal: AbortSignal): Promise<Record<string, unknown>> {
+async function postForm(url: string, body: URLSearchParams, signal: AbortSignal): Promise<{ json: Record<string, unknown>; diagnostics: ResponseDiagnostics }> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -134,14 +136,16 @@ async function postForm(url: string, body: URLSearchParams, signal: AbortSignal)
       response.status === 401 ? "AUTH_REQUIRED" : response.status === 403 ? "FORBIDDEN" : "API_ERROR",
       ["Use an Entra token for https://containerregistry.azure.net/ and check AcrPull role assignment; password fallback is disabled"]);
   }
-  const json = await boundedJson(response, "acr authentication response exceeded its bound");
-  if (!isRecord(json)) throw new AxiError("invalid acr authentication response", "API_ERROR", ["Retry the metadata read"]);
-  return json;
+  const diagnostics = responseDiagnostics(response);
+  const json = await boundedJson(response, "acr authentication response exceeded its bound", diagnostics);
+  if (!isRecord(json)) throw responseInvalid(new AxiError("invalid acr authentication response", "API_ERROR", ["Retry the metadata read"]), diagnostics);
+  return { json, diagnostics };
 }
 
 interface DataResponse {
   json: unknown;
   headers: Headers;
+  diagnostics: ResponseDiagnostics;
 }
 
 async function dataGet(url: string, access: string, accept: string | undefined, signal: AbortSignal): Promise<DataResponse> {
@@ -160,11 +164,12 @@ async function dataGet(url: string, access: string, accept: string | undefined, 
       response.status === 401 ? "AUTH_REQUIRED" : response.status === 403 ? "FORBIDDEN" : "API_ERROR",
       ["Use an Entra token for https://containerregistry.azure.net/ and check AcrPull role assignment; password fallback is disabled"]);
   }
-  return { json: await boundedJson(response, "acr metadata response exceeded its bound"), headers: response.headers };
+  const diagnostics = responseDiagnostics(response);
+  return { json: await boundedJson(response, "acr metadata response exceeded its bound", diagnostics), headers: response.headers, diagnostics };
 }
 
 /** Bound the decoded stream too: responses may omit Content-Length. */
-async function boundedJson(response: Response, message: string): Promise<unknown> {
+async function boundedJson(response: Response, message: string, diagnostics: ResponseDiagnostics): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) return undefined;
   const decoder = new TextDecoder();
@@ -181,15 +186,18 @@ async function boundedJson(response: Response, message: string): Promise<unknown
     text += decoder.decode();
   } catch {
     await reader.cancel();
-    throw new AxiError(message, "API_ERROR", ["For lists, retry with a smaller --max-rows fetch budget"]);
+    throw responseInvalid(new AxiError(message, "API_ERROR", ["For lists, retry with a smaller --max-rows fetch budget"]), diagnostics);
   } finally {
     reader.releaseLock();
   }
   if (!text) return undefined;
   try {
-    return JSON.parse(text);
+    const json: unknown = JSON.parse(text);
+    diagnostics.record(response.status, response.headers, json);
+    return json;
   } catch {
-    throw new AxiError("invalid acr metadata response", "API_ERROR", ["Retry the metadata read"]);
+    diagnostics.record(response.status, response.headers, text);
+    throw responseInvalid(new AxiError("invalid acr metadata response", "API_ERROR", ["Retry the metadata read"]), diagnostics);
   }
 }
 
@@ -213,10 +221,10 @@ function linkMarker(headers: Headers, loginServer: string): string | undefined {
 async function catalogPage(loginServer: string, access: string, read: AcrRead, signal: AbortSignal): Promise<AcrPage> {
   const url = pathOf(loginServer, "/acr/v1/_catalog",
     { n: String(read.limit), ...(read.last !== undefined ? { last: read.last } : {}) });
-  const { json, headers } = await dataGet(url, access, undefined, signal);
+  const { json, headers, diagnostics } = await dataGet(url, access, undefined, signal);
   if (!isRecord(json) || !Array.isArray(json.repositories) ||
       json.repositories.some((name) => typeof name !== "string" || !name)) {
-    throw new AxiError("invalid acr catalog response", "API_ERROR", ["Retry the metadata read"]);
+    throw responseInvalid(new AxiError("invalid acr catalog response", "API_ERROR", ["Retry the metadata read"]), diagnostics);
   }
   return { rows: json.repositories.map((name) => ({ name })), ...marker(headers, loginServer) };
 }
@@ -227,11 +235,11 @@ async function tagPage(loginServer: string, access: string, read: AcrRead, signa
     { n: String(read.limit),
       ...(read.last !== undefined ? { last: read.last } : {}),
       ...(read.orderby ? { orderby: read.orderby === "time_asc" ? "timeasc" : "timedesc" } : {}) });
-  const { json, headers } = await dataGet(url, access, undefined, signal);
-  if (!isRecord(json) || !Array.isArray(json.tags)) throw new AxiError("invalid acr tag response", "API_ERROR", ["Retry the metadata read"]);
+  const { json, headers, diagnostics } = await dataGet(url, access, undefined, signal);
+  if (!isRecord(json) || !Array.isArray(json.tags)) throw responseInvalid(new AxiError("invalid acr tag response", "API_ERROR", ["Retry the metadata read"]), diagnostics);
   const rows = json.tags.map((entry) => {
     if (!isRecord(entry) || typeof entry.name !== "string" || !entry.name) {
-      throw new AxiError("invalid acr tag response", "API_ERROR", ["Retry the metadata read"]);
+      throw responseInvalid(new AxiError("invalid acr tag response", "API_ERROR", ["Retry the metadata read"]), diagnostics);
     }
     return {
       name: entry.name, digest: textField(entry, "digest"),
@@ -251,8 +259,8 @@ async function manifestPage(loginServer: string, access: string, read: AcrRead, 
   const repository = read.repository!;
   const url = pathOf(loginServer,
     `/v2/${repository.split("/").map(encodeURIComponent).join("/")}/manifests/${encodeURIComponent(read.reference!)}`);
-  const { json, headers } = await dataGet(url, access, MANIFEST_ACCEPT, signal);
-  if (!isRecord(json)) throw new AxiError("invalid acr manifest response", "API_ERROR", ["Retry the metadata read"]);
+  const { json, headers, diagnostics } = await dataGet(url, access, MANIFEST_ACCEPT, signal);
+  if (!isRecord(json)) throw responseInvalid(new AxiError("invalid acr manifest response", "API_ERROR", ["Retry the metadata read"]), diagnostics);
   const digest = headers.get("docker-content-digest") ?? "";
   return { rows: [manifestRow(json, digest)] };
 }

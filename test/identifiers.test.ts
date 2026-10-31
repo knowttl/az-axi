@@ -15,8 +15,8 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// Synthetic identifiers: 00000000-0000-0000-0000-0000000000NN
-const SYNTHETIC_GUID = /^00000000-0000-0000-0000-0000000000[0-9a-f]{2}$/;
+// Synthetic identifiers, including the canonical response-diagnostics version-4 vector.
+const SYNTHETIC_GUID = /^(?:00000000-0000-0000-0000-0000000000[0-9a-f]{2}|00000000-0000-4000-8000-000000000001)$/;
 
 // Public, Microsoft-wide GUIDs that are required for function and are not tenant data.
 // Built-in role definition IDs live in src/lib/roles.ts and are allowed by import.
@@ -28,7 +28,7 @@ const PUBLIC_GUIDS: readonly string[] = [
 ];
 
 // Documentation domains for synthetic examples (any subdomain is allowed).
-const EXAMPLE_DOMAINS: readonly string[] = ["contoso.com", "fabrikam.com", "example.com", "stexample.blob.core.windows.net"];
+const EXAMPLE_DOMAINS: readonly string[] = ["contoso.com", "fabrikam.com", "example.com", "example.test", "stexample.blob.core.windows.net"];
 
 // Public hosts that docs, API endpoints, tooling and links legitimately name (any subdomain is allowed).
 const PUBLIC_HOSTS: readonly string[] = [

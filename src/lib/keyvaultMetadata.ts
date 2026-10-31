@@ -1,4 +1,6 @@
 import { AxiError } from "axi-sdk-js";
+import { responseDiagnostics, responseInvalid } from "./errors.js";
+import type { ResponseDiagnostics } from "../response-diagnostics.js";
 import { KEYVAULT_DATA_PLANE } from "./apiVersions.js";
 import { resolveCredential } from "./auth.js";
 import type { ResolvedProfile } from "./config.js";
@@ -83,17 +85,22 @@ export async function requestKeyVaultMetadata(profile: ResolvedProfile, read: Ke
         response.status === 401 ? "AUTH_REQUIRED" : response.status === 403 ? "FORBIDDEN" : response.status === 404 ? "NOT_FOUND" : "API_ERROR",
         ["Use an Entra token for https://vault.azure.net/ and check Key Vault data-plane permissions (list); no key or certificate fallback exists"]);
     }
-    const body = await readBoundedJson(response);
-    const items = Array.isArray((body as { value?: unknown }).value) ? (body as { value: unknown[] }).value : failBody();
-    for (const item of items) {
-      if (read.budget && scanned === maxRows) { truncated = true; break; }
-      scanned++;
-      const row = toRow(read.kind, item);
-      if (read.expiringWithinMs !== undefined && !expiresWithin(row, read.expiringWithinMs, Date.now())) continue;
-      if (rows.length < maxRows) rows.push(row);
-      else truncated = true;
+    const diagnostics = responseDiagnostics(response);
+    try {
+      const body = await readBoundedJson(response, diagnostics);
+      const items = body && Array.isArray((body as { value?: unknown }).value) ? (body as { value: unknown[] }).value : failBody();
+      for (const item of items) {
+        if (read.budget && scanned === maxRows) { truncated = true; break; }
+        scanned++;
+        const row = toRow(read.kind, item);
+        if (read.expiringWithinMs !== undefined && !expiresWithin(row, read.expiringWithinMs, Date.now())) continue;
+        if (rows.length < maxRows) rows.push(row);
+        else truncated = true;
+      }
+      url = nextPage(host, collection, body);
+    } catch (error) {
+      throw responseInvalid(error, diagnostics);
     }
-    url = nextPage(host, collection, body);
     if (url && seen.has(url)) { truncated = true; break; }
     if (url) seen.add(url);
   }
@@ -106,7 +113,7 @@ function failBody(): never {
 }
 
 /** Bounded JSON read: the service page is small, but the stream is capped like the storage transport. */
-async function readBoundedJson(response: Response): Promise<unknown> {
+async function readBoundedJson(response: Response, diagnostics: ResponseDiagnostics): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) failBody();
   const decoder = new TextDecoder();
@@ -128,8 +135,11 @@ async function readBoundedJson(response: Response): Promise<unknown> {
     reader.releaseLock();
   }
   try {
-    return JSON.parse(text) as unknown;
+    const body: unknown = JSON.parse(text);
+    diagnostics.record(response.status, response.headers, body);
+    return body;
   } catch {
+    diagnostics.record(response.status, response.headers, text);
     failBody();
   }
 }

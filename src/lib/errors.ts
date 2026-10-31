@@ -1,6 +1,31 @@
 import { encode } from "@toon-format/toon";
 import { AxiError } from "axi-sdk-js";
-import { redact } from "./redact.js";
+import { redact, redactText } from "./redact.js";
+import { ResponseDiagnostics } from "../response-diagnostics.js";
+
+/** Response-local evidence, retained through the request and write error wrappers. */
+export class ResponseInvalidError extends AxiError {
+  constructor(error: AxiError, readonly responseDiagnostics: Record<string, unknown>) {
+    super(error.message, error.code, error.suggestions);
+    this.cause = error;
+  }
+}
+
+export function responseDiagnostics(response: Response, data?: unknown): ResponseDiagnostics {
+  const diagnostics = new ResponseDiagnostics({ text: redactText }, ["API_ERROR", "AUTH_REQUIRED"]);
+  diagnostics.record(response.status, response.headers, data);
+  return diagnostics;
+}
+
+export function responseInvalid(error: unknown, diagnostics: ResponseDiagnostics): unknown {
+  return error instanceof AxiError ? new ResponseInvalidError(error, diagnostics.forError(error)) : error;
+}
+
+function responseDetails(error: unknown): Record<string, unknown> {
+  if (error instanceof ResponseInvalidError) return error.responseDiagnostics;
+  if (error instanceof Error && error.cause) return responseDetails(error.cause);
+  return {};
+}
 
 export interface KqlDiagnostic {
   line: number;
@@ -20,6 +45,7 @@ export class KqlError extends AxiError {
 export class WriteExecutionError extends AxiError {
   constructor(error: AxiError, readonly output: Record<string, unknown>, help: string[]) {
     super(error.message, error.code, [...error.suggestions, ...help]);
+    this.cause = error;
   }
 }
 
@@ -32,7 +58,7 @@ const USAGE_CODES = new Set([
 export function formatError(error: unknown): { output: string; exitCode: number } {
   const kql = error instanceof KqlError ? error : error instanceof Error && error.cause instanceof KqlError ? error.cause : undefined;
   const out: Record<string, unknown> = error instanceof AxiError
-    ? { error: error.message, code: error.code, ...(error instanceof WriteExecutionError ? error.output : {}),
+    ? { error: error.message, code: error.code, ...responseDetails(error), ...(error instanceof WriteExecutionError ? error.output : {}),
         ...(kql?.diagnostics.length ? { diagnostics: kql.diagnostics } : {}) }
     : { error: error instanceof Error ? error.message : String(error), code: "UNKNOWN" };
   if (error instanceof AxiError && error.suggestions.length > 0) out.help = error.suggestions;

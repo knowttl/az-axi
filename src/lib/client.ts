@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { NativeListBudget } from "./nativePaging.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { AxiError } from "axi-sdk-js";
-import { KqlError, type KqlDiagnostic } from "./errors.js";
+import { KqlError, responseDiagnostics, responseInvalid, type KqlDiagnostic } from "./errors.js";
 import { resolveCredential } from "./auth.js";
 import { tokenEnvFor, type Resource, type ResolvedProfile } from "./config.js";
 import { enforceGates, type GateOptions } from "./gates.js";
@@ -232,7 +232,8 @@ export async function sendRequest<T = unknown>(
       parsedBody = options.raw ? text : parseBody(text);
     } catch (error) {
       if (!(error instanceof AxiError)) throw error;
-      throw new ApiRequestError(error, response.status, requestId ?? clientRequestId, correlationId);
+      throw new ApiRequestError(responseInvalid(error, responseDiagnostics(response, text)) as AxiError,
+        response.status, requestId ?? clientRequestId, correlationId);
     }
     return {
       status: response.status,
@@ -261,11 +262,12 @@ export async function requestList<T>(profile: ResolvedProfile, options: RequestO
 }
 
 async function requestListPage<T>(profile: ResolvedProfile, options: RequestOptions): Promise<ListResponse<T>> {
-  const body = await request<ListResponse<T>>(profile, options);
+  const response = await sendRequest<ListResponse<T>>(profile, options);
+  const body = response.body;
   if (!body || !Array.isArray(body.value)) {
-    throw new AxiError("invalid list response: expected a value array", "API_ERROR", [
+    throw responseInvalid(new AxiError("invalid list response: expected a value array", "API_ERROR", [
       "Check API compatibility and any proxy or sign-in page intercepting the response",
-    ]);
+    ]), responseDiagnostics(new Response(null, { status: response.status, headers: response.headers }), body));
   }
   return body;
 }
