@@ -204,7 +204,7 @@ function investigationGuide(npx: string): string[] {
     "| `TLS_ERROR`, `NETWORK_ERROR` | Repair trust/connectivity; TLS may need `NODE_EXTRA_CA_CERTS`. |",
     "| `PROVIDER_NOT_REGISTERED` | Ask an administrator to register the named provider. |",
     "| `RATE_LIMITED` | Honor the retry-after hint and narrow the query or timespan before retrying. |",
-    "| `API_ERROR` | Read the provider message and request hint; correct query semantics or respect throttling before retrying. |",
+    "| `API_ERROR` | Follow the request hint; malformed JSON or list envelopes fail instead of returning empty results. Check API compatibility and proxies for malformed responses; otherwise correct query semantics or respect throttling before retrying. |",
     "| `READ_ONLY`, `WRITES_DISABLED`, `SUBSCRIPTION_NOT_WRITABLE` | A write was attempted; return to the read plan instead of changing gates. |",
     "| Incomplete count, warning, failed exposure check | Narrow the query or deliberately increase its budget; partial success is not a clean negative finding. |",
   ];
