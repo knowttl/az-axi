@@ -276,7 +276,9 @@ Exit 0 means the command succeeded, exit 2 covers usage and access errors, and e
 `doctor` prints every selected profile and exits 1 if any profile has a required check failure or cannot be resolved; healthy profiles and optional Graph-token failures exit 0.
 Its `workspaces` column lists configured alias names, or `(none)` when the profile has no aliases.
 Unknown workspace errors list known aliases or state that no workspace aliases are configured for the profile.
-Unknown flags list valid flags or a targeted replacement; other argument errors give a concise remedy, with full leaf help available through `--help`.
+Unsupported leading flags return `UNKNOWN_FLAG` (exit 2), identify the flag by name and list valid global flags without suggesting a command containing the unsupported flag.
+Supported command flags placed before the command retain `VALIDATION_ERROR` and guidance to move them after the complete command path.
+Leaf-level unknown flags list valid flags or a targeted replacement; other argument errors give a concise remedy, with full leaf help available through `--help`.
 Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, `WRITES_DISABLED`, `PRECONDITION_FAILED`, `OPERATION_TIMEOUT`, `UNKNOWN_OUTCOME`, `PROVIDER_NOT_REGISTERED` and `API_ERROR`.
 The shared ARM, Log Analytics and Graph client rejects nonempty non-JSON successful responses with `API_ERROR`; `api --raw` explicitly requests text instead.
 Lists using the shared `requestList` or `requestAll` helpers require a `value` array on every fetched page; malformed envelopes fail with `API_ERROR` instead of returning empty or partial results.

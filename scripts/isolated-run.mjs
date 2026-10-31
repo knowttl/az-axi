@@ -1,9 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Isolate the command and all its children, including CLI subprocesses in tests.
+// Resolve cached install tools before isolating HOME; package tests never bootstrap Corepack.
+const cache = process.env.XDG_CACHE_HOME || join(homedir(), ".cache");
+const corepack = process.env.COREPACK_HOME || join(cache, "node/corepack");
+const { packageManager } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const pnpm = join(corepack, "v1/pnpm", packageManager.split("@")[1], "bin/pnpm.cjs");
 const home = mkdtempSync(join(tmpdir(), "az-axi-validation-"));
 if (process.platform !== "win32") process.umask(0o077);
 try {
@@ -14,6 +19,11 @@ try {
     shell: process.platform === "win32",
     env: {
       ...process.env,
+      AZ_AXI_TEST_PNPM: process.env.AZ_AXI_TEST_PNPM || (existsSync(pnpm) ? pnpm : "pnpm"),
+      AZ_AXI_TEST_PNPM_CACHE: process.env.AZ_AXI_TEST_PNPM_CACHE || join(cache, "pnpm"),
+      COREPACK_HOME: corepack,
+      COREPACK_ENABLE_NETWORK: "0",
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
       HOME: home,
       USERPROFILE: home,
       XDG_CONFIG_HOME: join(home, ".config"),

@@ -62,6 +62,10 @@ See [hook setup, limits and removal paths](docs/safety.md#agent-approval-hook) t
 
 ## What it covers
 
+For community catalogs: az-axi is a shell CLI for inspecting Azure inventory, access, activity, security posture and service metadata, with Resource Graph and Log Analytics queries.
+It uses the caller's Azure permissions and configured scope; it does not grant access or provide a comprehensive security audit.
+See [Safety](#safety) for write gates and metadata access boundaries.
+
 | Group | Purpose | Read/write | Reference |
 | --- | --- | --- | --- |
 | Orientation and profiles | Diagnose access, select profiles and install hooks | Reads; local setup writes | [Configuration](docs/configuration.md) |
