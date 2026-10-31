@@ -25,6 +25,23 @@ Vitest's default filename patterns and exclusions remain in effect within that d
 The identifier guard rejects tenant identifiers and private domains in repository text.
 Use synthetic identifiers and example domains when adding tests or documentation.
 
+Canonical source: knowttl/bstack revision feeccb1e6f1ae119bf4c74277c8bad328b05afe8, skills/verification/references/testing.md.
+<!-- BEGIN canonical test-quality rules -->
+**Test quality.** Write and review every test against these rules.
+Tests are never required first; a change is verified end to end against the behaviour the user expects.
+
+1. Trust upstream invariants: do not test states that types, schemas or database constraints already rule out.
+   Test invalid input only at the boundary that validates it.
+2. Assert outcomes from an agreed source (spec, domain rule, ground-truth fixture), never values copied from what the code returns today.
+3. Mock only true external boundaries, with schema-valid or recorded payloads.
+   Never mock in-process code.
+   Delete tests that only check how a mock was set up or called, unless that call is the requirement.
+4. Test through the public interface: no private helpers, internal state or internal call counts.
+5. Every assertion must be able to fail when the behaviour breaks: no existence-, type- or constant-only assertions.
+
+Exempt: validation-boundary tests, contract tests against an agreed schema or recording, and regression tests that cite the bug they reproduce.
+<!-- END canonical test-quality rules -->
+
 The packaged skill is generated from [src/lib/skill.ts](src/lib/skill.ts) and the [leaf registry](src/lib/registry.ts).
 Run `pnpm skill:generate` when changing that surface, then `pnpm skill:check` to check drift in the skill and the exact command table in [docs/commands.md](docs/commands.md#exact-command-reference).
 `pnpm catalogue:generate` and `pnpm catalogue:check` maintain the pinned read catalogue from reviewed source snapshots without Azure access.
