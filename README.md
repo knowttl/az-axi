@@ -62,6 +62,11 @@ See [hook setup, limits and removal paths](docs/safety.md#agent-approval-hook) t
 
 ## What it covers
 
+For community catalogs: az-axi is a shell CLI for inspecting Azure inventory, access, activity, security posture and service metadata, with Resource Graph and Log Analytics queries.
+It uses the caller's Azure permissions and configured scope; it does not grant access or provide a comprehensive security audit.
+Azure operations are read-only by default, with explicitly gated write operations as described below.
+Data-plane commands inspect Blob, Key Vault and container registry metadata; they do not download blob contents, reveal secret values or pull images.
+
 | Group | Purpose | Read/write | Reference |
 | --- | --- | --- | --- |
 | Orientation and profiles | Diagnose access, select profiles and install hooks | Reads; local setup writes | [Configuration](docs/configuration.md) |

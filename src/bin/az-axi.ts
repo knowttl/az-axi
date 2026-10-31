@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { tryFastPath } from "axi-sdk-js/fast-path";
 import { packageInfo } from "../lib/version.js";
+import type { CommandLeaf } from "../lib/registry.js";
 
 const version = packageInfo().version;
 
@@ -19,15 +20,23 @@ if (!tryFastPath(process.argv.slice(2), { version })) {
     stream.write = ((chunk: string | Uint8Array, ...args: unknown[]) =>
       Reflect.apply(write, stream, [redactText(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8")), ...args])) as typeof stream.write;
   }
-  const { COMMANDS, runCommand } = await import("../lib/registry.js");
+  const { COMMANDS, COMMAND_LEAVES, runCommand } = await import("../lib/registry.js");
+  const { GLOBAL_FLAG_SCHEMA, SHORT_FLAGS } = await import("../lib/args.js");
   const { DESCRIPTION, TOP_LEVEL_HELP } = await import("../help.js");
 
   function leadingFlagError(flag: string): string {
+    const raw = flag.replace(/^--?/, "").split("=")[0]!;
+    const name = flag.startsWith("--") ? raw : Object.hasOwn(SHORT_FLAGS, raw) ? SHORT_FLAGS[raw]! : "";
+    const supported = Object.hasOwn(GLOBAL_FLAG_SCHEMA, name) || COMMAND_LEAVES.some((leaf: CommandLeaf) =>
+      [leaf.flags, leaf.canonicalFlags, leaf.canonicalFlagAliases, leaf.aliasFlags]
+        .some((flags) => flags !== undefined && Object.hasOwn(flags, name)));
     return `${encode({
-      error: `\`${flag}\` must come after the command`,
-      code: "VALIDATION_ERROR",
+      error: supported ? `\`${flag}\` must come after the command` : `unknown flag \`${flag}\``,
+      code: supported ? "VALIDATION_ERROR" : "UNKNOWN_FLAG",
       help: [
-        `Run \`az-axi <command> [args] ${flag} <value>\``,
+        supported
+          ? "Place command flags after the complete command path; run `az-axi <command> --help` for usage"
+          : `Valid global flags: ${Object.keys(GLOBAL_FLAG_SCHEMA).map((name) => `--${name}`).join(", ")}`,
         "Run `az-axi --help` for the full command surface",
       ],
     })}\n`;

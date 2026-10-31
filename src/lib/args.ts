@@ -10,7 +10,7 @@ export const GLOBAL_FLAG_SCHEMA: FlagSchema = {
   profile: "value", tenant: "value", subscription: "list", "management-group": "value",
   config: "value", help: "boolean", full: "boolean", fields: "list", limit: "value",
 };
-const SHORT_FLAGS: Record<string, string> = {
+export const SHORT_FLAGS: Readonly<Record<string, string>> = {
   h: "help", s: "subscription", g: "resource-group", n: "name", l: "location", w: "workspace", t: "timespan", q: "graph-query",
 };
 

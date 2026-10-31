@@ -21,6 +21,8 @@ node dist/bin/az-axi.js --help
 `lint` and `typecheck` both run TypeScript without emitting files; no separate style linter is configured.
 The local validation gate does not require GitHub test CI (`no_ci: true`).
 The test suite uses offline fakes and synthetic fixtures, with discovery limited to `test/` so nested checkouts are not run.
+Packaged CLI tests require pnpm dependencies and registry metadata already present in the local store and cache.
+The isolated runner resolves cached pnpm before replacing HOME and disables Corepack downloads; packaged installs use `--offline`.
 Vitest's default filename patterns and exclusions remain in effect within that directory.
 The identifier guard rejects tenant identifiers and private domains in repository text.
 Use synthetic identifiers and example domains when adding tests or documentation.
