@@ -281,9 +281,10 @@ Common codes include `AUTH_REQUIRED`, `FORBIDDEN`, `UNKNOWN_FLAG`, `READ_ONLY`, 
 The shared ARM, Log Analytics and Graph client rejects nonempty non-JSON successful responses with `API_ERROR`; `api --raw` explicitly requests text instead.
 Lists using the shared `requestList` or `requestAll` helpers require a `value` array on every fetched page; malformed envelopes fail with `API_ERROR` instead of returning empty or partial results.
 Malformed JSON and list envelopes from the shared client, and malformed Key Vault, ACR and Storage metadata responses, include HTTP `status`, bounded `contentType`, `shape` and `shapeTruncated` fields.
+On write-execution errors, `responseStatus` identifies the malformed response's HTTP status while `status` retains the write's HTTP status (or 0 when unavailable); a failed operation poll can therefore report different statuses.
 Use those fields to check API compatibility or an intercepting proxy.
 The shape contains types and conservative identifier paths only, with other keys replaced by `<key>`; arrays show the first element and a count.
-Response values and validator messages are never printed.
+These diagnostic fields never print response values or validator messages.
 Storage XML is represented only as a string type.
 This envelope validation does not apply to generic `api` paging or commands with their own response handling.
 The shared client accepts empty bodies for non-list requests, including no-content responses.

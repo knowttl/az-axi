@@ -1,6 +1,6 @@
 # Upstream
 
-Vendored from ado-axi (https://github.com/jeffreyhaen/ado-axi) at commit `1a381cbbafc5b9127e1381fbd2c404f591ada881`.
+The ado-axi files below are vendored from https://github.com/jeffreyhaen/ado-axi at commit `1a381cbbafc5b9127e1381fbd2c404f591ada881`.
 
 Update the row of a file in the same commit that changes it.
 [NOTICE.md](NOTICE.md) carries the upstream MIT notice.
@@ -33,6 +33,11 @@ Update the row of a file in the same commit that changes it.
 | `package.json` | `package.json` | az-axi name, metadata, `files` and `bin`, including the hosted credential profile schema; no-emit `typecheck` and `lint` scripts; read-catalogue maintenance scripts (see [command safety reference](docs/safety.md#pinned-azure-cli-read-catalogue)); skill generation and drift-check scripts (see [command reference](docs/commands.md#exact-command-reference)), YAML parser for skill frontmatter tests; benchmark scripts adapted for Azure (see [CONTRIBUTING.md](CONTRIBUTING.md#benchmarks)) |
 
 The copied `.github/workflows/release.yml` was replaced by the local release workflow described in [CONTRIBUTING.md](CONTRIBUTING.md#releases).
+
+## Response diagnostics copies
+
+[src/response-diagnostics.ts](src/response-diagnostics.ts) and the [shared vectors](test/fixtures/response-diagnostics-vectors.json) are copied byte-for-byte from [knowttl/beyondtrust-axi](https://github.com/knowttl/beyondtrust-axi).
+The [contract test](test/response-diagnostics-contract.test.ts) records the source revision and checks the copies against [pinned SHA-256 hashes](test/fixtures/response-diagnostics-sha256.json); the source file's copy contract defines how to update them.
 
 ## Patterns reimplemented, not vendored
 
