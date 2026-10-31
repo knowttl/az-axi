@@ -227,10 +227,17 @@ export async function sendRequest<T = unknown>(
         requestId: requestId ?? clientRequestId,
       }), response.status, requestId ?? clientRequestId, correlationId);
     }
+    let parsedBody: unknown;
+    try {
+      parsedBody = options.raw ? text : parseBody(text);
+    } catch (error) {
+      if (!(error instanceof AxiError)) throw error;
+      throw new ApiRequestError(error, response.status, requestId ?? clientRequestId, correlationId);
+    }
     return {
       status: response.status,
       headers: responseHeaders,
-      body: (options.raw ? text : parseBody(text)) as T,
+      body: parsedBody as T,
       requestId,
       correlationId,
       clientRequestId,

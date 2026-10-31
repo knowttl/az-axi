@@ -227,6 +227,23 @@ describe("client execution backstop", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it.each(["GET", "POST", "PUT", "PATCH", "DELETE"])("preserves response metadata when %s receives malformed JSON", async (method) => {
+    fetchMock.mockResolvedValueOnce(new Response("{invalid", { status: 200,
+      headers: { "x-ms-request-id": "req-json", "x-ms-correlation-request-id": "corr-json" } }));
+    const error = await failure(sendRequest(writer(), { method, path, apiVersion: "1", execute: true, confirm: "rg-demo" }));
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({ code: "API_ERROR", httpStatus: 200, requestId: "req-json", correlationId: "corr-json" });
+    expect(render(error)).not.toContain("{invalid");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("uses the client request ID when malformed JSON response headers omit the server ID", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("{invalid", { status: 201 }));
+    const error = await failure(sendRequest(writer(), { method: "PATCH", path, apiVersion: "1", execute: true }));
+    expect(error).toMatchObject({ httpStatus: 201,
+      requestId: fetchMock.mock.calls[0]![1].headers["x-ms-client-request-id"] });
+  });
+
   it("uses the client request ID when interrupted response headers omit the server ID", async () => {
     fetchMock.mockResolvedValueOnce(new Response(new ReadableStream({
       start(controller) { controller.error(new Error("connection lost")); },
