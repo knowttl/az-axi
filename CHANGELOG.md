@@ -3,6 +3,16 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.15](https://github.com/knowttl/az-axi/compare/v0.1.14...v0.1.15) (2026-10-31)
+
+
+### Bug Fixes
+
+* correct unknown-flag recovery guidance ([#123](https://github.com/knowttl/az-axi/issues/123)) ([9983925](https://github.com/knowttl/az-axi/commit/9983925379fc81c853957efdcd41441593709453))
+* reject malformed JSON and list responses ([#120](https://github.com/knowttl/az-axi/issues/120)) ([3fe5fea](https://github.com/knowttl/az-axi/commit/3fe5feaadfea6116315c2ba884926b261e5e832f))
+* retain safe diagnostics for malformed Azure responses ([#121](https://github.com/knowttl/az-axi/issues/121)) ([5ee0df8](https://github.com/knowttl/az-axi/commit/5ee0df85968eb0273d966828209ecd4fe5f8a148))
+* switch no-mistakes reviewer to codex ([#117](https://github.com/knowttl/az-axi/issues/117)) ([b7b1925](https://github.com/knowttl/az-axi/commit/b7b19255f6bfff5eb27fe6efdd12f5433865baf3))
+
 ## [0.1.14](https://github.com/knowttl/az-axi/compare/v0.1.13...v0.1.14) (2026-10-28)
 
 
