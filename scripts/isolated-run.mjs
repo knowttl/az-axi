@@ -21,6 +21,7 @@ try {
       ...process.env,
       AZ_AXI_TEST_PNPM: process.env.AZ_AXI_TEST_PNPM || (existsSync(pnpm) ? pnpm : "pnpm"),
       AZ_AXI_TEST_PNPM_CACHE: process.env.AZ_AXI_TEST_PNPM_CACHE || join(cache, "pnpm"),
+      COREPACK_HOME: corepack,
       COREPACK_ENABLE_NETWORK: "0",
       COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
       HOME: home,
