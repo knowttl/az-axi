@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.16](https://github.com/knowttl/az-axi/compare/v0.1.15...v0.1.16) (2026-10-31)
+
+
+### Bug Fixes
+
+* allow packaged CLI installs on clean release runners ([#124](https://github.com/knowttl/az-axi/issues/124)) ([8c0f377](https://github.com/knowttl/az-axi/commit/8c0f377b694fd62500c8d04abd1d82a6b01c39c2))
+
 ## [0.1.15](https://github.com/knowttl/az-axi/compare/v0.1.14...v0.1.15) (2026-10-31)
 
 
