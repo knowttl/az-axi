@@ -3,6 +3,13 @@
 All notable changes to az-axi are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.17](https://github.com/knowttl/az-axi/compare/v0.1.16...v0.1.17) (2026-10-31)
+
+
+### Features
+
+* add bounded read-only Sentinel incident bundles ([#126](https://github.com/knowttl/az-axi/issues/126)) ([9d386ec](https://github.com/knowttl/az-axi/commit/9d386ecae01b0b0189a8c4cc9e7624cdf1b5e60a))
+
 ## [0.1.16](https://github.com/knowttl/az-axi/compare/v0.1.15...v0.1.16) (2026-10-31)
 
 
