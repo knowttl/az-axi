@@ -23,6 +23,12 @@ describe("built CLI sentinel incident related reads offline", () => {
     const stub = `
       const data = ${JSON.stringify({ discoveryWorkspace, sentinelIncidents, sentinelIncidentDetail, sentinelIncidentAlerts, sentinelIncidentEntities, subscriptionList })};
       const mode = ${JSON.stringify(mode)};
+      if (mode === 'encoded-path') {
+        const encodedScope = id => id.replace('/rg-demo/', '/rg-é/').replace('/logs-demo', '/logs démo');
+        data.discoveryWorkspace.id = encodedScope(data.discoveryWorkspace.id);
+        data.discoveryWorkspace.name = 'logs démo';
+        for (const incident of data.sentinelIncidents) incident.id = encodedScope(incident.id);
+      }
       globalThis.fetch = async (url, options) => {
         process.stderr.write(JSON.stringify({url, method: options.method, body: options.body ?? null}) + '\\n');
         const path = new URL(url).pathname;
@@ -62,6 +68,31 @@ describe("built CLI sentinel incident related reads offline", () => {
   }
   const selectors = ["--resource-group", "rg-demo", "--workspace-name", "logs-demo"];
   const byName = ["--name", INCIDENT_A.name];
+
+  it.each([
+    ["GUID", [...byName, "--resource-group", "rg-é", "--workspace-name", "logs démo"], "ci", false],
+    ["number", ["--name", "3177", "--resource-group", "rg-é", "--workspace-name", "logs démo"], "ci", true],
+    ["alias", [...byName, "--workspace", "sentinel"], "alias", false],
+    ["ARM ID", ["--ids", INCIDENT_A.id.replace("/rg-demo/", "/rg-é/").replace("/logs-demo/", "/logs démo/")], "ci", true],
+  ] as const)("bundles encoded path segments selected by %s", (_selector, flags, profile, full) => {
+    const controls = full ? ["--full"] : [];
+    const result = run(["sentinel", "incident", "bundle", ...flags, ...controls], "encoded-path", profile);
+    expect(result.status, result.stdout).toBe(0);
+    const output = decode(result.stdout) as Record<string, unknown>;
+    expect(output).toMatchObject({ partial: false, failed: [], detail: { number: 3177, workspace: "logs démo" } });
+    const show = run(["sentinel", "incident", "show", ...flags, ...controls], "encoded-path", profile);
+    expect(show.status, show.stdout).toBe(0);
+    expect(output.detail).toEqual(decode(show.stdout));
+    const requests = result.stderr.trim().split("\n").map(line => JSON.parse(line));
+    const base = `/subscriptions/${SUB_A}/resourceGroups/rg-%C3%A9/providers/Microsoft.OperationalInsights/workspaces/logs%20d%C3%A9mo/providers/Microsoft.SecurityInsights/incidents/${INCIDENT_A.name}`;
+    expect(requests.filter(({ url }) => new URL(url).pathname.includes(`/incidents/${INCIDENT_A.name}`))
+      .map(({ url, method, body }) => ({ path: new URL(url).pathname, method, body })))
+      .toEqual([
+        { path: base, method: "GET", body: null },
+        { path: `${base}/alerts`, method: "POST", body: null },
+        { path: `${base}/entities`, method: "POST", body: null },
+      ]);
+  });
 
   it.each([
     ["--alert-limit", "0"], ["--entity-limit", "1001"], ["--max-rows", "0"],

@@ -175,7 +175,7 @@ function investigationGuide(npx: string): string[] {
     "Sentinel `--name 3177` resolves the number and retrieves the detail, alerts or entities without a separate lookup call.",
     "Use `sentinel incident bundle` for detail plus both related collections with one number resolution. Ambiguous numbers and incomplete searches are refused. Alert and entity totals and display limits are independent; `--full` preserves those limits. `partial` and `failed` disclose section failures while retaining successful reads. Each collection uses the shared bounded row budget; no related paging or mutation is performed.",
     "Number resolution scans the bounded incident list; a known incident GUID or ARM ID avoids that scan.",
-    "Related alerts and entities remain separate commands, not a combined incident bundle; their service responses do not paginate.",
+    "Related alerts and entities are also available as separate commands; their service responses do not paginate.",
     "",
     "Lists normally display 50 rows; `--fields a,b` selects row columns and `--limit N` reduces display.",
     "Native collection reads follow pages automatically: 1000 fetched rows by default, `--all` raises this to 10000, `--max-rows 1..100000` overrides it, with at most 100 pages per subscription or collection (per exposure check across scope).",

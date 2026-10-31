@@ -697,7 +697,10 @@ async function runBundle(profile: ResolvedProfile, args: ReturnType<typeof parse
   for (const section of ["detail", "alerts", "entities"] as const) {
     try {
       if (section === "detail") {
-        sections.detail = await runShow(profile, { positionals: [], flags: { ids: path, full } });
+        const incident = await request<Incident>(profile, {
+          method: "GET", path, apiVersion: SENTINEL_INCIDENTS,
+        });
+        sections.detail = incidentDetail(profile, incident, args, identity.subscription, identity.target);
         continue;
       }
       // These reviewed read actions return a single response, never a collection walk.
@@ -736,7 +739,6 @@ async function runBundle(profile: ResolvedProfile, args: ReturnType<typeof parse
 }
 
 async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseArgs>): Promise<Record<string, unknown>> {
-  const full = flagBool(args, "full");
   const nameFlag = flagText(args, "name");
   const incidentIdFlag = flagText(args, "incident-id");
   if (nameFlag && incidentIdFlag && nameFlag.trim() !== incidentIdFlag.trim()) {
@@ -791,8 +793,20 @@ async function runShow(profile: ResolvedProfile, args: ReturnType<typeof parseAr
       });
     }
   }
-  const suffix = selectorSuffix(args, subscription, target);
+  return incidentDetail(profile, incident, args, subscription, target);
+}
 
+function incidentDetail(
+  profile: ResolvedProfile,
+  incident: Incident,
+  args: ReturnType<typeof parseArgs>,
+  subscription: string,
+  target?: WorkspaceTarget,
+): Record<string, unknown> {
+  const full = flagBool(args, "full");
+  const ids = flagText(args, "ids");
+  const name = flagText(args, "name") ?? flagText(args, "incident-id");
+  const suffix = selectorSuffix(args, subscription, ids ? undefined : target);
   const properties = incident.properties ?? {};
   const description = properties.description ?? "";
   const descriptionText = full ? { text: description, truncated: false } : truncate(description, CELL_TRUNCATE);
