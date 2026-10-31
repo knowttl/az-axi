@@ -3,10 +3,10 @@ import { skillMarkdown } from "../dist/lib/skill.js";
 import { commandListMarkdown } from "../dist/lib/registry.js";
 
 const HELP = {
-  usage: "node scripts/skill.mjs [--check | --help]",
+  usage: "node scripts/skill.ts [--check | --help]",
   description: "Generate skills/az-axi/SKILL.md and the docs/commands.md table from the CLI's own description and leaf registry. No network, no Azure access.",
   flags: ["--check: refuse a stale skill without writing", "--help: print this reference"],
-  examples: ["node scripts/skill.mjs", "node scripts/skill.mjs --check"],
+  examples: ["node scripts/skill.ts", "node scripts/skill.ts --check"],
 };
 const SKILL_FILE = new URL("../skills/az-axi/SKILL.md", import.meta.url);
 const COMMANDS_FILE = new URL("../docs/commands.md", import.meta.url);
@@ -42,7 +42,7 @@ const expectedCommands = commands.replace(registryBlock,
 if (args[0] === "--check") {
   const actual = readFileSync(SKILL_FILE, "utf8");
   if (actual !== expected || commands !== expectedCommands) {
-    process.stderr.write("error: skill or command reference is stale; run `node scripts/skill.mjs` to regenerate\n");
+    process.stderr.write("error: skill or command reference is stale; run `node scripts/skill.ts` to regenerate\n");
     process.exit(1);
   }
   process.stdout.write("SKILL.md and command reference are current\n");

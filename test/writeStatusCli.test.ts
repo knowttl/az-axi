@@ -21,7 +21,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 function cli(argv: string[], readOnly = "0") {
   // This preload replaces fetch completely, with no network fallback; token auth never spawns az.
-  const result = spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.mjs")).href,
+  const result = spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.ts")).href,
     join(ROOT, "dist/bin/az-axi.js"), ...argv], { cwd: ROOT, encoding: "utf8", env: {
       ...process.env, AZ_AXI_CONFIG: join(dir, "config.json"), AZ_AXI_PROFILE: "", AZ_AXI_TENANT: "",
       AZ_AXI_SUBSCRIPTION: "", AZ_AXI_READ_ONLY: readOnly, AZ_AXI_ARM_TOKEN: "offline-status-token",

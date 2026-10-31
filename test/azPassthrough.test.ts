@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -23,11 +23,11 @@ it("auth status wraps only account show and reports the ambient identity", () =>
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "az-axi-passthrough-"));
-  copyFileSync(resolve("test/fixtures/az-passthrough.mjs"), join(dir, "az.mjs"));
+  copyFileSync(resolve("test/fixtures/az-passthrough.ts"), join(dir, "az.ts"));
   if (process.platform === "win32") {
-    writeFileSync(join(dir, "az.cmd"), `@echo off\r\n"${process.execPath}" "%~dp0az.mjs" %*\r\n`);
+    writeFileSync(join(dir, "az.cmd"), `@echo off\r\n"${process.execPath}" "%~dp0az.ts" %*\r\n`);
   } else {
-    copyFileSync(resolve("test/fixtures/az-passthrough.mjs"), join(dir, "az"));
+    symlinkSync("az.ts", join(dir, "az"));
     chmodSync(join(dir, "az"), 0o755);
   }
   profile = { auth: "az", tenantId: TENANT, subscriptions: [SUB_A] };

@@ -1,18 +1,20 @@
 // Offline built-CLI fixture. This replaces fetch completely, with no network fallback.
 import { appendFileSync, writeFileSync } from "node:fs";
 
-const scenario = process.env.AZ_AXI_TEST_OUTCOME;
+const scenario = process.env.AZ_AXI_TEST_OUTCOME!;
+type Rule = { name: string; properties: Record<string, unknown> };
+type WriteBody = Rule & { operation?: string; properties: { tags?: Record<string, unknown> } };
 let incidentReads = 0;
 let tagReads = 0;
 const operationUrl = "https://management.azure.com/operations/test?api-version=1";
-const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
+const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), {
   status, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test", ...headers },
 });
 
 // Synthetic Sentinel incident shaped like the 2025-09-01 contract. Status,
 // severity and classification follow the test environment so previews,
 // no-op detection and conflict scenarios stay deterministic.
-const incidentBody = (name, incidentNumber) => ({
+const incidentBody = (name: string, incidentNumber: number) => ({
   id: `/subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo/providers/Microsoft.SecurityInsights/incidents/${name}`,
   name,
   type: "Microsoft.SecurityInsights/incidents",
@@ -52,7 +54,7 @@ const tagsGet = () => {
   return json(tagsBody(), 200, { etag: '"tags1"' });
 };
 
-const nsgRules = () => {
+const nsgRules = (): Rule[] => {
   if (process.env.AZ_AXI_TEST_NSG_RULES !== undefined) return JSON.parse(process.env.AZ_AXI_TEST_NSG_RULES);
   return [
     { name: "allow-https", properties: { protocol: "Tcp", access: "Allow", priority: 100, direction: "Inbound",
@@ -62,7 +64,7 @@ const nsgRules = () => {
   ];
 };
 
-const nsgBody = (nsgName) => ({
+const nsgBody = (nsgName: string) => ({
   id: `/subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
   name: nsgName,
   type: "Microsoft.Network/networkSecurityGroups",
@@ -72,16 +74,16 @@ const nsgBody = (nsgName) => ({
   properties: { provisioningState: "Succeeded", securityRules: nsgRules() },
 });
 
-const nsgNameOf = (pathname) => decodeURIComponent(pathname.split("/networkSecurityGroups/")[1].split("/")[0]);
-let nsgState;
+const nsgNameOf = (pathname: string) => decodeURIComponent(pathname.split("/networkSecurityGroups/")[1]!.split("/")[0]!);
+let nsgState: ReturnType<typeof nsgBody> | undefined;
 
-const nsgGet = (pathname) => {
+const nsgGet = (pathname: string) => {
   if (process.env.AZ_AXI_TEST_NSG_MISSING === "1" || scenario === "gone") {
     return json({ error: { code: "ResourceNotFound", message: "no such NSG" } }, 404);
   }
   nsgState ??= nsgBody(nsgNameOf(pathname));
   if (pathname.includes("/securityRules/")) {
-    const name = decodeURIComponent(pathname.split("/securityRules/")[1]);
+    const name = decodeURIComponent(pathname.split("/securityRules/")[1]!);
     if (scenario === "nsg-existing-before-put" && !nsgState.properties.securityRules.some((rule) => rule.name === name)) {
       nsgState.properties.securityRules.push({ name, properties: { access: "Allow", priority: 400 } });
     }
@@ -97,23 +99,23 @@ const nsgGet = (pathname) => {
         } : {}),
         provisioningState: "Succeeded" } }, 200, { etag: '"rule1"' });
   }
-  return json(nsgState, 200, scenario === "nsg-no-etag" ? {} : { etag: nsgState.etag });
+  return json(nsgState, 200, scenario === "nsg-no-etag" ? {} : { etag: nsgState.etag! });
 };
 
-const nsgRulePut = (body) => {
+const nsgRulePut = (body: WriteBody) => {
   const rule = ["nsg-readback-mismatch", "nsg-async-readback-mismatch", "nsg-created-readback-mismatch"].includes(scenario)
     ? { ...body, properties: { ...body.properties, access: "Allow" } } : body;
   if (scenario === "nsg-readback-extra-property") rule.properties.description = "operator change";
   if (scenario === "nsg-readback-nonempty-counterpart") rule.properties.destinationPortRanges = ["22"];
-  nsgState.properties.securityRules.push(rule);
-  writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE, JSON.stringify(nsgState));
+  nsgState!.properties.securityRules.push(rule);
+  writeFileSync(process.env.AZ_AXI_TEST_NSG_STATE!, JSON.stringify(nsgState));
   if (["async", "nsg-async-readback-mismatch", "nsg-async-readback-missing"].includes(scenario)) return json({}, 202, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
   if (scenario === "nsg-location-readback-missing") return json({}, 202, { location: operationUrl, "retry-after": "0" });
   if (scenario === "nsg-created-readback-mismatch") return json({}, 201, { "azure-asyncoperation": operationUrl, "retry-after": "0" });
   return json(body, 201);
 };
 
-const tagsPatch = (body) => {
+const tagsPatch = (body: WriteBody | undefined) => {
   if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
   const sent = body?.properties?.tags ?? {};
   const current = tagReads > 1 && process.env.AZ_AXI_TEST_TAGS_FRESH !== undefined
@@ -135,22 +137,22 @@ const tagsPatch = (body) => {
 
 globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
-  let body;
+  let body: WriteBody | undefined;
   if (process.env.AZ_AXI_TEST_CAPTURE_BODY === "1" && init.body !== undefined) {
-    body = JSON.parse(init.body);
+    body = JSON.parse(init.body as string);
   }
-  appendFileSync(process.env.AZ_AXI_TEST_REQUESTS, JSON.stringify({ method, ifMatch: init.headers?.["If-Match"],
+  appendFileSync(process.env.AZ_AXI_TEST_REQUESTS!, JSON.stringify({ method, ifMatch: (init.headers as Record<string, string> | undefined)?.["If-Match"],
     ...(process.env.AZ_AXI_TEST_CAPTURE_URL === "1" ? { url: String(url) } : {}),
     ...(body !== undefined ? { body } : {}) }) + "\n");
-  if (new URL(url).pathname === "/operations/test") {
+  if (new URL(url as string).pathname === "/operations/test") {
     return json({ status: scenario === "failure" ? "Failed" : "Succeeded", error: { code: "SyntheticFailure", message: "test failure" } });
   }
   if (method === "GET") {
-    if (new URL(url).pathname.includes("/networkSecurityGroups/")) return nsgGet(new URL(url).pathname);
+    if (new URL(url as string).pathname.includes("/networkSecurityGroups/")) return nsgGet(new URL(url as string).pathname);
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
-    if (new URL(url).pathname.endsWith("/tags/default")) return tagsGet();
-    if (new URL(url).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
-    const incidentsPath = new URL(url).pathname;
+    if (new URL(url as string).pathname.endsWith("/tags/default")) return tagsGet();
+    if (new URL(url as string).pathname.includes("/alerts/")) return json({ properties: { status: process.env.AZ_AXI_TEST_ALERT_STATUS ?? "Active" } }, 200, { etag: '"fresh"' });
+    const incidentsPath = new URL(url as string).pathname;
     if (incidentsPath.includes("/incidents/") || incidentsPath.endsWith("/incidents")) {
       const path = incidentsPath;
       if (path.includes("/comments/")) {
@@ -159,7 +161,7 @@ globalThis.fetch = async (url, init = {}) => {
       if (path.endsWith("/incidents")) {
         return json({ value: [incidentBody("00000000-0000-0000-0000-000000000063", 3177)] });
       }
-      const name = path.split("/incidents/")[1].split("/")[0];
+      const name = path.split("/incidents/")[1]!.split("/")[0]!;
       const incident = incidentBody(name, 3177);
       incidentReads += 1;
       if (scenario === "incident-race") {
@@ -171,7 +173,7 @@ globalThis.fetch = async (url, init = {}) => {
     }
     // Workspace alias resolution lists ARM workspaces and matches the
     // customer ID from the profile alias.
-    if (new URL(url).pathname.endsWith("/workspaces")) {
+    if (new URL(url as string).pathname.endsWith("/workspaces")) {
       const guid = process.env.AZ_AXI_TEST_WORKSPACE_ID ?? "00000000-0000-0000-0000-000000000010";
       return json({ value: [{
         id: `/subscriptions/00000000-0000-0000-0000-000000000021/resourceGroups/rg-demo/providers/Microsoft.OperationalInsights/workspaces/logs-demo`,
@@ -179,27 +181,27 @@ globalThis.fetch = async (url, init = {}) => {
         properties: { customerId: guid },
       }] });
     }
-    if (new URL(url).pathname === "/subscriptions") return json({ value: [] });
+    if (new URL(url as string).pathname === "/subscriptions") return json({ value: [] });
     return json({ tags: { env: scenario === "noop" ? "prod" : "dev" } }, 200, { etag: '"fresh"' });
   }
-  if (new URL(url).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });
+  if (new URL(url as string).pathname.endsWith("/whatIf")) return json({ properties: { changes: [] } });
   if (scenario === "precondition") return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
-  if (method === "PATCH" && new URL(url).pathname.endsWith("/tags/default")) return tagsPatch(body);
-  if (["incident-race", "review-stale"].includes(scenario) && init.headers?.["If-Match"] !== '"E2"') {
+  if (method === "PATCH" && new URL(url as string).pathname.endsWith("/tags/default")) return tagsPatch(body);
+  if (["incident-race", "review-stale"].includes(scenario) && (init.headers as Record<string, string> | undefined)?.["If-Match"] !== '"E2"') {
     return json({ error: { code: "PreconditionFailed", message: "changed" } }, 412);
   }
   if (scenario === "network") throw new Error("synthetic offline network failure");
-  if (method === "PUT" && new URL(url).pathname.includes("/securityRules/")) return nsgRulePut(body);
+  if (method === "PUT" && new URL(url as string).pathname.includes("/securityRules/")) return nsgRulePut(body!);
   if (["async", "failure", "timeout", "no-wait", "location"].includes(scenario)) {
     return json({}, 202, { [scenario === "location" ? "location" : "azure-asyncoperation"]: operationUrl,
       "retry-after": scenario === "timeout" ? "1" : "0" });
   }
   if (scenario === "created") return json({}, 201);
-  if (new URL(url).pathname.includes("/alerts/")) return new Response(null, { status: 204, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test" } });
-  if (new URL(url).pathname.includes("/incidents/") && method === "PUT") {
+  if (new URL(url as string).pathname.includes("/alerts/")) return new Response(null, { status: 204, headers: { "x-ms-request-id": "req-test", "x-ms-correlation-request-id": "corr-test" } });
+  if (new URL(url as string).pathname.includes("/incidents/") && method === "PUT") {
     // A comment PUT against a missing incident surfaces the missing target.
     if (scenario === "gone") return json({ error: { code: "ResourceNotFound", message: "gone" } }, 404);
-    if (new URL(url).pathname.includes("/comments/")) return json({ properties: { message: "offline comment" } }, 201);
+    if (new URL(url as string).pathname.includes("/comments/")) return json({ properties: { message: "offline comment" } }, 201);
     return json(incidentBody("00000000-0000-0000-0000-000000000063", 3177));
   }
   return json({});

@@ -1,14 +1,15 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { scrub } from "./scrub.mjs";
+import { scrub } from "./scrub.ts";
 
 const mode = process.env.AZ_AXI_BENCH_MODE;
 const file = process.env.AZ_AXI_BENCH_FILE;
-if (!["record", "replay"].includes(mode) || !file) {
+if (!["record", "replay"].includes(mode!) || !file) {
   throw new Error("Benchmark preload requires record|replay mode and AZ_AXI_BENCH_FILE");
 }
 const hosts = new Set(["management.azure.com", "api.loganalytics.io", "graph.microsoft.com"]);
-const responses = mode === "replay" ? JSON.parse(readFileSync(file, "utf8")).responses : [];
-const leakCheck = JSON.parse(process.env.AZ_AXI_BENCH_LEAK_CHECK ?? "[]");
+export type CapturedResponse = { host: string; method: string; status: number; body: unknown; retryAfter?: number };
+const responses: CapturedResponse[] = mode === "replay" ? JSON.parse(readFileSync(file, "utf8")).responses : [];
+const leakCheck: string[] = JSON.parse(process.env.AZ_AXI_BENCH_LEAK_CHECK ?? "[]");
 const networkFetch = globalThis.fetch;
 let cursor = 0;
 let failed = false;

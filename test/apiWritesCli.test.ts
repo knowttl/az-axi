@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 function cli(scenario: string, extra: string[] = [], profile = "writer", readOnly = "0", method = "PATCH") {
-  return spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.mjs")).href,
+  return spawnSync(process.execPath, ["--import", pathToFileURL(join(ROOT, "test/apiWritesPreload.ts")).href,
     join(ROOT, "dist/bin/az-axi.js"), "api", method, TARGET, "--api-version", "1",
     "--body", '{"tags":{"env":"prod"}}', "--profile", profile,
     ...(extra.includes("--execute=false") ? [] : ["--execute"]), ...extra], {

@@ -4,7 +4,7 @@ import { decode } from "@toon-format/toon";
 import { describe, expect, it } from "vitest";
 import { AZ_READ_CATALOGUE } from "../src/lib/azReadCatalogue.js";
 import { assertNoCatalogueDrift } from "../src/commands/az.js";
-import { buildCatalogue, classifyCandidate, renderCatalogue } from "../scripts/az-read-catalogue.mjs";
+import { buildCatalogue, classifyCandidate, renderCatalogue } from "../scripts/az-read-catalogue.ts";
 
 const sources = JSON.parse(readFileSync(new URL("../scripts/az-read-catalogue.sources.json", import.meta.url), "utf8"));
 const entry = AZ_READ_CATALOGUE.entries[0];
@@ -127,7 +127,7 @@ const guardedArgs = ["--import", `data:text/javascript,${encodeURIComponent(guar
 
 describe("offline catalogue maintenance and CLI boundary", () => {
   it.each(["--help", "--check"])("runs %s without network or arbitrary extension execution", (flag) => {
-    const result = spawnSync(process.execPath, [...guardedArgs, "scripts/az-read-catalogue.mjs", flag], {
+    const result = spawnSync(process.execPath, [...guardedArgs, "scripts/az-read-catalogue.ts", flag], {
       encoding: "utf8", env: { ...process.env, AZURE_EXTENSION_DIR: "untrusted-extensions", AZ_AXI_READ_ONLY: "1" },
     });
     expect(result.status).toBe(0);
@@ -136,7 +136,7 @@ describe("offline catalogue maintenance and CLI boundary", () => {
   });
 
   it("rejects generator flags that could load extension metadata", () => {
-    const result = spawnSync(process.execPath, [...guardedArgs, "scripts/az-read-catalogue.mjs", "--extension", "untrusted"], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, [...guardedArgs, "scripts/az-read-catalogue.ts", "--extension", "untrusted"], { encoding: "utf8" });
     expect(result.status).toBe(2);
     expect(decode(result.stdout)).toMatchObject({ error: "Unknown flags or arguments" });
   });

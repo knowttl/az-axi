@@ -17,8 +17,8 @@ import { run as runActivity } from "../src/commands/activity.js";
 import { run as runExposure } from "../src/commands/exposure.js";
 import { run as runOp } from "../src/commands/op.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
-import { PUBLIC_VOCABULARY, scrub } from "../scripts/benchmark/scrub.mjs";
-import { countTokens } from "../scripts/benchmark/tokens.mjs";
+import { PUBLIC_VOCABULARY, scrub } from "../scripts/benchmark/scrub.ts";
+import { countTokens } from "../scripts/benchmark/tokens.ts";
 
 const SUB = "00000000-0000-0000-0000-000000000001";
 const PATH = `/subscriptions/${SUB}/resourceGroups/contoso-team/providers/Microsoft.Compute/virtualMachines/contoso-vm`;

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["scripts/**/*.ts", "benchmark/**/*.ts", "test/apiWritesPreload.ts", "test/fixtures/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}
