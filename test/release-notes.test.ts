@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { releaseNotes } from "../scripts/release-notes.mjs";
+import { releaseNotes } from "../scripts/release-notes.ts";
 
 const CHANGELOG = [
   "# Changelog",

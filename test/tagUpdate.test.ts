@@ -43,7 +43,7 @@ function cli(extra: string[] = [], options: {
     for (const pair of options.tags ?? ["env=prod"]) argv.push("--tags", pair);
   }
   argv.push(...extra);
-  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
+  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.ts")).href,
     "dist/bin/az-axi.js", ...argv], {
     encoding: "utf8",
     env: { ...process.env,

@@ -105,7 +105,7 @@ function cli(extra: string[] = [], options: CliOptions = {}) {
   if (options.incidentClassification !== undefined) env.AZ_AXI_TEST_INCIDENT_CLASSIFICATION = options.incidentClassification;
   if (options.incidentOwner !== undefined) env.AZ_AXI_TEST_INCIDENT_OWNER = JSON.stringify(options.incidentOwner);
   if (options.incidentDescription !== undefined) env.AZ_AXI_TEST_INCIDENT_DESCRIPTION = options.incidentDescription;
-  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
+  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.ts")).href,
     "dist/bin/az-axi.js", ...argv], { encoding: "utf8", env });
 }
 

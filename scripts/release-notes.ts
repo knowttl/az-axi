@@ -1,7 +1,7 @@
 // Local changelog section extraction. The release workflow uses release-please
 // to generate GitHub release notes; see CONTRIBUTING.md#releases.
 //
-//   node scripts/release-notes.mjs v0.2.0
+//   node scripts/release-notes.ts v0.2.0
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,19 +12,19 @@ const HEADING = /^## (?:\[([^\]]+)\]|(\d+\.\d+\.\d+(?:-[\w.-]+)?))(?=[\s(]|$)/;
  * The body of a version section, including release-please's unlinked first release.
  * Falls back to `fallback` when the version is absent or the section is empty.
  */
-export function releaseNotes(changelog, version, fallback = "See CHANGELOG.md.") {
+export function releaseNotes(changelog: string, version: string, fallback = "See CHANGELOG.md.") {
   const wanted = String(version).trim().replace(/^v/, "");
   const lines = changelog.split(/\r?\n/);
   const start = lines.findIndex((line) => {
     const match = HEADING.exec(line);
-    return match !== null && (match[1] ?? match[2]).trim() === wanted;
+    return match !== null && (match[1] ?? match[2])!.trim() === wanted;
   });
   if (start === -1) {
     return fallback;
   }
   const body = [];
   for (let index = start + 1; index < lines.length; index++) {
-    if (HEADING.test(lines[index])) {
+    if (HEADING.test(lines[index]!)) {
       break;
     }
     body.push(lines[index]);
@@ -36,7 +36,7 @@ export function releaseNotes(changelog, version, fallback = "See CHANGELOG.md.")
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const version = process.argv[2];
   if (version === undefined) {
-    process.stderr.write("usage: node scripts/release-notes.mjs <version|vX.Y.Z>\n");
+    process.stderr.write("usage: node scripts/release-notes.ts <version|vX.Y.Z>\n");
     process.exit(2);
   }
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");

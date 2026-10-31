@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN = join(ROOT, "dist/bin/az-axi.js");
-const LOADER = join(ROOT, "test/fixtures/import-log-loader.mjs");
+const LOADER = join(ROOT, "test/fixtures/import-log-loader.ts");
 
 const HEAVY = [
   "axi-sdk-js",

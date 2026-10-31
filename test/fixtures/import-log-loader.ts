@@ -1,7 +1,8 @@
+import type { ResolveHook } from "node:module";
 import { appendFileSync } from "node:fs";
 
 /** Records raw ESM specifiers so tests can assert what the bin (pre)loads. */
-export async function resolve(specifier, context, next) {
+export async function resolve(specifier: string, context: Parameters<ResolveHook>[1], next: Parameters<ResolveHook>[2]) {
   try {
     const log = process.env.AZ_AXI_IMPORT_LOG;
     if (log) appendFileSync(log, `${specifier}\n`);

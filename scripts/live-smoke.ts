@@ -4,7 +4,7 @@
 // Prints pass, fail or skip per check and writes the same summary to the OS temp directory.
 // It never prints or stores response bodies.
 //
-// Usage: node scripts/live-smoke.mjs [--profile <name>] [--bin <path-to-az-axi.js>]
+// Usage: node scripts/live-smoke.ts [--profile <name>] [--bin <path-to-az-axi.js>]
 // Writes require --writes --subscription <id> --resource-group <rg> together.
 // DELETE additionally requires --delete-storage-account <pre-created-throwaway-name>.
 import { spawnSync } from "node:child_process";
@@ -17,26 +17,37 @@ import { RESOURCE_GROUPS, STORAGE_ACCOUNTS } from "../dist/lib/apiVersions.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-function option(argv, name) {
+type CliRunner = (args: string[], env?: Record<string, string>) => { status: number | null; stdout: string };
+type Check = [string, () => boolean | string];
+type WriteOptions = Record<string, string | undefined> & { subscription: string; "resource-group": string };
+type SmokeOutput = {
+  id?: unknown; tags?: Record<string, string>; result?: unknown; code?: unknown;
+  dryRun?: unknown; noop?: unknown; changes?: unknown; etag?: unknown; protection?: unknown;
+  summary?: { name?: unknown }; lockWarning?: unknown; help?: string[];
+  profile?: unknown; profiles?: { name?: unknown; writes?: unknown }[];
+};
+type ApiResult = { exit: number | null; output: SmokeOutput };
+
+function option(argv: string[], name: string) {
   const index = argv.indexOf(`--${name}`);
   return index >= 0 ? argv[index + 1] : undefined;
 }
 
-export function writeOptions(argv) {
+export function writeOptions(argv: string[]) {
   if (!argv.some((arg) => /^--writes(?:=|$)/.test(arg))) return undefined;
   if (argv.filter((arg) => arg === "--writes").length !== 1 || argv.some((arg) => arg.startsWith("--writes="))) {
     throw new Error("Write checks require the explicit --writes flag");
   }
   for (let index = 0; index < argv.length; index++) {
-    const flag = argv[index];
+    const flag = argv[index]!;
     if (flag === "--writes") continue;
     if (!["--profile", "--bin", "--subscription", "--resource-group", "--delete-storage-account"].includes(flag) ||
-        !argv[index + 1] || argv[index + 1].startsWith("--")) {
+        !argv[index + 1] || argv[index + 1]!.startsWith("--")) {
       throw new Error("Write checks accept only --profile, --bin, --writes, --subscription, --resource-group and --delete-storage-account");
     }
     index++;
   }
-  const values = {};
+  const values: Record<string, string | undefined> = {};
   for (const name of ["profile", "bin", "subscription", "resource-group", "delete-storage-account"]) {
     const flag = `--${name}`;
     const count = argv.filter((arg) => arg === flag).length;
@@ -57,11 +68,11 @@ export function writeOptions(argv) {
   if (values["delete-storage-account"] !== undefined && !/^[a-z0-9]{3,24}$/.test(values["delete-storage-account"])) {
     throw new Error("The throwaway storage account name must be 3-24 lowercase letters or digits");
   }
-  return values;
+  return values as WriteOptions;
 }
 
 // The injected CLI runner lets offline tests exercise the exact owner command sequence.
-export function writeChecks(options, azAxi) {
+export function writeChecks(options: WriteOptions | undefined, azAxi: CliRunner): Check[] {
   if (!options) return [];
   const rg = `/subscriptions/${options.subscription}/resourceGroups/${encodeURIComponent(options["resource-group"])}`;
   const account = options["delete-storage-account"];
@@ -69,14 +80,14 @@ export function writeChecks(options, azAxi) {
   let etagChecks = 0;
   let ifMatchAvailable = 0;
   let ifMatchExercised = 0;
-  const api = (method, path, version, extra = [], env = {}) => {
+  const api = (method: string, path: string, version: string, extra: string[] = [], env: Record<string, string> = {}) => {
     const r = azAxi(["api", method, path, "--api-version", version, ...extra], env);
-    return { exit: r.status, output: decode(r.stdout) };
+    return { exit: r.status, output: decode(r.stdout) as SmokeOutput };
   };
-  const success = (r, result) => r.exit === 0 && r.output.result === result;
-  const blocked = (r, code) => r.exit === (code === "PRECONDITION_FAILED" ? 1 : 2) && r.output.code === code;
+  const success = (r: ApiResult, result: string) => r.exit === 0 && r.output.result === result;
+  const blocked = (r: ApiResult, code: string) => r.exit === (code === "PRECONDITION_FAILED" ? 1 : 2) && r.output.code === code;
 
-  function tagsRoundTrip(path, version, requireEtag = false) {
+  function tagsRoundTrip(path: string, version: string, requireEtag = false) {
     const current = api("GET", path, version, ["--full"]);
     if (current.exit !== 0 || typeof current.output.id !== "string" || current.output.id.toLowerCase() !== path.toLowerCase()) return false;
     const tags = current.output.tags ?? {};
@@ -135,23 +146,23 @@ export function writeChecks(options, azAxi) {
   ];
 }
 
-export function checksFor(argv, azAxi) {
+export function checksFor(argv: string[], azAxi: CliRunner): Check[] {
   const writes = writeOptions(argv);
-  const doctorWrites = (expected, env = {}) => {
+  const doctorWrites = (expected: string, env: Record<string, string> = {}) => {
     const dashboard = azAxi([]);
     if (dashboard.status !== 0) return false;
-    const profile = decode(dashboard.stdout).profile;
+    const profile = (decode(dashboard.stdout) as SmokeOutput).profile;
     if (typeof profile !== "string") return false;
     const doctor = azAxi(["doctor"], env);
     if (doctor.status !== 0) return false;
-    const profiles = decode(doctor.stdout).profiles;
+    const profiles = (decode(doctor.stdout) as SmokeOutput).profiles;
     if (!Array.isArray(profiles)) return false;
     const row = profiles.find((row) => row.name === profile);
     return typeof row?.writes === "string" && row.writes.startsWith(expected);
   };
 
 // Each check inspects the output privately and reports only an outcome or skip reason.
-const checks = [
+const checks: Check[] = [
   ["version", () => {
     const r = azAxi(["--version"]);
     return r.status === 0 && /^\d+\.\d+\.\d+/.test(r.stdout.trim());
@@ -240,14 +251,14 @@ function main() {
   try {
     writeOptions(argv);
   } catch (error) {
-    console.error(error.message);
+    console.error((error as Error).message);
     process.exitCode = 2;
     return;
   }
   const profile = option(argv, "profile");
   const bin = option(argv, "bin") ?? join(root, "dist", "bin", "az-axi.js");
   const selector = profile ? ["--profile", profile] : [];
-  const azAxi = (args, env = {}) => {
+  const azAxi: CliRunner = (args, env = {}) => {
     const result = spawnSync(process.execPath, [bin, ...args, ...(args[0] === "--version" ? [] : selector)], {
       encoding: "utf8",
       env: { ...process.env, ...env },

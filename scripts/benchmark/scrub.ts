@@ -101,20 +101,20 @@ const SEPARATOR_CHARACTERS = "\\s/\\\\?#&=,:;|\"'<>()[\\]{}@";
 const SEPARATORS = new RegExp(`^[${SEPARATOR_CHARACTERS}]+$`);
 const SEGMENTS = new RegExp(`${TIMESTAMP_PATTERN}|[^${SEPARATOR_CHARACTERS}]+|[${SEPARATOR_CHARACTERS}]+`, "g");
 
-function token(segment) {
+function token(segment: string) {
   return PUBLIC.has(segment) || (TIMESTAMP.test(segment) && Number.isFinite(Date.parse(segment)))
     ? segment
     : `scrub_${createHash("sha256").update(segment).digest("hex")}`;
 }
 
-function scrubString(text) {
+function scrubString(text: string) {
   const parts = text.match(SEGMENTS) ?? [];
   // Empty or punctuation-only strings still fall under default deny.
   if (!parts.some((part) => !SEPARATORS.test(part))) return token(text);
   return parts.map((part) => SEPARATORS.test(part) ? part : token(part)).join("");
 }
 
-function walk(value) {
+function walk(value: unknown): unknown {
   if (typeof value === "string") return scrubString(value);
   if (Array.isArray(value)) return value.map(walk);
   if (value === null || typeof value !== "object") return value;
@@ -124,10 +124,10 @@ function walk(value) {
 /** Scrubs JSON data without mutation. Build first; no benchmark code ships in dist.
  * Throws before returning if any owner's leakCheck string survives, even in public vocabulary.
  */
-export function scrub(value, { leakCheck = [] } = {}) {
+export function scrub(value: unknown, { leakCheck = [] }: { leakCheck?: string[] } = {}) {
   const result = walk(value);
   const privateStrings = leakCheck.map((text) => text.toLowerCase());
-  const assertClean = (text) => {
+  const assertClean = (text: string) => {
     if (privateStrings.some((privateString) => text.toLowerCase().includes(privateString))) {
       throw new Error("Benchmark scrub failed: leakCheck string survived");
     }

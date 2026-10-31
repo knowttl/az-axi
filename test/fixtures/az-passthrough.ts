@@ -11,8 +11,8 @@ const env = Object.fromEntries([
   "AZURE_EXTENSION_USE_DYNAMIC_INSTALL", "AZURE_CORE_OUTPUT", "AZURE_CORE_COLLECT_TELEMETRY",
   "AZURE_CORE_ONLY_SHOW_ERRORS", "AZURE_CORE_DISABLE_CONFIRM_PROMPT", "AZURE_AUTO-UPGRADE_ENABLE", "AZURE_LOGGING_ENABLE_LOG_FILE",
 ].map((key) => [key, process.env[key]]));
-appendFileSync(join(dir, "envs.jsonl"), JSON.stringify({ ...env, extensionFiles: readdirSync(env.AZURE_EXTENSION_DIR) }) + "\n");
-const responses = JSON.parse(readFileSync(join(dir, "responses.json"), "utf8"));
+appendFileSync(join(dir, "envs.jsonl"), JSON.stringify({ ...env, extensionFiles: readdirSync(env.AZURE_EXTENSION_DIR!) }) + "\n");
+const responses: Record<string, unknown> = JSON.parse(readFileSync(join(dir, "responses.json"), "utf8"));
 const key = args[0] === "version" ? "version" : args.slice(0, 2).join(" ");
 if (responses.fail === key) {
   process.stderr.write("raw dependency diagnostic with secret-token");

@@ -48,7 +48,7 @@ function cli(extra: string[] = [], options: {
   if (options.name !== null) argv.push("--name", options.name ?? RULE);
   if (options.priority !== null) argv.push("--priority", options.priority ?? "400");
   argv.push(...extra);
-  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
+  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.ts")).href,
     "dist/bin/az-axi.js", ...argv], {
     encoding: "utf8",
     env: { ...process.env,

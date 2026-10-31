@@ -68,7 +68,7 @@ import {
 } from "../src/lib/queries.js";
 import { clearSubscriptionCache } from "../src/lib/scope.js";
 import { routeArgv } from "../src/lib/router.js";
-import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads, offlineKeyvaultReads, offlineAcrReads } from "../benchmark/scenarios.mjs";
+import { offlineWritePreviews, offlinePassthroughReads, offlineStorageReads, offlineKeyvaultReads, offlineAcrReads } from "../benchmark/scenarios.ts";
 import {
   SUB_A,
   defenderPricing,

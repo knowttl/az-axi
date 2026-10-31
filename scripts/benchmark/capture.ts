@@ -1,21 +1,21 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { scenarios } from "../../benchmark/scenarios.mjs";
+import { scenarios } from "../../benchmark/scenarios.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 if (process.argv.length !== 2) throw new Error("Usage: pnpm bench:capture (owner only; see CONTRIBUTING.md#benchmarks)");
-const targets = JSON.parse(readFileSync(new URL("../../benchmark/targets.json", import.meta.url), "utf8"));
-for (const name of ["profile", "subscription", "workspace"]) {
+const targets: Record<string, unknown> & { profile: string; subscription: string; workspace: string; leakCheck: string[] } = JSON.parse(readFileSync(new URL("../../benchmark/targets.json", import.meta.url), "utf8"));
+for (const name of ["profile", "subscription", "workspace"] as const) {
   if (typeof targets[name] !== "string" || !targets[name].trim()) throw new Error(`targets.json requires ${name}`);
 }
-for (const name of ["subscription", "workspace"]) {
+for (const name of ["subscription", "workspace"] as const) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targets[name])) {
     throw new Error(`targets.json requires one ${name} GUID`);
   }
 }
 if (!Array.isArray(targets.leakCheck) || !targets.leakCheck.length ||
-    targets.leakCheck.some((value) => typeof value !== "string" || !value)) {
+    targets.leakCheck.some((value: unknown) => typeof value !== "string" || !value)) {
   throw new Error("targets.json requires a nonempty leakCheck string array");
 }
 mkdirSync(new URL("../../benchmark/fixtures/", import.meta.url), { recursive: true });
@@ -34,7 +34,7 @@ for (const scenario of scenarios) {
   }
   const workspaceIndex = argv.indexOf("--workspace");
   if (workspaceIndex !== -1) argv[workspaceIndex + 1] = targets.workspace;
-  const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js", ...argv], {
+  const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.ts", "dist/bin/az-axi.js", ...argv], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,

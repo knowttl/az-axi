@@ -4,9 +4,9 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { decode } from "@toon-format/toon";
-import { scrub } from "../scripts/benchmark/scrub.mjs";
-import { countTokens } from "../scripts/benchmark/tokens.mjs";
-import { scenarios } from "../benchmark/scenarios.mjs";
+import { scrub } from "../scripts/benchmark/scrub.ts";
+import { countTokens } from "../scripts/benchmark/tokens.ts";
+import { scenarios } from "../benchmark/scenarios.ts";
 import { OWNER_ROLE_ID } from "../src/lib/roles.js";
 import {
   SUB_A, monitorActionGroup, monitorAlertRules, monitorDiagnosticSetting, monitorMetricDefinitions,
@@ -66,7 +66,7 @@ describe("benchmark preload", () => {
     writeFileSync(file, JSON.stringify({ responses: [{ method: "GET", host: "management.azure.com", status: 200, body: scrubbed }] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
     writeFileSync(config, JSON.stringify({ version: 1, profiles: { benchmark: { auth: "token", subscriptions: [SUB_A] } } }));
-    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.ts",
       "dist/bin/az-axi.js", ...argv], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
         AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
@@ -115,7 +115,7 @@ describe("benchmark preload", () => {
     writeFileSync(file, JSON.stringify(recording));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
     writeFileSync(config, JSON.stringify({ version: 1, profiles: { benchmark: { auth: "token", subscriptions: [sub] } } }));
-    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.ts",
       "dist/bin/az-axi.js", "policy", kind, "list"], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
         AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
@@ -149,7 +149,7 @@ describe("benchmark preload", () => {
     ] }));
     writeFileSync(bootstrap, 'globalThis.fetch = () => { throw new Error("NETWORK MUST NOT RUN"); };\n');
     writeFileSync(config, JSON.stringify({ version: 1, profiles: { benchmark: { auth: "token" } } }));
-    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.ts",
       "dist/bin/az-axi.js", group, verb, ...(verb === "show" ? ["--subscription", sub] : [])], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_CONFIG: config,
         AZ_AXI_PROFILE: "benchmark", AZ_AXI_SUBSCRIPTION: verb === "show" ? sub : "", AZ_AXI_TENANT: "", AZ_AXI_ARM_TOKEN: "benchmark-dummy",
@@ -169,7 +169,7 @@ describe("benchmark preload", () => {
     const file = join(dir, "recording.json");
     const entry = { method: kind === "mismatch" ? "POST" : "GET", host: "management.azure.com", status: 200, body: { value: [] } };
     writeFileSync(file, JSON.stringify({ responses: kind === "missing" ? [] : kind === "unused" ? [entry, entry] : [entry] }));
-    const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.mjs", "--input-type=module", "-e",
+    const child = spawnSync(process.execPath, ["--import", "./scripts/benchmark/fetch-hook.ts", "--input-type=module", "-e",
       'await fetch("https://management.azure.com/subscriptions").catch(() => {});'], {
       cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_BENCH_MODE: "replay", AZ_AXI_BENCH_FILE: file },
     });
@@ -183,7 +183,7 @@ describe("benchmark preload", () => {
     writeFileSync(bootstrap, 'globalThis.fetch = async () => Response.json({ name: "contoso-private", severity: "High" });\n');
     for (const leakCheck of [["contoso-private"], ["HIGH"]]) {
       const file = join(dir, `record-${leakCheck.length}-${leakCheck[0]}.json`);
-      const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.mjs",
+      const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "--import", "./scripts/benchmark/fetch-hook.ts",
         "--input-type=module", "-e", 'await fetch("https://management.azure.com/subscriptions");'], {
         cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_READ_ONLY: "1",
           AZ_AXI_BENCH_MODE: "record", AZ_AXI_BENCH_FILE: file, AZ_AXI_BENCH_OWNER_CAPTURE: "1",
@@ -213,7 +213,7 @@ describe("benchmark surface", () => {
     ] },
   ])("captures configured owner targets and continues past unset targets $details", ({ details, count, notes, detailCalls }) => {
     const dir = scratch();
-    for (const path of ["scripts/benchmark/capture.mjs", "benchmark/scenarios.mjs"]) {
+    for (const path of ["scripts/benchmark/capture.ts", "benchmark/scenarios.ts"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
     }
     const targets = {
@@ -238,7 +238,7 @@ describe("benchmark surface", () => {
       '};',
       'syncBuiltinESMExports();',
     ].join("\n"));
-    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/capture.mjs"], {
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/capture.ts"], {
       cwd: dir, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "" },
     });
     expect(child.status, child.stderr).toBe(0);
@@ -246,18 +246,18 @@ describe("benchmark surface", () => {
     expect(captured).toHaveLength(count);
     for (const note of notes) expect(child.stderr).toContain(note);
     for (const argv of detailCalls) expect(captured).toContainEqual([
-      "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js", ...argv,
+      "--import", "./scripts/benchmark/fetch-hook.ts", "dist/bin/az-axi.js", ...argv,
       "--profile", targets.profile, "--subscription", targets.subscription,
     ]);
     expect(captured.flat()).not.toContain("rg-demo");
     expect(captured.flat()).not.toContain("vm1");
     expect(captured).toContainEqual([
-      "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
+      "--import", "./scripts/benchmark/fetch-hook.ts", "dist/bin/az-axi.js",
       "logs", "query", "SigninLogs | take 50", "--workspace", targets.workspace,
       "--profile", targets.profile, "--subscription", targets.subscription,
     ]);
     expect(captured).toContainEqual([
-      "--import", "./scripts/benchmark/fetch-hook.mjs", "dist/bin/az-axi.js",
+      "--import", "./scripts/benchmark/fetch-hook.ts", "dist/bin/az-axi.js",
       "monitor", "log-analytics", "query", "--analytics-query", "SigninLogs | take 50", "--workspace", targets.workspace,
       "--profile", targets.profile, "--subscription", targets.subscription,
     ]);
@@ -271,7 +271,7 @@ describe("benchmark surface", () => {
     { omitted: [], rows: "rows[46]", notes: [], duplicate: false, capped: false, sentinelEmpty: true },
   ])("runs offline replay with omitted $omitted, duplicate names $duplicate, capped pages $capped, empty Sentinel $sentinelEmpty", ({ omitted, rows, notes, duplicate, capped, sentinelEmpty }) => {
     const dir = scratch();
-    for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.mjs"]) {
+    for (const path of ["dist", "scripts/benchmark", "benchmark/scenarios.ts"]) {
       cpSync(join(root, path), join(dir, path), { recursive: true });
     }
     symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
@@ -415,7 +415,7 @@ describe("benchmark surface", () => {
       '};',
       'syncBuiltinESMExports();',
     ].join("\n"));
-    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/bench.mjs"], { cwd: dir, encoding: "utf8" });
+    const child = spawnSync(process.execPath, ["--import", pathToFileURL(bootstrap).href, "scripts/benchmark/bench.ts"], { cwd: dir, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
     const output = decode(readFileSync(accountOutput, "utf8")) as Record<string, unknown>;
     expect(output).toMatchObject({
@@ -452,7 +452,7 @@ describe("benchmark surface", () => {
   }, 60_000);
 
   it("measures the real skill and built help surface", () => {
-    const child = spawnSync(process.execPath, ["scripts/benchmark/capture-surface.mjs"], { cwd: root, encoding: "utf8" });
+    const child = spawnSync(process.execPath, ["scripts/benchmark/capture-surface.ts"], { cwd: root, encoding: "utf8" });
     expect(child.status, child.stderr).toBe(0);
     const result = JSON.parse(child.stdout);
     const skill = readFileSync(join(root, "skills/az-axi/SKILL.md"), "utf8");

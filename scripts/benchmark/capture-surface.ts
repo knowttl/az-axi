@@ -1,15 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { countTokens } from "./tokens.mjs";
+import { countTokens } from "./tokens.ts";
 import { COMMAND_HELP } from "../../dist/help.js";
 
-if (process.argv.length !== 2) throw new Error("Usage: node scripts/benchmark/capture-surface.mjs");
+if (process.argv.length !== 2) throw new Error("Usage: node scripts/benchmark/capture-surface.ts");
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const skill = readFileSync(new URL("../../skills/az-axi/SKILL.md", import.meta.url), "utf8");
 const match = skill.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
 if (!match) throw new Error("Skill frontmatter is missing");
-const help = {};
+const help: Record<string, number> = {};
 for (const command of [null, ...Object.keys(COMMAND_HELP)]) {
   const child = spawnSync(process.execPath, ["dist/bin/az-axi.js", ...(command ? [command] : []), "--help"], {
     cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "", AZ_AXI_READ_ONLY: "1" },

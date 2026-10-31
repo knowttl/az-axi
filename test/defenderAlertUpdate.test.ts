@@ -20,7 +20,7 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 function cli(extra: string[] = [], options: { route?: string; scenario?: string; status?: string; profile?: string; readOnly?: string; action?: string; name?: string; subscription?: string | null } = {}) {
-  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.mjs")).href,
+  return spawnSync(process.execPath, ["--import", pathToFileURL(join(process.cwd(), "test/apiWritesPreload.ts")).href,
     "dist/bin/az-axi.js", ...(options.route ?? "security alert update").split(" "),
     "-l", "westeurope", "-n", options.name ?? "example-alert", "--status", options.action ?? "dismiss",
     "--profile", options.profile ?? "writer", ...(options.subscription === null ? [] : ["-s", options.subscription ?? SUB]), ...extra], {

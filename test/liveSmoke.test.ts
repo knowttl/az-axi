@@ -1,7 +1,7 @@
 import { encode } from "@toon-format/toon";
 import { describe, expect, it, vi } from "vitest";
 // Importing exposes checks only. No subprocess, live call or summary file is created.
-import { checksFor, writeChecks, writeOptions } from "../scripts/live-smoke.mjs";
+import { checksFor, writeChecks, writeOptions } from "../scripts/live-smoke.ts";
 
 const SUB = "00000000-0000-0000-0000-000000000020";
 const RG = `/subscriptions/${SUB}/resourceGroups/rg-demo`;

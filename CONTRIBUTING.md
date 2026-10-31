@@ -1,6 +1,6 @@
 # Contributing
 
-Use Node.js 22.12 or later and the pnpm version declared in `package.json`.
+Use Node.js 24 or later and the pnpm version declared in `package.json` for source-checkout tooling.
 Keep changes focused and describe the problem, resulting behavior and validation in the pull request.
 Use conventional commit titles.
 
@@ -59,7 +59,7 @@ Session hooks, Key Vault metadata reads and Sentinel incident management are imp
 Build first, then use `pnpm bench:surface` for offline skill and help token counts.
 `pnpm bench` replays existing local captures without live requests.
 The harness and source scripts are not packaged with the CLI.
-The scenario inventory is [benchmark/scenarios.mjs](benchmark/scenarios.mjs); synthetic budget and harness tests run as part of `pnpm test`.
+The scenario inventory is [benchmark/scenarios.ts](benchmark/scenarios.ts); synthetic budget and harness tests run as part of `pnpm test`.
 
 Only the owner runs `pnpm bench:capture`, which makes read-only Azure requests.
 Agents and CI must never run capture or live-smoke commands.
@@ -78,7 +78,7 @@ Record the CLI commit, Node and tokenizer versions, capture date, and skipped or
 
 ## Live smoke checks
 
-Only the owner runs [scripts/live-smoke.mjs](scripts/live-smoke.mjs) against explicitly selected sandbox resources.
+Only the owner runs [scripts/live-smoke.ts](scripts/live-smoke.ts) against explicitly selected sandbox resources.
 Ordinary local validation uses synthetic Azure responses, including tests of the smoke-check logic, without Azure service calls.
 Live reads use the owner's existing Azure sign-in or token profile.
 Writes additionally require `--writes --subscription <id> --resource-group <name>` and the normal profile write gates.
@@ -102,4 +102,4 @@ Conventional commits on `main` produce a release-please PR with the version and 
 Merging a release PR creates its tag and GitHub release, then builds, typechecks and tests that tag and publishes it to npm with OIDC provenance unless the version is already published.
 Release validation is separate from the local gate's GitHub test-CI policy.
 Do not hand-edit `CHANGELOG.md`; release-please owns it and GitHub release notes.
-To extract a changelog section locally, run `node scripts/release-notes.mjs v<version>`.
+To extract a changelog section locally, run `node scripts/release-notes.ts v<version>`.
