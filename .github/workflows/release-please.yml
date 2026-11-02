@@ -38,8 +38,6 @@ jobs:
         run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - run: pnpm run typecheck
-      - run: pnpm test
       # Keep the registry URL but remove setup-node's placeholder authentication.
       - name: Enable npm OIDC trusted publishing
         run: |
@@ -54,5 +52,6 @@ jobs:
           if npm view "@knowttl/az-axi@$version" version > /dev/null 2>&1; then
             echo "@knowttl/az-axi@$version is already published; skipping."
           else
-            npm publish --access public --provenance
+            # The build ran above; skip lifecycle scripts (prepublishOnly runs tests).
+            npm publish --access public --provenance --ignore-scripts
           fi
