@@ -113,7 +113,7 @@ function parseTags(raw: string[] | undefined): TagEntry[] {
     const value = entry.slice(at + 1);
     // A pasted preview hint carries the redaction placeholder instead of the
     // real value; writing it would destroy the secret it stands for.
-    if (value === REDACTED) invalid(`--tags value for tag '${key}' must be the real value, not ${REDACTED}`);
+    if (value.includes(REDACTED)) invalid(`--tags value for tag '${key}' must be the real value and cannot contain ${REDACTED}`);
     const name = key.toLowerCase();
     const prior = seen.get(name);
     if (prior !== undefined && prior.value !== value) invalid(`conflicting values for tag '${key}'`);

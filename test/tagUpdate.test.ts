@@ -92,6 +92,26 @@ describe("built tag update, offline only", () => {
     expect(records("requests.jsonl")).toEqual([{ method: "GET", url: TAGS_URL }]);
   });
 
+  it("refuses a pasted partially redacted preview without sending a write", () => {
+    const preview = cli([], { tags: ["label=before-offline-tag-token-after"] });
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    expect(preview.stdout).toContain("--tags label=before-***redacted***-after");
+    const pasted = cli(["--execute"], { tags: ["label=before-***redacted***-after"] });
+    expect(pasted.status).toBe(2);
+    expect(pasted.stdout).toContain("must be the real value");
+    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: TAGS_URL }]);
+    expect(records("writes.log")).toEqual([]);
+  });
+
+  it.each(["***redacted***-after", "before-***redacted***"])(
+    "refuses an embedded redaction marker before preview: %s", (value) => {
+      const result = cli([], { tags: [`label=${value}`] });
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("must be the real value");
+      expect(records("requests.jsonl")).toEqual([]);
+    },
+  );
+
   it("previews a merge with the tag-map diff and an exact native execute hint", () => {
     const result = cli(["--timeout", "30", "--no-wait"], { tags: ["env=prod", "owner=team"] });
     expect(result.status, result.stdout + result.stderr).toBe(0);
