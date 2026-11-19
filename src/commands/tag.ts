@@ -103,7 +103,7 @@ interface TagEntry {
 }
 
 /** One k=v pair per entry; duplicate keys with conflicting values are refused. */
-function parseTags(raw: string[] | undefined): TagEntry[] {
+function parseTags(raw: string[] | undefined, operation: Operation): TagEntry[] {
   if (!raw?.length) invalid("tag update needs --tags <k=v> [k=v ...]");
   const seen = new Map<string, TagEntry>();
   for (const entry of raw) {
@@ -111,9 +111,10 @@ function parseTags(raw: string[] | undefined): TagEntry[] {
     const key = (at < 0 ? entry : entry.slice(0, at)).trim();
     if (at < 0 || !key) invalid(`--tags entry '${entry}' must be k=v`);
     const value = entry.slice(at + 1);
-    // A pasted preview hint carries the redaction placeholder instead of the
-    // real value; writing it would destroy the secret it stands for.
-    if (value.includes(REDACTED)) invalid(`--tags value for tag '${key}' must be the real value and cannot contain ${REDACTED}`);
+    if (value === REDACTED) invalid(`--tags value for tag '${key}' must be the real value, not ${REDACTED}`);
+    if (operation === "Merge" && value.includes(REDACTED)) {
+      invalid(`--tags value for tag '${key}' must be the real value and cannot contain ${REDACTED}`);
+    }
     const name = key.toLowerCase();
     const prior = seen.get(name);
     if (prior !== undefined && prior.value !== value) invalid(`conflicting values for tag '${key}'`);
@@ -162,7 +163,7 @@ export async function run(argv: string[]): Promise<Record<string, unknown>> {
   const subscription = explicitSubscription(args);
   const scope = parseScope(flagText(args, "resource-id"), subscription);
   const operation = parseOperation(flagText(args, "operation"));
-  const entries = parseTags(Array.isArray(args.flags.tags) ? args.flags.tags : undefined);
+  const entries = parseTags(Array.isArray(args.flags.tags) ? args.flags.tags : undefined, operation);
   const ifMatch = flagText(args, "if-match");
   const timeoutMs = parseTimeoutFlag(flagText(args, "timeout"));
   const noWait = flagBool(args, "no-wait");
