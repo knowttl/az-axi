@@ -92,6 +92,49 @@ describe("built tag update, offline only", () => {
     expect(records("requests.jsonl")).toEqual([{ method: "GET", url: TAGS_URL }]);
   });
 
+  it("refuses a pasted partially redacted preview without sending a write", () => {
+    const preview = cli([], { tags: ["label=before-offline-tag-token-after"] });
+    expect(preview.status, preview.stdout + preview.stderr).toBe(0);
+    expect(preview.stdout).toContain("--tags label=before-***redacted***-after");
+    const pasted = cli(["--execute"], { tags: ["label=before-***redacted***-after"] });
+    expect(pasted.status).toBe(2);
+    expect(pasted.stdout).toContain("must be the real value");
+    expect(records("requests.jsonl")).toEqual([{ method: "GET", url: TAGS_URL }]);
+    expect(records("writes.log")).toEqual([]);
+  });
+
+  describe.each([{ flags: [] as string[] }, { flags: ["--execute"] }])("merge with $flags", ({ flags }) => {
+    it.each(["***redacted***-after", "before-***redacted***", "before-***redacted***-after"])(
+      "refuses an embedded redaction marker: %s", (value) => {
+        const result = cli(flags, { tags: [`label=${value}`] });
+        expect(result.status).toBe(2);
+        expect(result.stdout).toContain("must be the real value");
+        expect(records("requests.jsonl")).toEqual([]);
+        expect(records("writes.log")).toEqual([]);
+      },
+    );
+  });
+
+  it.each(["***redacted***-after", "before-***redacted***", "before-***redacted***-after"])(
+    "previews delete with an embedded redaction marker: %s", (value) => {
+      const result = cli([], { operation: "delete", tags: [`env=${value}`] });
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(decode(result.stdout)).toMatchObject({ operation: "Delete", changes: [{ path: "tags.env", from: "dev", to: null }] });
+      expect(records("requests.jsonl")).toEqual([{ method: "GET", url: TAGS_URL }]);
+      expect(records("writes.log")).toEqual([]);
+    },
+  );
+
+  it.each(["***redacted***-after", "before-***redacted***", "before-***redacted***-after"])(
+    "executes delete with an embedded redaction marker: %s", (value) => {
+      const result = cli(["--execute"], { operation: "delete", tags: [`env=${value}`] });
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(records("requests.jsonl").map((call) => call.method)).toEqual(["GET", "GET", "PATCH"]);
+      expect(records("requests.jsonl").at(-1)).toMatchObject({ method: "PATCH",
+        body: { operation: "Delete", properties: { tags: { env: null } } } });
+    },
+  );
+
   it("previews a merge with the tag-map diff and an exact native execute hint", () => {
     const result = cli(["--timeout", "30", "--no-wait"], { tags: ["env=prod", "owner=team"] });
     expect(result.status, result.stdout + result.stderr).toBe(0);
@@ -264,13 +307,15 @@ describe("built tag update, offline only", () => {
     expect(preview.stdout).not.toContain("hunter2");
   });
 
-  it.each([{ extra: [] as string[] }, { extra: ["--execute"] }])("refuses a pasted redacted placeholder with %j and sends nothing", ({ extra }) => {
-    const result = cli(extra, { tags: ["password=***redacted***"] });
-    expect(result.status).toBe(2);
-    expect(result.stdout).toContain("VALIDATION_ERROR");
-    expect(result.stdout).toContain("must be the real value");
-    expect(records("requests.jsonl")).toEqual([]);
-    expect(records("writes.log")).toEqual([]);
+  describe.each(["merge", "delete"])("exact redaction marker for %s", (operation) => {
+    it.each([{ extra: [] as string[] }, { extra: ["--execute"] }])("refuses with %j and sends nothing", ({ extra }) => {
+      const result = cli(extra, { operation, tags: ["password=***redacted***"] });
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain("VALIDATION_ERROR");
+      expect(result.stdout).toContain("must be the real value");
+      expect(records("requests.jsonl")).toEqual([]);
+      expect(records("writes.log")).toEqual([]);
+    });
   });
 
   it("deduplicates equal values across tag-name casing", () => {
