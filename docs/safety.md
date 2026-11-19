@@ -133,7 +133,8 @@ Destructive operations also need confirmation; an NSG Deny rule can cut live tra
 Native writes require an explicit subscription ID, not a name or implicit profile/environment scope.
 Sentinel closing requires classification, and concrete classification requires a reason; use leaf help for allowed values.
 Tag names match case-insensitively; conflicting values are refused, and delete ignores supplied values.
-Do not paste `***redacted***` tag values from previews; supply the real value instead.
+For `merge`, tag values containing `***redacted***` are refused in both previews and execution; replace redacted hints with the original value, which must not contain the marker.
+For `delete`, a value equal to `***redacted***` is refused, but values containing the marker alongside other text are accepted and ignored.
 NSG defaults are Inbound, protocol `*`, and `*` for all four address/port lists, including destination ports (unlike Azure CLI's 80).
 Ports must be 0-65535 with ascending ranges; multiple addresses require IPs/CIDRs, while service tags and `*` must stand alone.
 Allow rules, application security groups, rule updates and rule deletes have no native command here.

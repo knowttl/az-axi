@@ -17,7 +17,7 @@
     "monitor": 2347,
     "group": 191,
     "resource": 340,
-    "tag": 428,
+    "tag": 437,
     "rg": 220,
     "rbac": 208,
     "activity": 172,
@@ -41,5 +41,5 @@
     "vmss": 1304,
     "disk": 882
   },
-  "helpTotal": 19955
+  "helpTotal": 19964
 }
